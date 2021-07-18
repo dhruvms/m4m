@@ -32,4 +32,3 @@ does not matter).
 - For any agent, even if `start == goal`, we still run the search till depth
 `w`, i.e. the `is_goal` check should return true if a state at depth `w+1` is
 being expanded.
-# pushplan
