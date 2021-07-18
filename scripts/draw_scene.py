@@ -67,6 +67,10 @@ def DrawScene(filepath, objs, alpha=1.0):
 		obj_movable = obj[-1]
 		ec = 'g' if obj_movable else 'r'
 		fc = 'g' if obj_movable else 'r'
+		if obj_id == 99:
+			ec = 'b'
+			fc = 'b'
+
 		obj_cent = np.array(obj[2:4])
 
 		if (obj_shape == 0): # rectangle

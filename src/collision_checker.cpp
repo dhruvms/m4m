@@ -71,6 +71,10 @@ bool CollisionChecker::IsStateValid(
 	{
 		for (const auto& s2: m_trajs.at(p))
 		{
+			if (priority == 1 && p == 0) {
+				continue;
+			}
+
 			if (s.t == s2.t && obstacleCollision(s, o, s2.p, *(m_planner->GetObject(p)))) {
 				// SMPL_WARN("collision! objects ids %d and %d (movable) collide at time %d", o.id, m_planner->GetObject(p)->id, s.t);
 
@@ -79,6 +83,18 @@ bool CollisionChecker::IsStateValid(
 		}
 	}
 	return true;
+}
+
+bool CollisionChecker::OOICollision(
+	const State& s, const Object& o)
+{
+
+	auto ooi = m_planner->GetOOIObject();
+	auto ooi_s = m_planner->GetOOIState();
+	Pointf ooi_loc;
+	DiscToCont(ooi_s->p, ooi_loc);
+
+	return obstacleCollision(s, o, ooi_loc, *ooi);
 }
 
 float CollisionChecker::BoundaryDistance(const Pointf& p)
@@ -194,7 +210,7 @@ bool CollisionChecker::baseCollision(
 	{
 		std::vector<Pointf> o_rect;
 		GetRectObjAtPt(o_loc, o, o_rect);
-		if (priority > 0) // object is movable
+		if (priority > 1) // object is movable
 		{
 			// no part of the object can be outside the sides or back of shelf
 			for (const auto& p: o_rect)
@@ -213,7 +229,7 @@ bool CollisionChecker::baseCollision(
 			}
 			return false;
 		}
-		else // object is being extracted
+		else // object is robot or being extracted
 		{
 			// no part of the OOI can be outside the sides or back of shelf
 			for (const auto& p: o_rect)
@@ -230,7 +246,7 @@ bool CollisionChecker::baseCollision(
 	}
 	else if (o.shape == 2) // object is circle
 	{
-		if (priority > 0) // object is movable
+		if (priority > 1) // object is movable
 		{
 			// the centre of the object circle must be inside shelf
 			// no part of the object can be outside the sides or back of shelf
@@ -239,7 +255,7 @@ bool CollisionChecker::baseCollision(
 					LineSegCircleIntersect(o_loc, o.x_size, m_base.at(1), m_base.at(2)) ||
 					LineSegCircleIntersect(o_loc, o.x_size, m_base.at(2), m_base.at(3)));
 		}
-		else // object is being extracted
+		else // object is robot or being extracted
 		{
 			// no part of the OOI can be outside the sides or back of shelf
 			return (LineSegCircleIntersect(o_loc, o.x_size, m_base.at(0), m_base.at(1)) ||

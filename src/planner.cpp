@@ -20,12 +20,14 @@ Planner::Planner(const std::string& scene_file)
 m_scene_file(scene_file),
 m_num_agents(-1),
 m_ooi_idx(-1),
-m_t(0)
+m_t(0),
+m_phase(0)
 {
 	m_agents.clear();
 
 	std::vector<Object> obstacles;
 	parse_scene(obstacles);
+	set_ee_obj();
 
 	// only keep the base of the fridge shelf
 	if (FRIDGE)
@@ -46,14 +48,17 @@ m_t(0)
 	}
 
 	m_cc = std::make_shared<CollisionChecker>(this, obstacles);
+	m_cc->SetPhase(m_phase);
 	obstacles.clear();
 
+	m_ee.SetCC(m_cc);
 	m_ooi.SetCC(m_cc);
 	for (auto& a: m_agents) {
 		a.SetCC(m_cc);
 	}
 
 	// Set agent current positions and time
+	m_ee.Init();
 	m_ooi.Init();
 	for (auto& a: m_agents) {
 		a.Init();
@@ -66,17 +71,18 @@ m_t(0)
 
 void Planner::WHCAStar()
 {
-	double start_time = GetTime();
+	double start_time = GetTime(), total_time = 0.0;
 
 	int iter = 0;
 	writePlanState(iter);
 
 	reinit();
-	while (!m_ooi.AtGoal(*(m_ooi.GetCurrentState()), false))
+	while (!m_ee.AtGoal(*(m_ee.GetCurrentState()), false))
 	{
 		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_ooi.GetObject()->id, 0);
-		m_ooi.Search(0); // updates cc with found plan
-		int robin = 1;
+		m_ooi.Search(0);
+		m_ee.Search(1); // updates cc with found plan
+		int robin = 2;
 		for (const auto& p: m_priorities) {
 			// SMPL_INFO("Plan for Object (number %d, id %d, priority %d)", p, m_agents.at(p).GetObject()->id, robin);
 			m_agents.at(p).Search(robin);
@@ -90,8 +96,37 @@ void Planner::WHCAStar()
 		writePlanState(iter);
 	}
 	double end_time = GetTime();
-	double plan_time = end_time - start_time;
-	SMPL_INFO("WHCA* planning took %f seconds.", plan_time);
+	double phase_time = end_time - start_time;
+	total_time += phase_time;
+	SMPL_INFO("WHCA* Phase 1 planning took %f seconds.", phase_time);
+
+	m_phase = 1;
+	m_cc->SetPhase(m_phase);
+
+	start_time = GetTime();
+	reinit();
+	while (!m_ooi.AtGoal(*(m_ooi.GetCurrentState()), false))
+	{
+		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_ooi.GetObject()->id, 0);
+		m_ooi.Search(0); // updates cc with found plan
+		m_ee.Search(1); // updates cc with found plan
+		int robin = 2;
+		for (const auto& p: m_priorities) {
+			// SMPL_INFO("Plan for Object (number %d, id %d, priority %d)", p, m_agents.at(p).GetObject()->id, robin);
+			m_agents.at(p).Search(robin);
+			++robin;
+		}
+
+		step_agents(); // take 1 step by default
+		reinit();
+
+		++iter;
+		writePlanState(iter);
+	}
+	end_time = GetTime();
+	phase_time = end_time - start_time;
+	total_time += phase_time;
+	SMPL_INFO("WHCA* Phase 2 planning took %f seconds. Total time = %f seconds.", phase_time, total_time);
 }
 
 const Object* Planner::GetObject(int priority)
@@ -107,19 +142,30 @@ const Object* Planner::GetObject(int priority)
 void Planner::reinit()
 {
 	// reset searches
-	m_ooi.reset();
+	m_ooi.reset(m_phase);
+	m_ee.reset(m_phase);
 	for (auto& a: m_agents) {
-		a.reset();
+		a.reset(m_phase);
 	}
 
 	// Set agent starts
 	m_ooi.SetStartState(*(m_ooi.GetCurrentState()));
+	m_ee.SetStartState(*(m_ee.GetCurrentState()));
 	for (auto& a: m_agents) {
 		a.SetStartState(*(a.GetCurrentState()));
 	}
 
 	// Set agent goals
-	m_ooi.SetGoalState(m_ooi_g);
+	if (m_phase == 0)
+	{
+		m_ooi.SetGoalState(m_ooi.GetCurrentState()->p);
+		m_ee.SetGoalState(m_ooi.GetCurrentState()->p);
+	}
+	else if (m_phase == 1)
+	{
+		m_ooi.SetGoalState(m_ooi_g);
+		m_ee.SetGoalState(m_ooi_g);
+	}
 	for (auto& a: m_agents) {
 		a.SetGoalState(a.GetCurrentState()->p);
 	}
@@ -134,13 +180,18 @@ void Planner::prioritize()
 	m_priorities.resize(m_agents.size());
 	std::iota(m_priorities.begin(), m_priorities.end(), 0);
 
-	Pointf extract_pf, agent_pf;
-	DiscToCont(m_ooi.GetCurrentState()->p, extract_pf);
+	Pointf ref_pf, agent_pf;
+	if (m_phase == 0) {
+		DiscToCont(m_ee.GetCurrentState()->p, ref_pf);
+	}
+	else if (m_phase == 1) {
+		DiscToCont(m_ooi.GetCurrentState()->p, ref_pf);
+	}
 
 	std::vector<float> dists(m_agents.size(), 0.0);
 	for (size_t i = 0; i < m_agents.size(); ++i) {
 		DiscToCont(m_agents.at(i).GetCurrentState()->p, agent_pf);
-		dists.at(i) = EuclideanDist(extract_pf, agent_pf);
+		dists.at(i) = EuclideanDist(ref_pf, agent_pf);
 	}
 	std::stable_sort(m_priorities.begin(), m_priorities.end(),
 		[&dists](size_t i1, size_t i2) { return dists[i1] < dists[i2]; });
@@ -150,6 +201,7 @@ void Planner::step_agents(int k)
 {
 	// TODO: make sure we can handle k > 1
 	m_ooi.Step(k);
+	m_ee.Step(k);
 	for (auto& a: m_agents) {
 		a.Step(k);
 	}
@@ -242,6 +294,29 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 	SCENE.close();
 }
 
+void Planner::set_ee_obj()
+{
+	Object o;
+	o.id = 99;
+	o.shape = 2; // circle
+	o.type = 1; // movable
+	o.o_x = 0.310248; // from start config FK
+	o.o_y = -0.673113; // from start config FK
+	o.o_z = m_ooi.GetObject()->o_z; // hand picked for now
+	o.o_roll = 0.0;
+	o.o_pitch = 0.0;
+	o.o_yaw = 0.0;
+	o.x_size = 0.04; // hand picked for now
+	o.y_size = 0.04; // hand picked for now
+	o.z_size = 0.03; // hand picked for now
+	o.mass = 0.58007; // r_gripper_palm_joint mass from URDF
+	o.locked = o.mass == 0;
+	o.mu = m_ooi.GetObject()->mu; // hand picked for now
+	o.movable = true;
+
+	m_ee.SetObject(o);
+}
+
 void Planner::writePlanState(int iter)
 {
 	std::string filename(__FILE__);
@@ -259,7 +334,7 @@ void Planner::writePlanState(int iter)
 	DATA.open(filename, std::ofstream::out);
 
 	DATA << 'O' << '\n';
-	int o = m_cc->NumObstacles() + 1 + m_agents.size();
+	int o = m_cc->NumObstacles() + 1 + m_agents.size() + 1;
 	DATA << o << '\n';
 
 	std::string movable;
@@ -325,6 +400,25 @@ void Planner::writePlanState(int iter)
 			<< agent_obs->mu << ','
 			<< movable << '\n';
 	}
+
+	DiscToCont(m_ee.GetCurrentState()->p, loc);
+	agent_obs = m_ee.GetObject();
+	movable = "True";
+	DATA << agent_obs->id << ','
+			<< agent_obs->shape << ','
+			<< agent_obs->type << ','
+			<< loc.x << ','
+			<< loc.y << ','
+			<< agent_obs->o_z << ','
+			<< agent_obs->o_roll << ','
+			<< agent_obs->o_pitch << ','
+			<< agent_obs->o_yaw << ','
+			<< agent_obs->x_size << ','
+			<< agent_obs->y_size << ','
+			<< agent_obs->z_size << ','
+			<< agent_obs->mass << ','
+			<< agent_obs->mu << ','
+			<< movable << '\n';
 
 	DATA.close();
 }

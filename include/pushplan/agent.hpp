@@ -51,7 +51,7 @@ public:
 	const Object* GetObject() const { return &m_obj; };
 	const State* GetCurrentState() const { return &m_current; };
 
-	void reset();
+	void reset(int phase);
 
 	void GetSuccs(
 		int state_id,
@@ -68,7 +68,7 @@ private:
 	State m_current, m_start, m_init;
 	Point m_goal;
 	Pointf m_goalf;
-	int m_t, m_priority;
+	int m_t, m_priority, m_phase;
 	Trajectory m_solve, m_move;
 
 	std::shared_ptr<CollisionChecker> m_cc;

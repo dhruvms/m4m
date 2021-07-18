@@ -67,6 +67,11 @@ void Agent::Search(int robin)
 
 bool Agent::AtGoal(const State& s, bool verbose)
 {
+	if (m_phase == 0 && m_priority == 1)
+	{
+		return m_cc->OOICollision(s, m_obj);
+	}
+
 	Pointf sf;
 	DiscToCont(s.p, sf);
 	float dist = EuclideanDist(sf, m_goalf);
@@ -93,7 +98,7 @@ void Agent::Step(int k)
 	}
 }
 
-void Agent::reset()
+void Agent::reset(int phase)
 {
 	// reset everything
 	for (State* s : m_states) {
@@ -106,6 +111,8 @@ void Agent::reset()
 	m_states.clear();
 
 	m_wastar->reset();
+
+	m_phase = phase;
 }
 
 void Agent::GetSuccs(
