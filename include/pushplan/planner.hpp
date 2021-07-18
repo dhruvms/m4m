@@ -25,11 +25,11 @@ private:
 	std::string m_scene_file;
 	std::shared_ptr<CollisionChecker> m_cc;
 
-	int m_num_agents, m_ooi, m_t;
+	int m_num_agents, m_ooi_idx, m_t;
 	std::vector<Agent> m_agents;
-	Agent m_extract;
-	Point m_extract_g;
-	Pointf m_extract_gf;
+	Agent m_ooi;
+	Point m_ooi_g;
+	Pointf m_ooi_gf;
 
 	std::vector<size_t> m_priorities;
 

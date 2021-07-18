@@ -19,7 +19,7 @@ Planner::Planner(const std::string& scene_file)
 :
 m_scene_file(scene_file),
 m_num_agents(-1),
-m_ooi(-1),
+m_ooi_idx(-1),
 m_t(0)
 {
 	m_agents.clear();
@@ -48,20 +48,20 @@ m_t(0)
 	m_cc = std::make_shared<CollisionChecker>(this, obstacles);
 	obstacles.clear();
 
-	m_extract.SetCC(m_cc);
+	m_ooi.SetCC(m_cc);
 	for (auto& a: m_agents) {
 		a.SetCC(m_cc);
 	}
 
 	// Set agent current positions and time
-	m_extract.Init();
+	m_ooi.Init();
 	for (auto& a: m_agents) {
 		a.Init();
 	}
 
 	// Get OOI goal
-	m_extract_gf = m_cc->GetGoalState(m_extract.GetObject());
-	ContToDisc(m_extract_gf, m_extract_g);
+	m_ooi_gf = m_cc->GetGoalState(m_ooi.GetObject());
+	ContToDisc(m_ooi_gf, m_ooi_g);
 }
 
 void Planner::WHCAStar()
@@ -72,10 +72,10 @@ void Planner::WHCAStar()
 	writePlanState(iter);
 
 	reinit();
-	while (!m_extract.AtGoal(*(m_extract.GetCurrentState()), false))
+	while (!m_ooi.AtGoal(*(m_ooi.GetCurrentState()), false))
 	{
-		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_extract.GetObject()->id, 0);
-		m_extract.Search(0); // updates cc with found plan
+		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_ooi.GetObject()->id, 0);
+		m_ooi.Search(0); // updates cc with found plan
 		int robin = 1;
 		for (const auto& p: m_priorities) {
 			// SMPL_INFO("Plan for Object (number %d, id %d, priority %d)", p, m_agents.at(p).GetObject()->id, robin);
@@ -97,7 +97,7 @@ void Planner::WHCAStar()
 const Object* Planner::GetObject(int priority)
 {
 	if (priority == 0) {
-		return m_extract.GetObject();
+		return m_ooi.GetObject();
 	}
 	else {
 		return m_agents.at(m_priorities.at(priority-1)).GetObject();
@@ -107,19 +107,19 @@ const Object* Planner::GetObject(int priority)
 void Planner::reinit()
 {
 	// reset searches
-	m_extract.reset();
+	m_ooi.reset();
 	for (auto& a: m_agents) {
 		a.reset();
 	}
 
 	// Set agent starts
-	m_extract.SetStartState(*(m_extract.GetCurrentState()));
+	m_ooi.SetStartState(*(m_ooi.GetCurrentState()));
 	for (auto& a: m_agents) {
 		a.SetStartState(*(a.GetCurrentState()));
 	}
 
 	// Set agent goals
-	m_extract.SetGoalState(m_extract_g);
+	m_ooi.SetGoalState(m_ooi_g);
 	for (auto& a: m_agents) {
 		a.SetGoalState(a.GetCurrentState()->p);
 	}
@@ -135,7 +135,7 @@ void Planner::prioritize()
 	std::iota(m_priorities.begin(), m_priorities.end(), 0);
 
 	Pointf extract_pf, agent_pf;
-	DiscToCont(m_extract.GetCurrentState()->p, extract_pf);
+	DiscToCont(m_ooi.GetCurrentState()->p, extract_pf);
 
 	std::vector<float> dists(m_agents.size(), 0.0);
 	for (size_t i = 0; i < m_agents.size(); ++i) {
@@ -149,7 +149,7 @@ void Planner::prioritize()
 void Planner::step_agents(int k)
 {
 	// TODO: make sure we can handle k > 1
-	m_extract.Step(k);
+	m_ooi.Step(k);
 	for (auto& a: m_agents) {
 		a.Step(k);
 	}
@@ -222,13 +222,13 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 			else if (line.compare("ooi") == 0)
 			{
 				getline(SCENE, line);
-				m_ooi = std::stoi(line); // object of interest ID
+				m_ooi_idx = std::stoi(line); // object of interest ID
 
 				for (auto itr = obstacles.begin(); itr != obstacles.end(); ++itr)
 				{
-					if (itr->id == m_ooi)
+					if (itr->id == m_ooi_idx)
 					{
-						m_extract.SetObject(*itr);
+						m_ooi.SetObject(*itr);
 						obstacles.erase(itr);
 						break;
 					}
@@ -285,8 +285,8 @@ void Planner::writePlanState(int iter)
 	}
 
 	Pointf loc;
-	DiscToCont(m_extract.GetCurrentState()->p, loc);
-	auto agent_obs = m_extract.GetObject();
+	DiscToCont(m_ooi.GetCurrentState()->p, loc);
+	auto agent_obs = m_ooi.GetObject();
 	movable = "False";
 	DATA << agent_obs->id << ','
 			<< agent_obs->shape << ','
