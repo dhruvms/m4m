@@ -23,6 +23,7 @@ public:
 	void UpdateTraj(const int& priority, const Trajectory& traj);
 	bool ImmovableCollision(const State& s, const Object& o, const int& priority);
 	bool IsStateValid(const State& s, const Object& o, const int& priority);
+	float BoundaryDistance(const Pointf& p);
 
 	Pointf GetGoalState(const Object* o);
 

@@ -72,13 +72,22 @@ bool CollisionChecker::IsStateValid(
 		for (const auto& s2: m_trajs.at(p))
 		{
 			if (s.t == s2.t && obstacleCollision(s, o, s2.p, *(m_planner->GetObject(p)))) {
-				// SMPL_WARN("collision! objects ids %d and %d (movable) collide", o.id, m_planner->GetObject(p)->id);
+				// SMPL_WARN("collision! objects ids %d and %d (movable) collide at time %d", o.id, m_planner->GetObject(p)->id, s.t);
 
 				return false;
 			}
 		}
 	}
 	return true;
+}
+
+float CollisionChecker::BoundaryDistance(const Pointf& p)
+{
+	float d = PtDistFromLine(p, m_base.at(0), m_base.at(1));
+	d = std::min(d, PtDistFromLine(p, m_base.at(1), m_base.at(2)));
+	d = std::min(d, PtDistFromLine(p, m_base.at(2), m_base.at(3)));
+	d = std::min(d, PtDistFromLine(p, m_base.at(3), m_base.at(0)));
+	return d;
 }
 
 Pointf CollisionChecker::GetGoalState(const Object* o)

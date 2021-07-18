@@ -187,6 +187,16 @@ float EuclideanDist(const Pointf& p1, const Pointf& p2)
 	return std::sqrt(std::pow(p1.x - p2.x, 2) + std::pow(p1.y - p2.y, 2));
 }
 
+inline
+float PtDistFromLine(
+	const Pointf& p,
+	const Pointf& A, const Pointf& B)
+{
+	float d = std::fabs((B.x - A.x)*(A.y - p.y) - (A.x - p.x)*(B.y - A.y));
+	d /= std::sqrt(std::pow(B.x - A.x, 2) + std::pow(B.y - A.y, 2));
+	return d;
+}
+
 } // namespace clutter
 
 
