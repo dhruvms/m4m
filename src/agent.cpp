@@ -312,8 +312,13 @@ unsigned int Agent::cost(
 		Pointf s1f, s2f;
 		DiscToCont(s1->p, s1f);
 		DiscToCont(s2->p, s2f);
-		float dist = std::max(1.0f, EuclideanDist(s1f, s2f));
+		float dist = 1.0f + EuclideanDist(s1f, s2f);
 		return (dist * COST_MULT);
+
+		// // Works okay for WINDOW = 20, but not for WINDOW <= 10
+		// float bdist = m_cc->BoundaryDistance(s2f);
+		// float bw = m_cc->GetBaseWidth(), bl = m_cc->GetBaseLength();
+		// return ((dist + WINDOW*(1 - bdist/std::min(bw, bl))*(m_priority > 0)) * COST_MULT);
 	}
 	else if (s2->t == m_t + WINDOW + 1) {
 		return GetGoalHeuristic(*s2);

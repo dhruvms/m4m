@@ -27,6 +27,9 @@ public:
 
 	Pointf GetGoalState(const Object* o);
 
+	float GetBaseWidth() { return std::fabs(m_base.at(0).x - m_base.at(1).x); };
+	float GetBaseLength() { return std::fabs(m_base.at(0).y - m_base.at(3).y); };
+
 	int NumObstacles() { return (int)m_obstacles.size(); };
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
 

@@ -79,6 +79,12 @@ struct Statef
 	Statef(const Pointf& _p, int _t) : p(_p), t(_t) {};
 };
 
+inline
+std::ostream& operator<<(std::ostream& out, const Statef s)
+{
+	return out << '(' << s.p.x << ", " << s.p.y << ", " << s.t << ")";
+}
+
 typedef std::vector<Statef> Trajectory;
 typedef std::vector<State*> CLOSED;
 
