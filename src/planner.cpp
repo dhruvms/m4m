@@ -27,7 +27,7 @@ m_phase(0)
 
 	std::vector<Object> obstacles;
 	parse_scene(obstacles);
-	set_ee_obj();
+
 
 	// only keep the base of the fridge shelf
 	if (FRIDGE)
@@ -51,6 +51,11 @@ m_phase(0)
 	m_cc->SetPhase(m_phase);
 	obstacles.clear();
 
+	// Get OOI goal
+	m_ooi_gf = m_cc->GetGoalState(m_ooi.GetObject());
+	ContToDisc(m_ooi_gf, m_ooi_g);
+
+	set_ee_obj();
 	m_ee.SetCC(m_cc);
 	m_ooi.SetCC(m_cc);
 	for (auto& a: m_agents) {
@@ -63,10 +68,6 @@ m_phase(0)
 	for (auto& a: m_agents) {
 		a.Init();
 	}
-
-	// Get OOI goal
-	m_ooi_gf = m_cc->GetGoalState(m_ooi.GetObject());
-	ContToDisc(m_ooi_gf, m_ooi_g);
 }
 
 void Planner::WHCAStar()
@@ -300,8 +301,10 @@ void Planner::set_ee_obj()
 	o.id = 99;
 	o.shape = 2; // circle
 	o.type = 1; // movable
-	o.o_x = 0.310248; // from start config FK
-	o.o_y = -0.673113; // from start config FK
+	// o.o_x = 0.310248; // from start config FK
+	// o.o_y = -0.673113; // from start config FK
+	o.o_x = m_ooi_gf.x;
+	o.o_y = m_ooi_gf.y;
 	o.o_z = m_ooi.GetObject()->o_z; // hand picked for now
 	o.o_roll = 0.0;
 	o.o_pitch = 0.0;
