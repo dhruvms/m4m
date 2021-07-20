@@ -32,3 +32,14 @@ does not matter).
 - For any agent, even if `start == goal`, we still run the search till depth
 `w`, i.e. the `is_goal` check should return true if a state at depth `w+1` is
 being expanded.
+
+#### with "Robot"
+- [x] OOI always has highest priority (0)
+- [x] Robot has next highest priority (1)
+- [x] Other agents have priority based on distance from Robot (2 ... n)
+- Collision checking:
+	- [x] OOI and Robot cannot violate 3/4 base edges (they can collide with
+	the left-/outer-most edge which is the shelf opening)
+	- [x] All other agents must stay within shelf bounds
+	- [x] OOI and Robot can be in collision with each other
+	- [x] Other collisions are checked based on priority assignments
