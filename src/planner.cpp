@@ -80,8 +80,9 @@ void Planner::WHCAStar()
 	while (!m_ee.AtGoal(*(m_ee.GetCurrentState()), false))
 	{
 		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_ooi.GetObject()->id, 0);
+		// Search() updates cc with found plan
 		m_ooi.Search(0);
-		m_ee.Search(1); // updates cc with found plan
+		m_ee.Search(1);
 		int robin = 2;
 		for (const auto& p: m_priorities) {
 			// SMPL_INFO("Plan for Object (number %d, id %d, priority %d)", p, m_agents.at(p).GetObject()->id, robin);
@@ -108,8 +109,8 @@ void Planner::WHCAStar()
 	while (!m_ooi.AtGoal(*(m_ooi.GetCurrentState()), false))
 	{
 		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_ooi.GetObject()->id, 0);
-		m_ooi.Search(0); // updates cc with found plan
-		m_ee.Search(1); // updates cc with found plan
+		m_ooi.Search(0);
+		m_ee.Search(1);
 		int robin = 2;
 		for (const auto& p: m_priorities) {
 			// SMPL_INFO("Plan for Object (number %d, id %d, priority %d)", p, m_agents.at(p).GetObject()->id, robin);
@@ -117,7 +118,7 @@ void Planner::WHCAStar()
 			++robin;
 		}
 
-		step_agents(); // take 1 step by default
+		step_agents();
 		reinit();
 
 		++iter;
@@ -148,7 +149,7 @@ void Planner::reinit()
 		a.reset(m_phase);
 	}
 
-	// Set agent starts
+	// Set agent starts - always the current state
 	m_ooi.SetStartState(*(m_ooi.GetCurrentState()));
 	m_ee.SetStartState(*(m_ee.GetCurrentState()));
 	for (auto& a: m_agents) {
@@ -181,12 +182,7 @@ void Planner::prioritize()
 	std::iota(m_priorities.begin(), m_priorities.end(), 0);
 
 	Pointf ref_pf, agent_pf;
-	if (m_phase == 0) {
-		DiscToCont(m_ee.GetCurrentState()->p, ref_pf);
-	}
-	else if (m_phase == 1) {
-		DiscToCont(m_ooi.GetCurrentState()->p, ref_pf);
-	}
+	DiscToCont(m_ee.GetCurrentState()->p, ref_pf);
 
 	std::vector<float> dists(m_agents.size(), 0.0);
 	for (size_t i = 0; i < m_agents.size(); ++i) {
