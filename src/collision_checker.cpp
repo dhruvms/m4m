@@ -69,12 +69,12 @@ bool CollisionChecker::IsStateValid(
 {
 	for (int p = 0; p < priority; ++p)
 	{
+		if (priority == 1 && p == 0) {
+			continue;
+		}
+
 		for (const auto& s2: m_trajs.at(p))
 		{
-			if (priority == 1 && p == 0) {
-				continue;
-			}
-
 			if (s.t == s2.t && obstacleCollision(s, o, s2.p, *(m_planner->GetObject(p)))) {
 				// SMPL_WARN("collision! objects ids %d and %d (movable) collide at time %d", o.id, m_planner->GetObject(p)->id, s.t);
 
@@ -88,7 +88,6 @@ bool CollisionChecker::IsStateValid(
 bool CollisionChecker::OOICollision(
 	const State& s, const Object& o)
 {
-
 	auto ooi = m_planner->GetOOIObject();
 	auto ooi_s = m_planner->GetOOIState();
 	Pointf ooi_loc;

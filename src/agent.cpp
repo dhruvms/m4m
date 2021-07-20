@@ -281,27 +281,15 @@ int Agent::generateSuccessor(
 	}
 
 	int succ_state_id;
-	if (m_priority == 0)
-	{
-		// OOI actions always valid
-		succ_state_id = getOrCreateState(child);
-		State* successor = getHashEntry(succ_state_id);
-
-		succs->push_back(succ_state_id);
-		costs->push_back(cost(parent, successor));
+	if (m_priority > 0 && !m_cc->IsStateValid(child, m_obj, m_priority)) {
+		return -1;
 	}
-	else
-	{
-		if (!m_cc->IsStateValid(child, m_obj, m_priority)) {
-			return -1;
-		}
 
-		succ_state_id = getOrCreateState(child);
-		State* successor = getHashEntry(succ_state_id);
+	succ_state_id = getOrCreateState(child);
+	State* successor = getHashEntry(succ_state_id);
 
-		succs->push_back(succ_state_id);
-		costs->push_back(cost(parent, successor));
-	}
+	succs->push_back(succ_state_id);
+	costs->push_back(cost(parent, successor));
 
 	return succ_state_id;
 }
