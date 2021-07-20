@@ -366,7 +366,7 @@ void Planner::writePlanState(int iter)
 	DiscToCont(m_ooi.GetCurrentState()->p, loc);
 	auto agent_obs = m_ooi.GetObject();
 	movable = "False";
-	DATA << agent_obs->id << ','
+	DATA << 999 << ',' // for visualisation purposes
 			<< agent_obs->shape << ','
 			<< agent_obs->type << ','
 			<< loc.x << ','

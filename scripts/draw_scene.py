@@ -70,6 +70,9 @@ def DrawScene(filepath, objs, alpha=1.0):
 		if obj_id == 99:
 			ec = 'b'
 			fc = 'b'
+		if obj_id == 999:
+			ec = 'gold'
+			fc = 'gold'
 
 		obj_cent = np.array(obj[2:4])
 
