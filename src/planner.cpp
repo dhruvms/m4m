@@ -135,8 +135,11 @@ const Object* Planner::GetObject(int priority)
 	if (priority == 0) {
 		return m_ooi.GetObject();
 	}
+	else if (priority == 1) {
+		return m_ee.GetObject();
+	}
 	else {
-		return m_agents.at(m_priorities.at(priority-1)).GetObject();
+		return m_agents.at(m_priorities.at(priority-2)).GetObject();
 	}
 }
 
