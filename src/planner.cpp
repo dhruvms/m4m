@@ -28,7 +28,6 @@ m_phase(0)
 	std::vector<Object> obstacles;
 	parse_scene(obstacles);
 
-
 	// only keep the base of the fridge shelf
 	if (FRIDGE)
 	{
@@ -39,7 +38,7 @@ m_phase(0)
 			if (itr->id == 2) {
 				fbegin = itr;
 			}
-			if (itr->id == 6) {
+			if (itr->id > 5) {
 				fend = itr;
 				break;
 			}
@@ -56,15 +55,15 @@ m_phase(0)
 	ContToDisc(m_ooi_gf, m_ooi_g);
 
 	set_ee_obj();
-	m_ee.SetCC(m_cc);
 	m_ooi.SetCC(m_cc);
+	m_ee.SetCC(m_cc);
 	for (auto& a: m_agents) {
 		a.SetCC(m_cc);
 	}
 
 	// Set agent current positions and time
-	m_ee.Init();
 	m_ooi.Init();
+	m_ee.Init();
 	for (auto& a: m_agents) {
 		a.Init();
 	}
@@ -301,10 +300,10 @@ void Planner::set_ee_obj()
 	o.id = 99;
 	o.shape = 2; // circle
 	o.type = 1; // movable
-	// o.o_x = 0.310248; // from start config FK
-	// o.o_y = -0.673113; // from start config FK
-	o.o_x = m_ooi_gf.x;
-	o.o_y = m_ooi_gf.y;
+	o.o_x = 0.310248; // from start config FK
+	o.o_y = -0.673113; // from start config FK
+	// o.o_x = m_ooi_gf.x;
+	// o.o_y = m_ooi_gf.y;
 	o.o_z = m_ooi.GetObject()->o_z; // hand picked for now
 	o.o_roll = 0.0;
 	o.o_pitch = 0.0;
