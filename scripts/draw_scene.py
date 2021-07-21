@@ -67,12 +67,15 @@ def DrawScene(filepath, objs, alpha=1.0):
 		obj_movable = obj[-1]
 		ec = 'g' if obj_movable else 'r'
 		fc = 'g' if obj_movable else 'r'
+		tc = 'w'
 		if obj_id == 99:
 			ec = 'b'
 			fc = 'b'
+			tc = 'k'
 		if obj_id == 999:
 			ec = 'gold'
 			fc = 'gold'
+			tc = 'k'
 
 		obj_cent = np.array(obj[2:4])
 
@@ -105,6 +108,8 @@ def DrawScene(filepath, objs, alpha=1.0):
 						ec=ec, fc=fc, lw=1, alpha=alpha)
 
 			AX.add_artist(obj_circ)
+
+		AX.text(obj_cent[0], obj_cent[1], str(int(obj_id)), color=tc)
 
 	AX.axis('equal')
 	AX.set_xlim([0.0, 1.2])

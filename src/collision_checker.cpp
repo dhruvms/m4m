@@ -75,9 +75,10 @@ bool CollisionChecker::IsStateValid(
 
 		for (const auto& s2: m_trajs.at(p))
 		{
-			if (s.t == s2.t && obstacleCollision(s, o, s2.p, *(m_planner->GetObject(p)))) {
+			auto other_obj = m_planner->GetObject(p);
+			if (s.t == s2.t && obstacleCollision(s, o, s2.p, *other_obj)) {
 				// SMPL_WARN("collision! objects ids %d and %d (movable) collide at time %d", o.id, m_planner->GetObject(p)->id, s.t);
-
+				// std::cout << o.id << ',' << other_obj->id << ',' << s.t << std::endl;
 				return false;
 			}
 		}
