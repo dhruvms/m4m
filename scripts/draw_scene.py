@@ -119,7 +119,7 @@ def DrawScene(filepath, objs, alpha=1.0):
 	plt.cla()
 
 def main():
-	datafolder = os.path.dirname(os.path.abspath(__file__)) + '/../dat/'
+	datafolder = os.path.dirname(os.path.abspath(__file__)) + '/../dat/txt/'
 	for (dirpath, dirnames, filenames) in os.walk(datafolder):
 		for filename in filenames:
 			if '.txt' not in filename:
