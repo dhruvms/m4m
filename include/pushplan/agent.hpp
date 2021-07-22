@@ -69,7 +69,7 @@ private:
 	Point m_goal;
 	Pointf m_goalf;
 	int m_t, m_priority, m_phase;
-	Trajectory m_solve, m_move;
+	Trajectory m_solve, m_move, m_retrieve;
 
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<WAStar> m_wastar;

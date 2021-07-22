@@ -5,6 +5,7 @@
 #include <smpl/console/console.h>
 
 #include <iostream>
+#include <algorithm>
 
 auto std::hash<clutter::State>::operator()(
 	const argument_type& s) const -> result_type
@@ -54,14 +55,30 @@ void Agent::Search(int robin)
 {
 	m_priority = robin;
 
-	std::vector<int> solution;
-	int solcost;
-	bool result = m_wastar->replan(&solution, &solcost);
-
-	if (result)
+	if (m_phase == 1 && m_priority == 1)
 	{
-		convertPath(solution);
-		m_cc->UpdateTraj(m_priority, m_solve);
+		m_solve.clear();
+		for (auto itr = m_retrieve.begin(); itr != m_retrieve.end(); ++itr)
+		{
+			if (itr->t == m_t + 1)
+			{
+				m_solve.insert(m_solve.begin(), itr, m_retrieve.end());
+				break;
+			}
+		}
+	}
+
+	else
+	{
+		std::vector<int> solution;
+		int solcost;
+		bool result = m_wastar->replan(&solution, &solcost);
+
+		if (result)
+		{
+			convertPath(solution);
+			m_cc->UpdateTraj(m_priority, m_solve);
+		}
 	}
 }
 
@@ -113,6 +130,17 @@ void Agent::reset(int phase)
 	m_wastar->reset();
 
 	m_phase = phase;
+	if (m_phase == 1 && m_priority <= 1 && m_retrieve.empty())
+	{
+		m_retrieve = m_move;
+		std::reverse(m_retrieve.begin(), m_retrieve.end());
+		int t = 1;
+		for (auto& s: m_retrieve)
+		{
+			s.t += t;
+			t += 2;
+		}
+	}
 }
 
 void Agent::GetSuccs(

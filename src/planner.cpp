@@ -167,7 +167,7 @@ void Planner::reinit()
 	}
 	else if (m_phase == 1)
 	{
-		m_ooi.SetGoalState(m_ooi_g);
+		m_ooi.SetGoalState(m_ee.GetCurrentState()->p);
 		m_ee.SetGoalState(m_ooi_g);
 	}
 	for (auto& a: m_agents) {
