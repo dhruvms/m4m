@@ -1,0 +1,51 @@
+<launch>
+    <arg name="debug" default="false"/>
+
+    <param name="robot_description" command="$(find xacro)/xacro.py '$(find pushplan)/config/urdf/pr2_description/robots/pr2.urdf.xacro'"/>
+
+    <node pkg="pushplan" type="coop_plan" name="coop_plan" output="screen" respawn="false">
+    	<param name="planning_frame" value="odom_combined"/>
+
+        <!-- 1. robot model (for planning) -->
+        <rosparam param="robot_model">
+            group_name: right_arm
+            planning_joints:
+                r_shoulder_pan_joint
+                r_shoulder_lift_joint
+                r_upper_arm_roll_joint
+                r_elbow_flex_joint
+                <!-- r_forearm_roll_joint
+                r_wrist_flex_joint
+                r_wrist_roll_joint -->
+            kinematics_frame:
+                torso_lift_link
+            chain_tip_link:
+                r_gripper_finger_dummy_planning_link
+                <!-- r_gripper_palm_link -->
+        </rosparam>
+
+        <!-- collision checking -->
+        <rosparam command="load" file="$(find sbpl_collision_checking_test)/config/collision_model_pr2.yaml"/>
+
+        <!-- planner params -->
+        <rosparam command="load" file="$(find pushplan)/config/pr2_right_arm.yaml"/>
+        <param name="planning/mprim_filename" value="$(find pushplan)/config/pr2.mprim"/>
+
+        <!-- <param name="allowed_planning_time" value="1800.0"/> -->
+
+        <!-- 2. scene -->
+        <!-- 2.1 robot state -->
+        <rosparam command="load" file="$(find simplan)/config/problem.yaml"/>
+
+        <!-- 2.2 world state -->
+        <param name="object_filename" value="$(find pushplan)/config/env/tabletop.env"/>
+    </node>
+
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"/>
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+    <node name="static_transform_publisher" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 1 odom_combined base_footprint 100"/>
+
+    <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find simplan)/config/smpl.rviz" /> -->
+
+</launch>
+
