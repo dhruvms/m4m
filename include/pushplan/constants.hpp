@@ -4,13 +4,13 @@
 namespace clutter
 {
 
-extern const bool FRIDGE;
-extern const float MAX_PLANNING_TIME;
-extern const int WINDOW;
-extern const float GOAL_THRESH;
-extern const float RES;
-extern const int GRID;
-extern const int COST_MULT;
+extern bool FRIDGE;
+extern float MAX_PLANNING_TIME;
+extern int WINDOW;
+extern float GOAL_THRESH;
+extern float RES;
+extern int GRID;
+extern int COST_MULT;
 
 } // namespace clutter
 

@@ -24,6 +24,8 @@ m_t(0),
 m_phase(0),
 m_ph("~")
 {
+	setupGlobals();
+
 	m_agents.clear();
 
 	m_robot = std::make_unique<Robot>();
@@ -426,6 +428,17 @@ void Planner::writePlanState(int iter)
 			<< movable << '\n';
 
 	DATA.close();
+}
+
+void Planner::setupGlobals()
+{
+	m_ph.getParam("fridge", FRIDGE);
+	m_ph.getParam("allowed_planning_time", MAX_PLANNING_TIME);
+	m_ph.getParam("whca/window", WINDOW);
+	m_ph.getParam("whca/goal_thresh", GOAL_THRESH);
+	m_ph.getParam("whca/res", RES);
+	m_ph.getParam("whca/grid", GRID);
+	m_ph.getParam("whca/cost_mult", COST_MULT);
 }
 
 } // namespace clutter

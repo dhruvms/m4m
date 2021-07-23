@@ -50,6 +50,8 @@ private:
 	void step_agents(int k=1);
 
 	void writePlanState(int iter);
+
+	void setupGlobals();
 };
 
 } // namespace clutter
