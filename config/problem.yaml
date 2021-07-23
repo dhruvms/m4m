@@ -1,5 +1,4 @@
 initial_configuration:
-  random: false
   joint_state:
     # Above table:
     - { name: torso_lift_joint,       position: 0.0 }
@@ -27,3 +26,10 @@ robot:
   qy: 0.0
   qz: 0.0
   qw: 1.0
+
+whca:
+  window: 10
+  goal_thresh: 0.02
+  res: 0.01
+  grid: 8
+  cost_mult: 1000

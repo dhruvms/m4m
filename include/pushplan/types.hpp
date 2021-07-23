@@ -101,6 +101,14 @@ public:
 		std::vector<int>* solution_path, int* solution_cost) = 0;
 };
 
+struct RobotModelConfig
+{
+	std::string group_name;
+	std::vector<std::string> planning_joints;
+	std::string kinematics_frame;
+	std::string chain_tip_link;
+};
+
 } // namespace clutter
 
 #endif // TYPES_HPP

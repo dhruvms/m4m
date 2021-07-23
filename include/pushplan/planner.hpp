@@ -4,6 +4,9 @@
 #include <pushplan/types.hpp>
 #include <pushplan/agent.hpp>
 #include <pushplan/collision_checker.hpp>
+#include <pushplan/robot.hpp>
+
+#include <ros/ros.h>
 
 #include <string>
 #include <vector>
@@ -27,6 +30,7 @@ public:
 private:
 	std::string m_scene_file;
 	std::shared_ptr<CollisionChecker> m_cc;
+	std::unique_ptr<Robot> m_robot;
 
 	int m_num_agents, m_ooi_idx, m_t, m_phase;
 	std::vector<Agent> m_agents;
@@ -35,6 +39,8 @@ private:
 	Pointf m_ooi_gf;
 
 	std::vector<size_t> m_priorities;
+
+	ros::NodeHandle m_ph;
 
 	void parse_scene(std::vector<Object>& obstacles);
 	void set_ee_obj();

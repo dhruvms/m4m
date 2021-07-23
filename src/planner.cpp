@@ -21,9 +21,13 @@ m_scene_file(scene_file),
 m_num_agents(-1),
 m_ooi_idx(-1),
 m_t(0),
-m_phase(0)
+m_phase(0),
+m_ph("~")
 {
 	m_agents.clear();
+
+	m_robot = std::make_unique<Robot>();
+	m_robot->Init();
 
 	std::vector<Object> obstacles;
 	parse_scene(obstacles);
