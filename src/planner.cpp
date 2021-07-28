@@ -27,9 +27,7 @@ m_ph("~")
 	setupGlobals();
 
 	m_agents.clear();
-
 	m_robot = std::make_unique<Robot>();
-	m_robot->Init();
 
 	std::vector<Object> obstacles;
 	parse_scene(obstacles);
@@ -57,19 +55,18 @@ m_ph("~")
 	obstacles.clear();
 
 	// Get OOI goal
-	m_ooi_gf = m_cc->GetGoalState(m_ooi.GetObject());
+	m_ooi_gf = m_cc->GetGoalState(&m_ooi.GetObject()->back());
 	ContToDisc(m_ooi_gf, m_ooi_g);
 
-	set_ee_obj();
 	m_ooi.SetCC(m_cc);
-	m_ee.SetCC(m_cc);
+	m_robot->SetCC(m_cc);
 	for (auto& a: m_agents) {
 		a.SetCC(m_cc);
 	}
 
 	// Set agent current positions and time
 	m_ooi.Init();
-	m_ee.Init();
+	m_robot->Init();
 	for (auto& a: m_agents) {
 		a.Init();
 	}
@@ -83,12 +80,12 @@ void Planner::WHCAStar()
 	writePlanState(iter);
 
 	reinit();
-	while (!m_ee.AtGoal(*(m_ee.GetCurrentState()), false))
+	while (!m_robot->AtGoal(*(m_robot->GetCurrentState()), false)) // robot (current) state includes joint config to avoid IK
 	{
 		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_ooi.GetObject()->id, 0);
 		// Search() updates cc with found plan
 		m_ooi.Search(0);
-		m_ee.Search(1);
+		m_robot->Search(1);
 		int robin = 2;
 		for (const auto& p: m_priorities) {
 			// SMPL_INFO("Plan for Object (number %d, id %d, priority %d)", p, m_agents.at(p).GetObject()->id, robin);
@@ -112,11 +109,11 @@ void Planner::WHCAStar()
 
 	start_time = GetTime();
 	reinit();
-	while (!m_ooi.AtGoal(*(m_ooi.GetCurrentState()), false))
+	while (!m_robot->AtGoal(*(m_robot->GetCurrentState()), false))
 	{
 		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_ooi.GetObject()->id, 0);
 		m_ooi.Search(0);
-		m_ee.Search(1);
+		m_robot->Search(1);
 		int robin = 2;
 		for (const auto& p: m_priorities) {
 			// SMPL_INFO("Plan for Object (number %d, id %d, priority %d)", p, m_agents.at(p).GetObject()->id, robin);
@@ -136,16 +133,16 @@ void Planner::WHCAStar()
 	SMPL_INFO("WHCA* Phase 2 planning took %f seconds. Total time = %f seconds.", phase_time, total_time);
 }
 
-const Object* Planner::GetObject(int priority)
+const std::vector<Object>* Planner::GetObject(const LatticeState& s, int priority)
 {
 	if (priority == 0) {
-		return m_ooi.GetObject();
+		return m_ooi.GetObject(s);
 	}
 	else if (priority == 1) {
-		return m_ee.GetObject();
+		return m_robot->GetObject(s);
 	}
 	else {
-		return m_agents.at(m_priorities.at(priority-2)).GetObject();
+		return m_agents.at(m_priorities.at(priority-2)).GetObject(s);
 	}
 }
 
@@ -153,14 +150,14 @@ void Planner::reinit()
 {
 	// reset searches
 	m_ooi.reset(m_phase);
-	m_ee.reset(m_phase);
+	m_robot->reset(m_phase);
 	for (auto& a: m_agents) {
 		a.reset(m_phase);
 	}
 
 	// Set agent starts - always the current state
 	m_ooi.SetStartState(*(m_ooi.GetCurrentState()));
-	m_ee.SetStartState(*(m_ee.GetCurrentState()));
+	m_robot->SetStartState(*(m_robot->GetCurrentState()));
 	for (auto& a: m_agents) {
 		a.SetStartState(*(a.GetCurrentState()));
 	}
@@ -168,16 +165,16 @@ void Planner::reinit()
 	// Set agent goals
 	if (m_phase == 0)
 	{
-		m_ooi.SetGoalState(m_ooi.GetCurrentState()->p);
-		m_ee.SetGoalState(m_ooi.GetCurrentState()->p);
+		m_ooi.SetGoalState(m_ooi.GetCurrentState()->coord);
+		m_robot->SetGoalState(m_ooi.GetCurrentState()->coord);
 	}
 	else if (m_phase == 1)
 	{
-		m_ooi.SetGoalState(m_ee.GetCurrentState()->p);
-		m_ee.SetGoalState(m_ooi_g);
+		m_ooi.SetGoalState(m_robot->GetCurrentState()->coord); // EE position
+		m_robot->SetGoalState(m_ooi_g);
 	}
 	for (auto& a: m_agents) {
-		a.SetGoalState(a.GetCurrentState()->p);
+		a.SetGoalState(a.GetCurrentState()->coord);
 	}
 
 	// Set agent priorities
@@ -190,13 +187,20 @@ void Planner::prioritize()
 	m_priorities.resize(m_agents.size());
 	std::iota(m_priorities.begin(), m_priorities.end(), 0);
 
-	Pointf ref_pf, agent_pf;
-	DiscToCont(m_ee.GetCurrentState()->p, ref_pf);
+	// robot_objs is a std::vector<Object>*
+	auto robot_objs = m_robot->GetObject(*(m_robot->GetCurrentState()));
 
-	std::vector<float> dists(m_agents.size(), 0.0);
-	for (size_t i = 0; i < m_agents.size(); ++i) {
-		DiscToCont(m_agents.at(i).GetCurrentState()->p, agent_pf);
-		dists.at(i) = EuclideanDist(ref_pf, agent_pf);
+	std::vector<double> dists(m_agents.size(), std::numeric_limits<double>::max());
+	State robot_pf(2, 0.0), agent_pf;
+	for (size_t i = 0; i < m_agents.size(); ++i)
+	{
+		DiscToCont(m_agents.at(i).GetCurrentState()->coord, agent_pf);
+		for (const auto& o: *robot_objs)
+		{
+			robot_pf.at(0) = o.o_x;
+			robot_pf.at(1) = o.o_y;
+			dists.at(i) = std::min(dists.at(i), EuclideanDist(robot_pf, agent_pf));
+		}
 	}
 	std::stable_sort(m_priorities.begin(), m_priorities.end(),
 		[&dists](size_t i1, size_t i2) { return dists[i1] < dists[i2]; });
@@ -206,7 +210,7 @@ void Planner::step_agents(int k)
 {
 	// TODO: make sure we can handle k > 1
 	m_ooi.Step(k);
-	m_ee.Step(k);
+	m_robot->Step(k);
 	for (auto& a: m_agents) {
 		a.Step(k);
 	}
@@ -309,7 +313,7 @@ void Planner::set_ee_obj()
 	o.o_y = -0.673113; // from start config FK
 	// o.o_x = m_ooi_gf.x;
 	// o.o_y = m_ooi_gf.y;
-	o.o_z = m_ooi.GetObject()->o_z; // hand picked for now
+	o.o_z = m_ooi.GetObject()->back().o_z; // hand picked for now
 	o.o_roll = 0.0;
 	o.o_pitch = 0.0;
 	o.o_yaw = 0.0;
@@ -318,7 +322,7 @@ void Planner::set_ee_obj()
 	o.z_size = 0.03; // hand picked for now
 	o.mass = 0.58007; // r_gripper_palm_joint mass from URDF
 	o.locked = o.mass == 0;
-	o.mu = m_ooi.GetObject()->mu; // hand picked for now
+	o.mu = m_ooi.GetObject()->back().mu; // hand picked for now
 	o.movable = true;
 
 	m_ee.SetObject(o);
@@ -341,7 +345,7 @@ void Planner::writePlanState(int iter)
 	DATA.open(filename, std::ofstream::out);
 
 	DATA << 'O' << '\n';
-	int o = m_cc->NumObstacles() + 1 + m_agents.size() + 1;
+	int o = m_cc->NumObstacles() + 1 + m_agents.size() + 3;
 	DATA << o << '\n';
 
 	std::string movable;
@@ -366,66 +370,66 @@ void Planner::writePlanState(int iter)
 				<< movable << '\n';
 	}
 
-	Pointf loc;
-	DiscToCont(m_ooi.GetCurrentState()->p, loc);
+	State loc = m_ooi.GetCurrentState()->state;
 	auto agent_obs = m_ooi.GetObject();
 	movable = "False";
 	DATA << 999 << ',' // for visualisation purposes
-			<< agent_obs->shape << ','
-			<< agent_obs->type << ','
-			<< loc.x << ','
-			<< loc.y << ','
-			<< agent_obs->o_z << ','
-			<< agent_obs->o_roll << ','
-			<< agent_obs->o_pitch << ','
-			<< agent_obs->o_yaw << ','
-			<< agent_obs->x_size << ','
-			<< agent_obs->y_size << ','
-			<< agent_obs->z_size << ','
-			<< agent_obs->mass << ','
-			<< agent_obs->mu << ','
+			<< agent_obs->back().shape << ','
+			<< agent_obs->back().type << ','
+			<< loc.at(0) << ','
+			<< loc.at(1) << ','
+			<< agent_obs->back().o_z << ','
+			<< agent_obs->back().o_roll << ','
+			<< agent_obs->back().o_pitch << ','
+			<< agent_obs->back().o_yaw << ','
+			<< agent_obs->back().x_size << ','
+			<< agent_obs->back().y_size << ','
+			<< agent_obs->back().z_size << ','
+			<< agent_obs->back().mass << ','
+			<< agent_obs->back().mu << ','
 			<< movable << '\n';
 
+	movable = "True";
 	for (const auto& a: m_agents)
 	{
-		DiscToCont(a.GetCurrentState()->p, loc);
+		loc = a.GetCurrentState()->state;
 		agent_obs = a.GetObject();
-		movable = "True";
-		DATA << agent_obs->id << ','
-			<< agent_obs->shape << ','
-			<< agent_obs->type << ','
-			<< loc.x << ','
-			<< loc.y << ','
-			<< agent_obs->o_z << ','
-			<< agent_obs->o_roll << ','
-			<< agent_obs->o_pitch << ','
-			<< agent_obs->o_yaw << ','
-			<< agent_obs->x_size << ','
-			<< agent_obs->y_size << ','
-			<< agent_obs->z_size << ','
-			<< agent_obs->mass << ','
-			<< agent_obs->mu << ','
+		DATA << agent_obs->back().id << ','
+			<< agent_obs->back().shape << ','
+			<< agent_obs->back().type << ','
+			<< loc.at(0) << ','
+			<< loc.at(1) << ','
+			<< agent_obs->back().o_z << ','
+			<< agent_obs->back().o_roll << ','
+			<< agent_obs->back().o_pitch << ','
+			<< agent_obs->back().o_yaw << ','
+			<< agent_obs->back().x_size << ','
+			<< agent_obs->back().y_size << ','
+			<< agent_obs->back().z_size << ','
+			<< agent_obs->back().mass << ','
+			<< agent_obs->back().mu << ','
 			<< movable << '\n';
 	}
 
-	DiscToCont(m_ee.GetCurrentState()->p, loc);
-	agent_obs = m_ee.GetObject();
-	movable = "True";
-	DATA << agent_obs->id << ','
-			<< agent_obs->shape << ','
-			<< agent_obs->type << ','
-			<< loc.x << ','
-			<< loc.y << ','
-			<< agent_obs->o_z << ','
-			<< agent_obs->o_roll << ','
-			<< agent_obs->o_pitch << ','
-			<< agent_obs->o_yaw << ','
-			<< agent_obs->x_size << ','
-			<< agent_obs->y_size << ','
-			<< agent_obs->z_size << ','
-			<< agent_obs->mass << ','
-			<< agent_obs->mu << ','
-			<< movable << '\n';
+	agent_obs = m_robot->GetObject(*(m_robot->GetCurrentState()));
+	for (const auto& robot_o: *agent_obs)
+	{
+		DATA << robot_o.id << ','
+				<< robot_o.shape << ','
+				<< robot_o.type << ','
+				<< robot_o.o_x << ','
+				<< robot_o.o_y << ','
+				<< robot_o.o_z << ','
+				<< robot_o.o_roll << ','
+				<< robot_o.o_pitch << ','
+				<< robot_o.o_yaw << ','
+				<< robot_o.x_size << ','
+				<< robot_o.y_size << ','
+				<< robot_o.z_size << ','
+				<< robot_o.mass << ','
+				<< robot_o.mu << ','
+				<< movable << '\n';
+	}
 
 	DATA.close();
 }
@@ -439,6 +443,8 @@ void Planner::setupGlobals()
 	m_ph.getParam("whca/res", RES);
 	m_ph.getParam("whca/grid", GRID);
 	m_ph.getParam("whca/cost_mult", COST_MULT);
+	m_ph.getParam("robot/semi_minor", SEMI_MINOR);
+	m_ph.getParam("robot/robot_obj_mass", R_MASS);
 }
 
 } // namespace clutter

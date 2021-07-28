@@ -1,7 +1,7 @@
 #ifndef COLLISION_CHECKER_HPP
 #define COLLISION_CHECKER_HPP
 
-#include <pushplan/agent.hpp>
+#include <pushplan/types.hpp>
 
 #include <vector>
 #include <random>
@@ -22,16 +22,20 @@ public:
 	void SetPhase(int phase) { m_phase = phase; };
 
 	void UpdateTraj(const int& priority, const Trajectory& traj);
-	bool ImmovableCollision(const State& s, const Object& o, const int& priority);
-	bool IsStateValid(const State& s, const Object& o, const int& priority);
-	bool OOICollision(const State& s, const Object& o);
 
-	float BoundaryDistance(const Pointf& p);
+	bool ImmovableCollision(const LatticeState& s, const Object& o, const int& priority);
+	bool ImmovableCollision(const std::vector<Object>& objs, const int& priority);
 
-	Pointf GetGoalState(const Object* o);
+	bool IsStateValid(const LatticeState& s, const Object& o, const int& priority);
 
-	float GetBaseWidth() { return std::fabs(m_base.at(0).x - m_base.at(1).x); };
-	float GetBaseLength() { return std::fabs(m_base.at(0).y - m_base.at(3).y); };
+	bool OOICollision(const Object& o);
+
+	double BoundaryDistance(const State& p);
+
+	State GetGoalState(const Object* o);
+
+	double GetBaseWidth() { return std::fabs(m_base.at(0).at(0) - m_base.at(1).at(0)); };
+	double GetBaseLength() { return std::fabs(m_base.at(0).at(1) - m_base.at(3).at(1)); };
 
 	int NumObstacles() { return (int)m_obstacles.size(); };
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
@@ -41,7 +45,7 @@ private:
 
 	std::vector<Object> m_obstacles;
 	size_t m_base_loc;
-	std::vector<Pointf> m_base;
+	std::vector<State> m_base;
 	std::vector<Trajectory> m_trajs;
 
 	std::random_device m_dev;
@@ -50,11 +54,9 @@ private:
 
 	int m_phase;
 
-	bool obstacleCollision(
-		const State& s, const Object& o,
-		const Pointf& obs_loc, const Object& obs);
-	bool baseCollision(
-		const State& s, const Object& o, const int& priority);
+	bool immovableCollision(const Object& o, const int& priority);
+	bool obstacleCollision(const Object& o, const Object& obs);
+	bool baseCollision(const Object& o, const int& priority);
 };
 
 } // namespace clutter

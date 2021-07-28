@@ -33,13 +33,13 @@ struct SearchState
 	HeapData od[1]; // overallocated for additional n heuristics
 };
 
-class Agent;
+class Movable;
 
 class WAStar : public Search
 {
 public:
 	WAStar(
-		Agent* robot,
+		Movable* movable,
 		double w=1.0);
 	~WAStar();
 
@@ -55,7 +55,7 @@ public:
 		std::vector<int>* solution_path, int* solution_cost) override;
 
 private:
-	Agent* m_robot = nullptr;
+	Movable* m_movable = nullptr;
 
 	struct HeapCompare {
 		bool operator()(

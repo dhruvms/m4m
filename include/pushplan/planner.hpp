@@ -22,10 +22,10 @@ public:
 
 	void WHCAStar();
 
-	const Object* GetObject(int priority);
+	const std::vector<Object>* GetObject(const LatticeState& s, int priority);
 
-	const Object* GetOOIObject() { return m_ooi.GetObject(); };
-	const State* GetOOIState() { return m_ooi.GetCurrentState(); };
+	const std::vector<Object>* GetOOIObject() { return m_ooi.GetObject(); };
+	const LatticeState* GetOOIState() { return m_ooi.GetCurrentState(); };
 
 private:
 	std::string m_scene_file;
@@ -35,8 +35,8 @@ private:
 	int m_num_agents, m_ooi_idx, m_t, m_phase;
 	std::vector<Agent> m_agents;
 	Agent m_ooi, m_ee;
-	Point m_ooi_g;
-	Pointf m_ooi_gf;
+	Coord m_ooi_g;
+	State m_ooi_gf;
 
 	std::vector<size_t> m_priorities;
 

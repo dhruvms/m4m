@@ -36,7 +36,7 @@ void CollisionChecker::UpdateTraj(const int& priority, const Trajectory& traj)
 	m_trajs.at(priority) = traj;
 }
 
-bool CollisionChecker::ImmovableCollision(const State& s, const Object& o, const int& priority)
+bool CollisionChecker::ImmovableCollision(const LatticeState& s, const Object& o, const int& priority)
 {
 	if (!FRIDGE)
 	{
@@ -44,7 +44,123 @@ bool CollisionChecker::ImmovableCollision(const State& s, const Object& o, const
 		return true;
 	}
 
-	if (baseCollision(s, o, priority)) {
+	Object o_temp = o;
+	o_temp.o_x = s.state.at(0);
+	o_temp.o_y = s.state.at(1);
+
+	return immovableCollision(o_temp, priority);
+}
+
+bool CollisionChecker::ImmovableCollision(const std::vector<Object>& objs, const int& priority)
+{
+	if (!FRIDGE)
+	{
+		SMPL_WARN("Do not handle non-fridge scenes. Return collision = true.");
+		return true;
+	}
+
+	// (o.o_x, o.o_y) are already where o is
+	for (const auto& o: objs)
+	{
+		if (immovableCollision(o, priority)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// IsStateValid should only be called for priority > 1
+bool CollisionChecker::IsStateValid(
+	const LatticeState& s, const Object& o, const int& priority)
+{
+	Object o_temp = o;
+	o_temp.o_x = s.state.at(0);
+	o_temp.o_y = s.state.at(1);
+
+	for (int p = 0; p < priority; ++p)
+	{
+		for (const auto& s2: m_trajs.at(p))
+		{
+			if (s.t == s2.t)
+			{
+				auto other_objs = m_planner->GetObject(s2, p);
+				// (other_o.o_x, other_o.o_y) are consistent with
+				// s2.state
+				for (const auto& other_o: *other_objs)
+				{
+					if (obstacleCollision(o_temp, other_o)) {
+						return false;
+					}
+				}
+				// SMPL_WARN("collision! objects ids %d and %d (movable) collide at time %d", o.id, m_planner->GetObject(p)->id, s.t);
+				// std::cout << o.id << ',' << other_obj->id << ',' << s.t << std::endl;
+			}
+		}
+	}
+	return true;
+}
+
+// OOICollision should only be called for the EE rectangle object at some state
+bool CollisionChecker::OOICollision(const Object& o)
+{
+	auto ooi_obj = m_planner->GetObject(*(m_planner->GetOOIState()), 0);
+	return obstacleCollision(o, ooi_obj->back());
+}
+
+double CollisionChecker::BoundaryDistance(const State& p)
+{
+	double d = PtDistFromLine(p, m_base.at(0), m_base.at(1));
+	d = std::min(d, PtDistFromLine(p, m_base.at(1), m_base.at(2)));
+	d = std::min(d, PtDistFromLine(p, m_base.at(2), m_base.at(3)));
+	d = std::min(d, PtDistFromLine(p, m_base.at(3), m_base.at(0)));
+	return d;
+}
+
+State CollisionChecker::GetGoalState(const Object* o)
+{
+	State g(2, 0.0);
+	State gmin(2, 0.0), gmax(2, 0.0);
+
+	gmin.at(0) = m_base.at(0).at(0) - m_obstacles.at(m_base_loc).x_size;
+	gmax.at(0) = m_base.at(0).at(0);
+
+	gmin.at(1) = m_base.at(0).at(1) + (m_obstacles.at(m_base_loc).y_size/3);
+	gmax.at(1) = m_base.back().at(1) - (m_obstacles.at(m_base_loc).y_size/3);
+
+	if (o->shape == 0) // rectangle
+	{
+		std::vector<State> o_goal;
+		do
+		{
+			g.at(0) = (m_distD(m_rng) * (gmax.at(0) - gmin.at(0))) + gmin.at(0);
+			g.at(1) = (m_distD(m_rng) * (gmax.at(1) - gmin.at(1))) + gmin.at(1);
+			GetRectObjAtPt(g, *o, o_goal);
+		}
+		while (RectanglesIntersect(o_goal, m_base));
+	}
+	else if (o->shape == 2) // circle
+	{
+		do
+		{
+			g.at(0) = (m_distD(m_rng) * (gmax.at(0) - gmin.at(0))) + gmin.at(0);
+			g.at(1) = (m_distD(m_rng) * (gmax.at(1) - gmin.at(1))) + gmin.at(1);
+		}
+		while (LineSegCircleIntersect(g, (double)o->x_size, m_base.at(0), m_base.back()));
+	}
+	else
+	{
+		SMPL_ERROR("Invalid object type!");
+		g.at(0) = -99;
+		g.at(1) = -99;
+	}
+
+	return g;
+}
+
+bool CollisionChecker::immovableCollision(const Object& o, const int& priority)
+{
+	if (baseCollision(o, priority)) {
 		// SMPL_WARN("collision with base!");
 		return true;
 	}
@@ -55,8 +171,7 @@ bool CollisionChecker::ImmovableCollision(const State& s, const Object& o, const
 			continue;
 		}
 
-		Pointf obs_loc(obstacle.o_x, obstacle.o_y);
-		if (obstacleCollision(s, o, obs_loc, obstacle)) {
+		if (obstacleCollision(o, obstacle)) {
 			// SMPL_WARN("collision! objects ids %d and %d (immovable) collide", o.id, obstacle.id);
 			return true;
 		}
@@ -64,104 +179,20 @@ bool CollisionChecker::ImmovableCollision(const State& s, const Object& o, const
 	return false;
 }
 
-bool CollisionChecker::IsStateValid(
-	const State& s, const Object& o, const int& priority)
-{
-	for (int p = 0; p < priority; ++p)
-	{
-		if (priority == 1 && p == 0) {
-			continue;
-		}
-
-		for (const auto& s2: m_trajs.at(p))
-		{
-			auto other_obj = m_planner->GetObject(p);
-			if (s.t == s2.t && obstacleCollision(s, o, s2.p, *other_obj)) {
-				// SMPL_WARN("collision! objects ids %d and %d (movable) collide at time %d", o.id, m_planner->GetObject(p)->id, s.t);
-				// std::cout << o.id << ',' << other_obj->id << ',' << s.t << std::endl;
-				return false;
-			}
-		}
-	}
-	return true;
-}
-
-bool CollisionChecker::OOICollision(
-	const State& s, const Object& o)
-{
-	auto ooi = m_planner->GetOOIObject();
-	auto ooi_s = m_planner->GetOOIState();
-	Pointf ooi_loc;
-	DiscToCont(ooi_s->p, ooi_loc);
-
-	return obstacleCollision(s, o, ooi_loc, *ooi);
-}
-
-float CollisionChecker::BoundaryDistance(const Pointf& p)
-{
-	float d = PtDistFromLine(p, m_base.at(0), m_base.at(1));
-	d = std::min(d, PtDistFromLine(p, m_base.at(1), m_base.at(2)));
-	d = std::min(d, PtDistFromLine(p, m_base.at(2), m_base.at(3)));
-	d = std::min(d, PtDistFromLine(p, m_base.at(3), m_base.at(0)));
-	return d;
-}
-
-Pointf CollisionChecker::GetGoalState(const Object* o)
-{
-	Pointf g;
-	Pointf gmin, gmax;
-
-	gmin.x = m_base.at(0).x - m_obstacles.at(m_base_loc).x_size;
-	gmax.x = m_base.at(0).x;
-
-	gmin.y = m_base.at(0).y + (m_obstacles.at(m_base_loc).y_size/3);
-	gmax.y = m_base.back().y - (m_obstacles.at(m_base_loc).y_size/3);
-
-	switch (o->shape)
-	{
-		case 0: { // rectangle
-			std::vector<Pointf> o_goal;
-			do
-			{
-				g.x = (m_distD(m_rng) * (gmax.x - gmin.x)) + gmin.x;
-				g.y = (m_distD(m_rng) * (gmax.y - gmin.y)) + gmin.y;
-				GetRectObjAtPt(g, *o, o_goal);
-			} while (RectanglesIntersect(o_goal, m_base));
-			break;
-		}
-		case 2: { // circle
-			do
-			{
-				g.x = (m_distD(m_rng) * (gmax.x - gmin.x)) + gmin.x;
-				g.y = (m_distD(m_rng) * (gmax.y - gmin.y)) + gmin.y;
-			} while (LineSegCircleIntersect(g, o->x_size, m_base.at(0), m_base.back()));
-			break;
-		}
-		default: {
-			SMPL_ERROR("Invalid object type!");
-			g.x = -99;
-			g.y = -99;
-		}
-	}
-
-	return g;
-}
-
 bool CollisionChecker::obstacleCollision(
-	const State& s, const Object& o,
-	const Pointf& obs_loc, const Object& obs)
+	const Object& o, const Object& obs)
 {
-	Pointf o_loc;
-	DiscToCont(s.p, o_loc);
+	State o_loc = {o.o_x, o.o_y};
+	State obs_loc = {obs.o_x, obs.o_y};
 
 	if (o.shape == 0) // object is rectangle
 	{
-		std::vector<Pointf> o_rect;
+		std::vector<State> o_rect;
 		GetRectObjAtPt(o_loc, o, o_rect);
 
 		if (obs.shape == 0) // obstacle is rectangle
 		{
-			std::vector<Pointf> obs_rect;
+			std::vector<State> obs_rect;
 			GetRectObjAtPt(obs_loc, obs, obs_rect);
 
 			return RectanglesIntersect(o_rect, obs_rect);
@@ -169,24 +200,24 @@ bool CollisionChecker::obstacleCollision(
 		else if (obs.shape == 2) // obstacle is circle
 		{
 			return (PointInRectangle(obs_loc, o_rect) ||
-					LineSegCircleIntersect(obs_loc, obs.x_size, o_rect.at(0), o_rect.at(1)) ||
-					LineSegCircleIntersect(obs_loc, obs.x_size, o_rect.at(1), o_rect.at(2)) ||
-					LineSegCircleIntersect(obs_loc, obs.x_size, o_rect.at(2), o_rect.at(3)) ||
-					LineSegCircleIntersect(obs_loc, obs.x_size, o_rect.at(3), o_rect.at(0)));
+					LineSegCircleIntersect(obs_loc, (double)obs.x_size, o_rect.at(0), o_rect.at(1)) ||
+					LineSegCircleIntersect(obs_loc, (double)obs.x_size, o_rect.at(1), o_rect.at(2)) ||
+					LineSegCircleIntersect(obs_loc, (double)obs.x_size, o_rect.at(2), o_rect.at(3)) ||
+					LineSegCircleIntersect(obs_loc, (double)obs.x_size, o_rect.at(3), o_rect.at(0)));
 		}
 	}
 	else if (o.shape == 2) // object is circle
 	{
 		if (obs.shape == 0) // obstacle is rectangle
 		{
-			std::vector<Pointf> obs_rect;
+			std::vector<State> obs_rect;
 			GetRectObjAtPt(obs_loc, obs, obs_rect);
 
 			return (PointInRectangle(o_loc, obs_rect) ||
-					LineSegCircleIntersect(o_loc, o.x_size, obs_rect.at(0), obs_rect.at(1)) ||
-					LineSegCircleIntersect(o_loc, o.x_size, obs_rect.at(1), obs_rect.at(2)) ||
-					LineSegCircleIntersect(o_loc, o.x_size, obs_rect.at(2), obs_rect.at(3)) ||
-					LineSegCircleIntersect(o_loc, o.x_size, obs_rect.at(3), obs_rect.at(0)));
+					LineSegCircleIntersect(o_loc, (double)o.x_size, obs_rect.at(0), obs_rect.at(1)) ||
+					LineSegCircleIntersect(o_loc, (double)o.x_size, obs_rect.at(1), obs_rect.at(2)) ||
+					LineSegCircleIntersect(o_loc, (double)o.x_size, obs_rect.at(2), obs_rect.at(3)) ||
+					LineSegCircleIntersect(o_loc, (double)o.x_size, obs_rect.at(3), obs_rect.at(0)));
 
 		}
 		else if (obs.shape == 2) // obstacle is circle
@@ -201,23 +232,22 @@ bool CollisionChecker::obstacleCollision(
 }
 
 bool CollisionChecker::baseCollision(
-	const State& s, const Object& o, const int& priority)
+	const Object& o, const int& priority)
 {
-	Pointf o_loc;
-	DiscToCont(s.p, o_loc);
+	State o_loc = {o.o_x, o.o_y};
 
 	if (o.shape == 0) // object is rectangle
 	{
-		std::vector<Pointf> o_rect;
+		std::vector<State> o_rect;
 		GetRectObjAtPt(o_loc, o, o_rect);
 		if (priority > 1) // object is movable
 		{
 			// no part of the object can be outside the sides or back of shelf
 			for (const auto& p: o_rect)
 			{
-				if (p.x > m_base.at(1).x ||
-					p.y < m_base.at(0).y ||
-					p.y > m_base.at(2).y)
+				if (p.at(0) > m_base.at(1).at(0) ||
+					p.at(1) < m_base.at(0).at(1) ||
+					p.at(1) > m_base.at(2).at(1))
 				{
 					return true;
 				}
@@ -234,9 +264,9 @@ bool CollisionChecker::baseCollision(
 			// no part of the OOI can be outside the sides or back of shelf
 			for (const auto& p: o_rect)
 			{
-				if (p.x > m_base.at(1).x ||
-					p.y < m_base.at(0).y ||
-					p.y > m_base.at(2).y)
+				if (p.at(0) > m_base.at(1).at(0) ||
+					p.at(1) < m_base.at(0).at(1) ||
+					p.at(1) > m_base.at(2).at(1))
 				{
 					return true;
 				}
@@ -251,16 +281,16 @@ bool CollisionChecker::baseCollision(
 			// the centre of the object circle must be inside shelf
 			// no part of the object can be outside the sides or back of shelf
 			return (!PointInRectangle(o_loc, m_base) ||
-					LineSegCircleIntersect(o_loc, o.x_size, m_base.at(0), m_base.at(1)) ||
-					LineSegCircleIntersect(o_loc, o.x_size, m_base.at(1), m_base.at(2)) ||
-					LineSegCircleIntersect(o_loc, o.x_size, m_base.at(2), m_base.at(3)));
+					LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(0), m_base.at(1)) ||
+					LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(1), m_base.at(2)) ||
+					LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(2), m_base.at(3)));
 		}
 		else // object is robot or being extracted
 		{
 			// no part of the OOI can be outside the sides or back of shelf
-			return (LineSegCircleIntersect(o_loc, o.x_size, m_base.at(0), m_base.at(1)) ||
-					LineSegCircleIntersect(o_loc, o.x_size, m_base.at(1), m_base.at(2)) ||
-					LineSegCircleIntersect(o_loc, o.x_size, m_base.at(2), m_base.at(3)));
+			return (LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(0), m_base.at(1)) ||
+					LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(1), m_base.at(2)) ||
+					LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(2), m_base.at(3)));
 
 		}
 	}

@@ -7,86 +7,54 @@
 namespace clutter
 {
 
-struct Point
-{
-	int x, y;
-	Point() : x(0), y(0) {};
-	Point(int _x, int _y) : x(_x), y(_y) {};
-	Point(const Point& _p) : x(_p.x), y(_p.y) {};
-};
+typedef std::vector<int> Coord;
+typedef std::vector<double> State;
 
-struct Pointf
+struct LatticeState
 {
-	float x, y;
-	Pointf() : x(0.0), y(0.0) {};
-	Pointf(float _x, float _y) : x(_x), y(_y) {};
-	Pointf(const Pointf& _p) : x(_p.x), y(_p.y) {};
-};
-
-struct Object
-{
-	int id, shape, type;
-	float o_x, o_y, o_z;
-	float o_roll, o_pitch, o_yaw;
-	float x_size, y_size, z_size;
-	float mass, mu;
-	bool movable, locked;
-};
-
-struct State
-{
-	Point p;
+	Coord coord;
+	State state;
 	int t;
-
-	State() {};
-	State(int _x, int _y, int _t)
-	{
-		p.x = _x;
-		p.y = _y;
-		t = _t;
-	};
-	State(const Point& _p, int _t) : p(_p), t(_t) {};
 };
+
+typedef std::vector<LatticeState> Trajectory;
+typedef std::vector<LatticeState*> STATES;
 
 inline
-bool operator==(const State& a, const State& b)
+bool operator==(const LatticeState& a, const LatticeState& b)
 {
 	return (
-		a.p.x == b.p.x &&
-		a.p.y == b.p.y &&
+		a.coord == b.coord &&
 		a.t == b.t
 	);
 }
 
-inline
-std::ostream& operator<<(std::ostream& out, const State s)
-{
-	return out << '(' << s.p.x << ", " << s.p.y << ", " << s.t << ")";
-}
+} // namespace clutter
 
-struct Statef
-{
-	Pointf p;
-	int t;
+namespace std {
 
-	Statef() {};
-	Statef(float _x, float _y, int _t)
-	{
-		p.x = _x;
-		p.y = _y;
-		t = _t;
-	};
-	Statef(const Pointf& _p, int _t) : p(_p), t(_t) {};
+template <>
+struct hash<clutter::LatticeState>
+{
+	typedef clutter::LatticeState argument_type;
+	typedef std::size_t result_type;
+	result_type operator()(const argument_type& s) const;
 };
 
-inline
-std::ostream& operator<<(std::ostream& out, const Statef s)
-{
-	return out << '(' << s.p.x << ", " << s.p.y << ", " << s.t << ")";
-}
+} // namespace std
 
-typedef std::vector<Statef> Trajectory;
-typedef std::vector<State*> CLOSED;
+namespace clutter
+{
+
+struct Object
+{
+	int id, shape, type;
+	double o_x, o_y, o_z;
+	double o_roll, o_pitch, o_yaw;
+	double x_size, y_size, z_size;
+	double mass, mu;
+	bool movable, locked;
+};
 
 class Search
 {

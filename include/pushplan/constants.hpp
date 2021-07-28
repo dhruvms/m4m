@@ -5,12 +5,14 @@ namespace clutter
 {
 
 extern bool FRIDGE;
-extern float MAX_PLANNING_TIME;
+extern double MAX_PLANNING_TIME;
 extern int WINDOW;
-extern float GOAL_THRESH;
-extern float RES;
+extern double GOAL_THRESH;
+extern double RES;
 extern int GRID;
 extern int COST_MULT;
+extern double SEMI_MINOR;
+extern double R_MASS;
 
 } // namespace clutter
 

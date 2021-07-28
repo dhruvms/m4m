@@ -23,31 +23,43 @@ int sgn(T val) {
 
 
 inline
-void ContToDisc(const Pointf& in, Point& out)
+void ContToDisc(const State& in, Coord& out)
 {
-	out.x = (in.x / RES) + sgn(in.x) * 0.5;
-	out.y = (in.y / RES) + sgn(in.y) * 0.5;
+	out.clear();
+	out.resize(in.size(), 0);
+
+	out.at(0) = (in.at(0) / RES) + sgn(in.at(0)) * 0.5;
+	out.at(1) = (in.at(1) / RES) + sgn(in.at(1)) * 0.5;
 }
 
 inline
-void DiscToCont(const Point& in, Pointf& out)
+void DiscToCont(const Coord& in, State& out)
 {
-	out.x = in.x * RES;
-	out.y = in.y * RES;
+	out.clear();
+	out.resize(in.size(), 0.0);
+
+	out.at(0) = in.at(0) * RES;
+	out.at(1) = in.at(1) * RES;
 }
 
 inline
-float dot(const Pointf& a, const Pointf& b)
+double dot(const State& a, const State& b)
 {
-	return a.x*b.x + a.y*b.y;
+	assert(a.size() == b.size());
+	double val = 0.0;
+	for (size_t i = 0; i < a.size(); ++i) {
+		val += a.at(i) * b.at(i);
+	}
+	return val;
 }
 
 inline
-Pointf vector(const Pointf& from, const Pointf& to)
+State vector2D(const State& from, const State& to)
 {
-	Pointf v;
-	v.x = to.x - from.x;
-	v.y = to.y - from.y;
+	assert(from.size() == to.size());
+	State v(from.size(), 0.0);
+	v.at(0) = to.at(0) - from.at(0);
+	v.at(1) = to.at(1) - from.at(1);
 
 	return v;
 }

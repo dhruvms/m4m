@@ -1,9 +1,11 @@
 #include <pushplan/constants.hpp>
 
 bool clutter::FRIDGE;
-float clutter::MAX_PLANNING_TIME;
+double clutter::MAX_PLANNING_TIME;
 int clutter::WINDOW;
-float clutter::GOAL_THRESH;
-float clutter::RES;
+double clutter::GOAL_THRESH;
+double clutter::RES;
 int clutter::GRID;
 int clutter::COST_MULT;
+double clutter::SEMI_MINOR;
+double clutter::R_MASS;

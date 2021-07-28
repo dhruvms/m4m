@@ -68,7 +68,7 @@ def DrawScene(filepath, objs, alpha=1.0):
 		ec = 'g' if obj_movable else 'r'
 		fc = 'g' if obj_movable else 'r'
 		tc = 'w'
-		if obj_id == 99:
+		if obj_id >= 100 and obj_id <= 102:
 			ec = 'b'
 			fc = 'b'
 			tc = 'k'

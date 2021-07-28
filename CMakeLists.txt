@@ -36,6 +36,7 @@ add_library(
 	PUSHPLAN
 	src/planner.cpp
 	src/collision_checker.cpp
+	src/movable.cpp
 	src/agent.cpp
 	src/robot.cpp
 	src/wastar.cpp

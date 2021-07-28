@@ -14,15 +14,15 @@ namespace clutter
 
 inline
 bool PointInRectangle(
-	const Pointf& P,
-	const std::vector<Pointf>& R)
+	const State& P,
+	const std::vector<State>& R)
 {
-	Pointf AB = vector(R.at(0), R.at(1));
-	Pointf AP = vector(R.at(0), P);
-	Pointf BC = vector(R.at(1), R.at(2));
-	Pointf BP = vector(R.at(1), P);
+	State AB = vector2D(R.at(0), R.at(1));
+	State AP = vector2D(R.at(0), P);
+	State BC = vector2D(R.at(1), R.at(2));
+	State BP = vector2D(R.at(1), P);
 
-	float ABAP, ABAB, BCBP, BCBC;
+	double ABAP, ABAB, BCBP, BCBC;
 	ABAP = dot(AB, AP);
 	ABAB = dot(AB, AB);
 	BCBP = dot(BC, BP);
@@ -33,16 +33,16 @@ bool PointInRectangle(
 
 inline
 bool LineSegCircleIntersect(
-	const Pointf& C, float r,
-	const Pointf& A, const Pointf& B)
+	const State& C, double r,
+	const State& A, const State& B)
 {
-	Pointf AB = vector(A, B);
-	Pointf CA = vector(C, A);
+	State AB = vector2D(A, B);
+	State CA = vector2D(C, A);
 
-	float a = dot(AB, AB);
-	float b = 2 * dot(CA, AB);
-	float c = dot(CA, CA) - r*r;
-	float D = b*b - 4*a*c;
+	double a = dot(AB, AB);
+	double b = 2 * dot(CA, AB);
+	double c = dot(CA, CA) - r*r;
+	double D = b*b - 4*a*c;
 
 	if (D < 0) {
 		// no intersection
@@ -51,8 +51,8 @@ bool LineSegCircleIntersect(
 	else
 	{
 		D = std::sqrt(D);
-		float t1 = (-b - D)/(2*a);
-		float t2 = (-b + D)/(2*a);
+		double t1 = (-b - D)/(2*a);
+		double t2 = (-b + D)/(2*a);
 
 		if (t1 >= 0 && t1 <= 1) {
 			// impale or poke
@@ -75,25 +75,25 @@ bool LineSegCircleIntersect(
 }
 
 inline
-bool is_between_ordered(float val, float lb, float ub)
+bool is_between_ordered(double val, double lb, double ub)
 {
 	return lb <= val && val <= ub;
 }
 
 inline
-bool overlaps(float min1, float max1, float min2, float max2)
+bool overlaps(double min1, double max1, double min2, double max2)
 {
 	return is_between_ordered(min2, min1, max1) || is_between_ordered(min1, min2, max2);
 }
 
 inline
-void test_SAT(const Pointf& axis, const std::vector<Pointf>& rect, float& rmin, float& rmax)
+void test_SAT(const State& axis, const std::vector<State>& rect, double& rmin, double& rmax)
 {
-	rmin = std::numeric_limits<float>::max();
-	rmax = std::numeric_limits<float>::lowest();
+	rmin = std::numeric_limits<double>::max();
+	rmax = std::numeric_limits<double>::lowest();
 	for(int i = 0; i < rect.size(); i++)
 	{
-		float dot_prod = dot(rect.at(i), axis);
+		double dot_prod = dot(rect.at(i), axis);
 		if (dot_prod < rmin) {
 			rmin = dot_prod;
 		}
@@ -105,14 +105,14 @@ void test_SAT(const Pointf& axis, const std::vector<Pointf>& rect, float& rmin, 
 
 inline
 bool RectanglesIntersect(
-	const std::vector<Pointf>& R1,
-	const std::vector<Pointf>& R2)
+	const std::vector<State>& R1,
+	const std::vector<State>& R2)
 {
-	std::vector<Pointf> normals;
-	float r1min, r1max, r2min, r2max;
+	std::vector<State> normals;
+	double r1min, r1max, r2min, r2max;
 
-	normals.push_back(vector(R1.at(0), R1.at(1)));
-	normals.push_back(vector(R1.at(1), R1.at(2)));
+	normals.push_back(vector2D(R1.at(0), R1.at(1)));
+	normals.push_back(vector2D(R1.at(1), R1.at(2)));
 	for (int i = 0; i < normals.size(); ++i)
 	{
 		test_SAT(normals.at(i), R1, r1min, r1max);
@@ -124,8 +124,8 @@ bool RectanglesIntersect(
 	}
 	normals.clear();
 
-	normals.push_back(vector(R2.at(0), R2.at(1)));
-	normals.push_back(vector(R2.at(1), R2.at(2)));
+	normals.push_back(vector2D(R2.at(0), R2.at(1)));
+	normals.push_back(vector2D(R2.at(1), R2.at(2)));
 	for (int i = 0; i < normals.size(); ++i)
 	{
 		test_SAT(normals.at(i), R1, r1min, r1max);
@@ -142,20 +142,20 @@ bool RectanglesIntersect(
 
 inline
 void MakeObjectRectangle(
-	const Object& o, std::vector<Pointf>& rect)
+	const Object& o, std::vector<State>& rect)
 {
 	rect.clear();
-	rect.emplace_back(o.o_x - o.x_size, o.o_y - o.y_size);
-	rect.emplace_back(o.o_x + o.x_size, o.o_y - o.y_size);
-	rect.emplace_back(o.o_x + o.x_size, o.o_y + o.y_size);
-	rect.emplace_back(o.o_x - o.x_size, o.o_y + o.y_size);
+	rect.push_back({o.o_x - o.x_size, o.o_y - o.y_size});
+	rect.push_back({o.o_x + o.x_size, o.o_y - o.y_size});
+	rect.push_back({o.o_x + o.x_size, o.o_y + o.y_size});
+	rect.push_back({o.o_x - o.x_size, o.o_y + o.y_size});
 }
 
 inline
 void GetRectObjAtPt(
-	const Pointf& p,
+	const State& p,
 	const Object& o,
-	std::vector<Pointf>& rect)
+	std::vector<State>& rect)
 {
 	Eigen::Matrix2d rot; // 2D rotation matrix for (o_yaw)
 	rot(0, 0) = std::cos(o.o_yaw);
@@ -167,8 +167,8 @@ void GetRectObjAtPt(
 	Eigen::MatrixXd R(2, 4); // axis-aligned at (origin)
 	for (int i = 0; i < (int)rect.size(); ++i)
 	{
-		R(0, i) = rect.at(i).x - o.o_x;
-		R(1, i) = rect.at(i).y - o.o_y;
+		R(0, i) = rect.at(i).at(0) - o.o_x;
+		R(1, i) = rect.at(i).at(1) - o.o_y;
 	}
 	R = rot * R; // rotate at (origin) by rot(o_yaw)
 	// R = rot2 * R; // can rotate again by some rot2(theta) matrix
@@ -176,25 +176,46 @@ void GetRectObjAtPt(
 	// translate rotated rectangle at (origin) to (p)
 	for (int i = 0; i < (int)rect.size(); ++i)
 	{
-		rect.at(i).x = R(0, i) + p.x;
-		rect.at(i).y = R(1, i) + p.y;
+		rect.at(i).at(0) = R(0, i) + p.at(0);
+		rect.at(i).at(1) = R(1, i) + p.at(1);
 	}
 }
 
 inline
-float EuclideanDist(const Pointf& p1, const Pointf& p2)
+double EuclideanDist(const State& p1, const State& p2)
 {
-	return std::sqrt(std::pow(p1.x - p2.x, 2) + std::pow(p1.y - p2.y, 2));
+	assert(p1.size() == p2.size());
+	double val = 0.0;
+	for (size_t i = 0; i < p1.size(); ++i) {
+		val += std::pow(p1.at(i) - p2.at(i), 2);
+	}
+	return std::sqrt(val);
 }
 
 inline
-float PtDistFromLine(
-	const Pointf& p,
-	const Pointf& A, const Pointf& B)
+double PtDistFromLine(
+	const State& p,
+	const State& A, const State& B)
 {
-	float d = std::fabs((B.x - A.x)*(A.y - p.y) - (A.x - p.x)*(B.y - A.y));
-	d /= std::sqrt(std::pow(B.x - A.x, 2) + std::pow(B.y - A.y, 2));
+	double d = std::fabs((B.at(0) - A.at(0))*(A.at(1) - p.at(1)) - (A.at(0) - p.at(0))*(B.at(1) - A.at(1)));
+	d /= EuclideanDist(B, A);
 	return d;
+}
+
+inline
+void ArmRectObj(
+	const State& F1, const State& F2,
+	const double& b,
+	Object& o)
+{
+	// double e = EuclideanDist(F1, F2)/2.0;
+	// double a = b/std::sqrt(1 - (e*e));
+
+	o.o_x = (F1.at(0) + F2.at(0))/2.0;
+	o.o_y = (F1.at(1) + F2.at(1))/2.0;
+	o.o_yaw = std::atan2(F2.at(1) - F1.at(1), F2.at(0) - F1.at(0));
+	o.x_size = EuclideanDist(F1, F2)/2.0;
+	o.y_size = b;
 }
 
 } // namespace clutter

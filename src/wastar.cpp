@@ -1,7 +1,7 @@
 #include <pushplan/wastar.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/types.hpp>
-#include <pushplan/agent.hpp>
+#include <pushplan/movable.hpp>
 #include <pushplan/helpers.hpp>
 
 #include <smpl/console/console.h>
@@ -13,10 +13,10 @@ namespace clutter
 {
 
 WAStar::WAStar(
-	Agent* robot,
+	Movable* movable,
 	double w)
 :
-m_robot(robot),
+m_movable(movable),
 m_call_number(0),
 m_w(w),
 m_start_id(-1),
@@ -197,7 +197,7 @@ void WAStar::expand(SearchState *s, int hidx)
 
 	std::vector<int> succ_ids;
 	std::vector<unsigned int> costs;
-	m_robot->GetSuccs(s->state_id, &succ_ids, &costs);
+	m_movable->GetSuccs(s->state_id, &succ_ids, &costs);
 
 	for (size_t sidx = 0; sidx < succ_ids.size(); ++sidx)
 	{
@@ -223,13 +223,13 @@ void WAStar::expand(SearchState *s, int hidx)
 
 bool WAStar::is_goal(int state_id)
 {
-	return m_robot->IsGoal(state_id);
+	return m_movable->IsGoal(state_id);
 }
 
 unsigned int WAStar::compute_heuristic(int state_id, int hidx)
 {
 	assert(num_heuristics() >= hidx);
-	return m_robot->GetGoalHeuristic(state_id);
+	return m_movable->GetGoalHeuristic(state_id);
 
 }
 
