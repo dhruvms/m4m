@@ -11,6 +11,7 @@ FRIDGE = True
 
 def ParseFile(filepath):
 	objs = {}
+	trajs = {}
 	with open(filepath, 'r') as f:
 		done = False
 		while not done:
@@ -32,9 +33,26 @@ def ParseFile(filepath):
 
 				objs = collections.OrderedDict(sorted(objs.items()))
 
-	return objs
+			if line == 'T':
+				line = f.readline()[:-1]
+				num_moving = int(line)
+				for i in range(num_moving):
+					line = f.readline()[:-1]
+					obj_id = int(line)
 
-def DrawScene(filepath, objs, alpha=1.0):
+					line = f.readline()[:-1]
+					num_wps = int(line)
+
+					traj = []
+					for i in range(num_wps):
+						line = f.readline()[:-1]
+						wp = [float(val) for val in line.split(',')]
+						traj.append(wp)
+					trajs[obj_id] = traj
+
+	return objs, trajs
+
+def DrawScene(filepath, objs, trajs, alpha=1.0):
 	codes = [
 		Path.MOVETO,
 		Path.LINETO,
@@ -52,7 +70,8 @@ def DrawScene(filepath, objs, alpha=1.0):
 	base_rect = patches.Rectangle(
 						(base_bl[0], base_bl[1]),
 						2 * base_extents[0], 2 * base_extents[1],
-						linewidth=2, edgecolor='k', facecolor='none', alpha=alpha)
+						linewidth=2, edgecolor='k', facecolor='none',
+						alpha=alpha, zorder=1)
 	AX.add_artist(base_rect)
 
 	for obj_id in objs:
@@ -95,7 +114,8 @@ def DrawScene(filepath, objs, alpha=1.0):
 			obj_pts = obj_pts + obj_cent # translate back
 
 			path = Path(obj_pts, codes)
-			obj_rect = patches.PathPatch(path, ec=ec, fc=fc, lw=1, alpha=alpha)
+			obj_rect = patches.PathPatch(path, ec=ec, fc=fc, lw=1,
+								alpha=alpha, zorder=2)
 
 			AX.add_artist(obj_rect)
 
@@ -105,11 +125,24 @@ def DrawScene(filepath, objs, alpha=1.0):
 			obj_rad = obj[8]
 			obj_circ = patches.Circle(
 						obj_cent, radius=obj_rad,
-						ec=ec, fc=fc, lw=1, alpha=alpha)
+						ec=ec, fc=fc, lw=1,
+						alpha=alpha, zorder=2)
 
 			AX.add_artist(obj_circ)
 
-		AX.text(obj_cent[0], obj_cent[1], str(int(obj_id)), color=tc)
+		AX.text(obj_cent[0], obj_cent[1], str(int(obj_id)), color=tc, zorder=3)
+
+	if (trajs):
+		for key in trajs:
+			if key == 99:
+				lc = 'cyan'
+			elif key == 999:
+				lc = 'orange'
+			else:
+				lc = 'lime'
+
+			traj = np.asarray(trajs[key])
+			AX.plot(traj[:, 0], traj[:, 1], c=lc, alpha=0.75, zorder=10)
 
 	AX.axis('equal')
 	AX.set_xlim([0.0, 1.2])
@@ -126,8 +159,8 @@ def main():
 				continue
 
 			filepath = os.path.join(dirpath, filename)
-			objs = ParseFile(filepath)
-			DrawScene(filepath, objs)
+			objs, trajs = ParseFile(filepath)
+			DrawScene(filepath, objs, trajs)
 
 if __name__ == '__main__':
 	main()

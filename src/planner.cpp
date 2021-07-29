@@ -479,6 +479,38 @@ void Planner::writePlanState(int iter)
 				<< movable << '\n';
 	}
 
+	// write solution trajs
+	DATA << 'T' << '\n';
+	o = 1 + m_agents.size() + 1;
+	DATA << o << '\n';
+
+	agent_obs = m_ooi.GetObject();
+	auto move = m_ooi.GetMoveTraj();
+	DATA << 999 << '\n';
+	DATA << move->size() << '\n';
+	for (const auto& s: *move) {
+		DATA << s.p.x << ',' << s.p.y << '\n';
+	}
+
+	for (const auto& a: m_agents)
+	{
+		agent_obs = a.GetObject();
+		move = a.GetMoveTraj();
+		DATA << agent_obs->id << '\n';
+		DATA << move->size() << '\n';
+		for (const auto& s: *move) {
+			DATA << s.p.x << ',' << s.p.y << '\n';
+		}
+	}
+
+	agent_obs = m_ee.GetObject();
+	move = m_ee.GetMoveTraj();
+	DATA << agent_obs->id << '\n';
+	DATA << move->size() << '\n';
+	for (const auto& s: *move) {
+		DATA << s.p.x << ',' << s.p.y << '\n';
+	}
+
 	DATA.close();
 }
 
