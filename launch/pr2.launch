@@ -15,9 +15,9 @@
                 r_shoulder_lift_joint
                 r_upper_arm_roll_joint
                 r_elbow_flex_joint
-                <!-- r_forearm_roll_joint
+                r_forearm_roll_joint
                 r_wrist_flex_joint
-                r_wrist_roll_joint -->
+                r_wrist_roll_joint
             kinematics_frame:
                 torso_lift_link
             chain_tip_link:
