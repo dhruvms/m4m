@@ -15,14 +15,25 @@ m_planner(planner),
 m_obstacles(obstacles),
 m_rng(m_dev())
 {
+	// preprocess immovable obstacles
 	for (size_t i = 0; i != m_obstacles.size(); ++i)
 	{
-		if (m_obstacles.at(i).id == 1) {
+		if (m_obstacles.at(i).id == 1)
+		{
 			m_base_loc = i;
-			break;
+			MakeObjectRectangle(m_obstacles.at(m_base_loc), m_base);
+		}
+		else if (m_obstacles.at(i).id <= 5) { // shelf
+			continue;
+		}
+		else
+		{
+			State obs_loc = {m_obstacles.at(i).o_x, m_obstacles.at(i).o_y};
+			std::vector<State> obs_rect;
+			GetRectObjAtPt(obs_loc, m_obstacles.at(i), obs_rect);
+			m_obs_rects[m_obstacles.at(i).id] = obs_rect;
 		}
 	}
-	MakeObjectRectangle(m_obstacles.at(m_base_loc), m_base);
 
 	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
 }

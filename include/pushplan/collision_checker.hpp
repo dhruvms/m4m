@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <random>
+#include <unordered_map>
 
 namespace clutter
 {
@@ -44,6 +45,7 @@ private:
 	Planner* m_planner = nullptr;
 
 	std::vector<Object> m_obstacles;
+	std::unordered_map<int, std::vector<State> > m_obs_rects;
 	size_t m_base_loc;
 	std::vector<State> m_base;
 	std::vector<Trajectory> m_trajs;
