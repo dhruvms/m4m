@@ -57,8 +57,22 @@ private:
 	int m_phase;
 
 	bool immovableCollision(const Object& o, const int& priority);
-	bool obstacleCollision(const Object& o, const Object& obs);
-	bool baseCollision(const Object& o, const int& priority);
+
+	bool rectRectCollision(
+		const std::vector<State>& r1, const std::vector<State>& r2);
+	bool rectCircCollision(
+		const std::vector<State>& r1,
+		const Object& c1, const State& c1_loc);
+	bool circCircCollision(
+		const Object& c1, const State& c1_loc,
+		const Object& c2, const State& c2_loc);
+
+	bool rectCollisionBase(
+		const State& o_loc, const std::vector<State>& o_rect,
+		const int& priority);
+	bool circCollisionBase(
+		const State& o_loc, const Object& o,
+		const int& priority);
 };
 
 } // namespace clutter
