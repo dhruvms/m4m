@@ -11,6 +11,7 @@
 #include <numeric>
 #include <algorithm>
 #include <iomanip>
+#include <cstdlib>
 
 #include <gperftools/profiler.h>
 
@@ -53,11 +54,10 @@ m_ph("~")
 	}
 
 	m_cc = std::make_shared<CollisionChecker>(this, obstacles);
-	m_cc->SetPhase(m_phase);
 	obstacles.clear();
 
 	// Get OOI goal
-	m_ooi_gf = m_cc->GetGoalState(&m_ooi.GetObject()->back());
+	m_ooi_gf = m_cc->GetRandomStateOutside(&m_ooi.GetObject()->back());
 	ContToDisc(m_ooi_gf, m_ooi_g);
 
 	m_ooi.SetCC(m_cc);
@@ -66,19 +66,44 @@ m_ph("~")
 		a.SetCC(m_cc);
 	}
 
-	// Set agent current positions and time
-	m_ooi.Init();
-	m_robot->Init();
-	for (auto& a: m_agents) {
-		a.Init();
+	m_ooi.Setup();
+	if (!m_robot->Setup()) {
+		SMPL_ERROR("Robot setup failed!");
 	}
+	for (auto& a: m_agents) {
+		a.Setup();
+	}
+	setupProblem();
 }
 
-void Planner::WHCAStar()
+void Planner::Plan()
+{
+	int runs = 1;
+
+	double start_time = GetTime();
+	while (!whcastar())
+	{
+		// SMPL_WARN("Some agent search failed. Must solve again!");
+		m_t = 0;
+		m_phase = 0;
+		setupProblem(true);
+
+		int res = cleanupLogs();
+		if (res == -1) {
+			SMPL_ERROR("system command errored!");
+		}
+
+		++runs;
+	}
+	double time_taken = GetTime() - start_time;
+	SMPL_INFO("Planning took %f seconds. (%d runs)", time_taken, runs);
+}
+
+bool Planner::whcastar()
 {
 	// ProfilerStart("/home/dhruv/test3.out");
 
-	double start_time = GetTime(), total_time = 0.0;
+	double start_time = GetTime(), total_time = 0.0, iter_time = 0.0;
 
 	int iter = 0;
 	writePlanState(iter);
@@ -86,14 +111,18 @@ void Planner::WHCAStar()
 	reinit();
 	while (!m_robot->AtGoal(*(m_robot->GetCurrentState()), false)) // robot (current) state includes joint config to avoid IK
 	{
-		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_ooi.GetObject()->id, 0);
-		// Search() updates cc with found plan
-		m_ooi.Search(0);
-		m_robot->Search(1);
+		if (!m_ooi.Search(0)) {
+			return false;
+		}
+		if (!m_robot->Search(1)) {
+			return false;
+		}
 		int robin = 2;
-		for (const auto& p: m_priorities) {
-			// SMPL_INFO("Plan for Object (number %d, id %d, priority %d)", p, m_agents.at(p).GetObject()->id, robin);
-			m_agents.at(p).Search(robin);
+		for (const auto& p: m_priorities)
+		{
+			if (!m_agents.at(p).Search(robin)) {
+				return false;
+			}
 			++robin;
 		}
 
@@ -102,28 +131,36 @@ void Planner::WHCAStar()
 
 		++iter;
 		writePlanState(iter);
+
+		iter_time = GetTime() - start_time;
+		if (iter_time > MAX_PLANNING_TIME) {
+			return false;
+		}
 	}
-	double end_time = GetTime();
-	double phase_time = end_time - start_time;
+	double phase_time = GetTime() - start_time;
 	total_time += phase_time;
 	SMPL_INFO("WHCA* Phase 1 planning took %f seconds.", phase_time);
 
 	// ProfilerStop();
 
 	m_phase = 1;
-	m_cc->SetPhase(m_phase);
 
 	start_time = GetTime();
 	reinit();
 	while (!m_robot->AtGoal(*(m_robot->GetCurrentState()), false))
 	{
-		// SMPL_INFO("Plan for OOI (number %d, id %d, priority %d)", 0, m_ooi.GetObject()->id, 0);
-		m_ooi.Search(0);
-		m_robot->Search(1);
+		if (!m_ooi.Search(0)) {
+			return false;
+		}
+		if (!m_robot->Search(1)) {
+			return false;
+		}
 		int robin = 2;
-		for (const auto& p: m_priorities) {
-			// SMPL_INFO("Plan for Object (number %d, id %d, priority %d)", p, m_agents.at(p).GetObject()->id, robin);
-			m_agents.at(p).Search(robin);
+		for (const auto& p: m_priorities)
+		{
+			if (!m_agents.at(p).Search(robin)) {
+				return false;
+			}
 			++robin;
 		}
 
@@ -132,11 +169,17 @@ void Planner::WHCAStar()
 
 		++iter;
 		writePlanState(iter);
+
+		iter_time = GetTime() - start_time;
+		if (iter_time > MAX_PLANNING_TIME) {
+			return false;
+		}
 	}
-	end_time = GetTime();
-	phase_time = end_time - start_time;
+	phase_time = GetTime() - start_time;
 	total_time += phase_time;
 	SMPL_INFO("WHCA* Phase 2 planning took %f seconds. Total time = %f seconds.", phase_time, total_time);
+
+	return true;
 }
 
 const std::vector<Object>* Planner::GetObject(const LatticeState& s, int priority)
@@ -223,6 +266,30 @@ void Planner::step_agents(int k)
 	m_t += k;
 }
 
+void Planner::setupProblem(bool random)
+{
+	// Set agent current positions and time
+	m_ooi.Init();
+	m_robot->Init();
+	if (random) {
+		m_robot->RandomiseStart();
+	}
+	for (auto& a: m_agents) {
+		a.Init();
+	}
+}
+
+int Planner::cleanupLogs()
+{
+	std::string files(__FILE__), command;
+	auto found = files.find_last_of("/\\");
+	files = files.substr(0, found + 1) + "../dat/txt/*.txt";
+
+	command = "rm " + files;
+	// SMPL_WARN("Execute command: %s", command.c_str());
+	return system(command.c_str());
+}
+
 void Planner::parse_scene(std::vector<Object>& obstacles)
 {
 	std::ifstream SCENE;
@@ -307,31 +374,6 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 	}
 
 	SCENE.close();
-}
-
-void Planner::set_ee_obj()
-{
-	Object o;
-	o.id = 99;
-	o.shape = 2; // circle
-	o.type = 1; // movable
-	o.o_x = 0.310248; // from start config FK
-	o.o_y = -0.673113; // from start config FK
-	// o.o_x = m_ooi_gf.x;
-	// o.o_y = m_ooi_gf.y;
-	o.o_z = m_ooi.GetObject()->back().o_z; // hand picked for now
-	o.o_roll = 0.0;
-	o.o_pitch = 0.0;
-	o.o_yaw = 0.0;
-	o.x_size = 0.04; // hand picked for now
-	o.y_size = 0.04; // hand picked for now
-	o.z_size = 0.03; // hand picked for now
-	o.mass = 0.58007; // r_gripper_palm_joint mass from URDF
-	o.locked = o.mass == 0;
-	o.mu = m_ooi.GetObject()->back().mu; // hand picked for now
-	o.movable = true;
-
-	m_ee.SetObject(o);
 }
 
 void Planner::writePlanState(int iter)

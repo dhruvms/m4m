@@ -9,12 +9,26 @@
 namespace clutter
 {
 
+bool Agent::Setup()
+{
+	m_o_x = m_objs.back().o_x;
+	m_o_y = m_objs.back().o_y;
+}
+
 bool Agent::Init()
 {
+	m_solve.clear();
+	m_retrieve.clear();
+	m_move.clear();
+
 	m_t = 0;
 	m_retrieved = 0;
 
+	m_objs.back().o_x = m_o_x;
+	m_objs.back().o_y = m_o_y;
+
 	m_init.t = m_t;
+	m_init.state.clear();
 	m_init.state.push_back(m_objs.back().o_x);
 	m_init.state.push_back(m_objs.back().o_y);
 	ContToDisc(m_init.state, m_init.coord);
@@ -22,7 +36,9 @@ bool Agent::Init()
 
 	m_move.push_back(m_current);
 
-	m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
+	if (!m_wastar) {
+		m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
+	}
 
 	return true;
 }
@@ -155,7 +171,7 @@ unsigned int Agent::cost(
 			return 0;
 		}
 
-		double dist = 1.0f + EuclideanDist(s1->state, s2->state);
+		double dist = std::max(1.0, EuclideanDist(s1->state, s2->state));
 		return (dist * COST_MULT);
 
 		// // Works okay for WINDOW = 20, but not for WINDOW <= 10

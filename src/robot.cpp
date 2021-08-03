@@ -9,7 +9,7 @@
 namespace clutter
 {
 
-bool Robot::Init()
+bool Robot::Setup()
 {
 	/////////////////
 	// Robot Model //
@@ -123,6 +123,19 @@ bool Robot::Init()
 
 	initObjects();
 
+	if (!m_wastar) {
+		m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
+	}
+
+	return true;
+}
+
+bool Robot::Init()
+{
+	m_solve.clear();
+	m_retrieve.clear();
+	m_move.clear();
+
 	m_t = 0;
 	m_retrieved = 0;
 
@@ -139,9 +152,35 @@ bool Robot::Init()
 	reinitObjects(m_init.state);
 	m_current = m_init;
 
-	m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
-
 	return true;
+}
+
+void Robot::RandomiseStart()
+{
+	smpl::RobotState s;
+	double x = 0.0, z = 0.0, diff = 0.0;
+	do
+	{
+		getRandomState(s);
+		if (!m_rm->checkJointLimits(s)) {
+			continue;
+		}
+
+		Eigen::Affine3d ee_pose = m_rm->computeFK(s);
+		z = ee_pose.translation().z();
+		diff = std::fabs(z - m_z);
+
+		x = m_cc->GetMinX() - ee_pose.translation().x();
+	}
+	while (diff < RES && x > 0.05 && x < 0.2);
+
+	m_init.state = s;
+	m_init.coord = Coord(m_rm->jointVariableCount());
+	stateToCoord(m_init.state, m_init.coord);
+	m_z = z;
+
+	reinitObjects(m_init.state);
+	m_current = m_init;
 }
 
 bool Robot::AtGoal(const LatticeState& s, bool verbose)
@@ -263,33 +302,6 @@ const std::vector<Object>* Robot::GetObject(const LatticeState& s)
 	return &m_objs;
 }
 
-bool Robot::setIKState(
-	const Coord& loc, const State& seed, State& state)
-{
-	State loc_f;
-	DiscToCont(loc, loc_f);
-
-	Eigen::Affine3d pose;
-	int tries = 0;
-	while (tries <= 1) // TODO: make configurable parameter
-	{
-		pose = Eigen::Translation3d(
-				loc_f.at(0), loc_f.at(1), m_z) *
-				Eigen::AngleAxisd((m_distD(m_rng) * M_PI_2) - M_PI_4, Eigen::Vector3d::UnitZ()) *
-				Eigen::AngleAxisd((m_distD(m_rng) * M_PI_2) - M_PI_4, Eigen::Vector3d::UnitY()) *
-				Eigen::AngleAxisd((m_distD(m_rng) * M_PI_2) - M_PI_4, Eigen::Vector3d::UnitX());
-		if (m_rm->computeIKSearch(pose, seed, state))
-		{
-			break;
-			// if (m_rm->checkJointLimits(state)) {
-			// }
-		}
-		++tries;
-	}
-
-	return tries < 1;
-}
-
 Coord Robot::GetEECoord()
 {
 	Eigen::Affine3d ee_pose = m_rm->computeFK(m_current.state);
@@ -297,6 +309,24 @@ Coord Robot::GetEECoord()
 	Coord ee_coord;
 	ContToDisc(ee, ee_coord);
 	return ee_coord;
+}
+
+void Robot::getRandomState(smpl::RobotState& s)
+{
+	s.clear();
+	s.resize(m_rm->jointVariableCount(), 0.0);
+
+	for(int jidx = 0; jidx < m_rm->jointVariableCount(); jidx++)
+	{
+		if (m_continuous[jidx]) {
+			s.at(jidx) = m_distD(m_rng) * 2 * M_PI;
+		}
+		else
+		{
+			auto span = std::fabs(m_max_limits[jidx] - m_min_limits[jidx]);
+			s.at(jidx) = m_distD(m_rng) * span + m_min_limits[jidx];
+		}
+	}
 }
 
 int Robot::generateSuccessor(

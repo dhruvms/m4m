@@ -59,6 +59,7 @@ bool Movable::Search(int robin)
 		{
 			convertPath(solution);
 			m_cc->UpdateTraj(m_priority, m_solve);
+
 			return true;
 		}
 	}

@@ -44,7 +44,7 @@ int main(int argc, char** argv)
 	planfile += level + "/plan_" + scene + "_SCENE.txt";
 
 	Planner p(planfile);
-	p.WHCAStar();
+	p.Plan();
 
 	return 0;
 }

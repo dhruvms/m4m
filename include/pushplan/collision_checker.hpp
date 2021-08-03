@@ -20,7 +20,6 @@ public:
 	void AddObstacle(const Object& o) {
 		m_obstacles.push_back(o);
 	};
-	void SetPhase(int phase) { m_phase = phase; };
 
 	void UpdateTraj(const int& priority, const Trajectory& traj);
 
@@ -32,8 +31,9 @@ public:
 	bool OOICollision(const Object& o);
 
 	double BoundaryDistance(const State& p);
+	double GetMinX() { return m_base.at(0).at(0); };
 
-	State GetGoalState(const Object* o);
+	State GetRandomStateOutside(const Object* o);
 
 	double GetBaseWidth() { return std::fabs(m_base.at(0).at(0) - m_base.at(1).at(0)); };
 	double GetBaseLength() { return std::fabs(m_base.at(0).at(1) - m_base.at(3).at(1)); };
@@ -53,8 +53,6 @@ private:
 	std::random_device m_dev;
 	std::mt19937 m_rng;
 	std::uniform_real_distribution<double> m_distD;
-
-	int m_phase;
 
 	bool immovableCollision(const Object& o, const int& priority);
 

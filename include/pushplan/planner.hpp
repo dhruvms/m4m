@@ -20,7 +20,7 @@ class Planner
 public:
 	Planner(const std::string& scene_file);
 
-	void WHCAStar();
+	void Plan();
 
 	const std::vector<Object>* GetObject(const LatticeState& s, int priority);
 
@@ -42,15 +42,17 @@ private:
 
 	ros::NodeHandle m_ph;
 
-	void parse_scene(std::vector<Object>& obstacles);
-	void set_ee_obj();
+	bool whcastar();
 
 	void reinit();
 	void prioritize();
 	void step_agents(int k=1);
 
-	void writePlanState(int iter);
+	void setupProblem(bool random=false);
+	int cleanupLogs();
 
+	void parse_scene(std::vector<Object>& obstacles);
+	void writePlanState(int iter);
 	void setupGlobals();
 };
 

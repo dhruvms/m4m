@@ -20,6 +20,7 @@ public:
 		m_objs.push_back(o);
 	}
 
+	bool Setup() override;
 	bool Init() override;
 
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
@@ -37,6 +38,8 @@ public:
 	using Movable::GetObject;
 
 private:
+	double m_o_x, m_o_y;
+
 	int generateSuccessor(
 		const LatticeState* parent,
 		int dx, int dy,

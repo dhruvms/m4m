@@ -20,7 +20,9 @@ class Robot : public Movable
 public:
 	Robot() : m_ph("~"), m_rng(m_dev()) {};
 
+	bool Setup() override;
 	bool Init() override;
+	void RandomiseStart();
 
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
 	void Step(int k) override;
@@ -65,8 +67,7 @@ private:
 	std::mt19937 m_rng;
 	std::uniform_real_distribution<double> m_distD;
 
-	bool setIKState(
-		const Coord& loc, const State& seed, State& state);
+	void getRandomState(smpl::RobotState& s);
 
 	int generateSuccessor(
 		const LatticeState* parent,

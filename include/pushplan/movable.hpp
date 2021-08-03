@@ -17,6 +17,7 @@ namespace clutter
 class Movable
 {
 public:
+	virtual bool Setup() = 0;
 	virtual bool Init() = 0;
 
 	void SetStartState(const LatticeState& s);

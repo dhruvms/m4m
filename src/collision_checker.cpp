@@ -218,7 +218,7 @@ double CollisionChecker::BoundaryDistance(const State& p)
 	return d;
 }
 
-State CollisionChecker::GetGoalState(const Object* o)
+State CollisionChecker::GetRandomStateOutside(const Object* o)
 {
 	State g(2, 0.0);
 	State gmin(2, 0.0), gmax(2, 0.0);
