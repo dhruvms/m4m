@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <iomanip>
 
+#include <gperftools/profiler.h>
+
 namespace clutter
 {
 
@@ -74,6 +76,8 @@ m_ph("~")
 
 void Planner::WHCAStar()
 {
+	// ProfilerStart("/home/dhruv/test3.out");
+
 	double start_time = GetTime(), total_time = 0.0;
 
 	int iter = 0;
@@ -103,6 +107,8 @@ void Planner::WHCAStar()
 	double phase_time = end_time - start_time;
 	total_time += phase_time;
 	SMPL_INFO("WHCA* Phase 1 planning took %f seconds.", phase_time);
+
+	// ProfilerStop();
 
 	m_phase = 1;
 	m_cc->SetPhase(m_phase);

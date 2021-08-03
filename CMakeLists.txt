@@ -41,7 +41,7 @@ add_library(
 	src/robot.cpp
 	src/wastar.cpp
 	src/constants.cpp)
-target_link_libraries(PUSHPLAN ${catkin_LIBRARIES} smpl::smpl)
+target_link_libraries(PUSHPLAN ${catkin_LIBRARIES} smpl::smpl) # -lprofiler
 
 add_executable(coop_plan test/coop_plan.cpp)
 target_link_libraries(coop_plan ${catkin_LIBRARIES} smpl::smpl PUSHPLAN)
