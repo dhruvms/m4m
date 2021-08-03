@@ -48,38 +48,6 @@ void Movable::Search(int robin)
 	}
 }
 
-void Movable::GetSuccs(
-	int state_id,
-	std::vector<int>* succ_ids,
-	std::vector<unsigned int>* costs)
-{
-	assert(state_id >= 0);
-	succ_ids->clear();
-	costs->clear();
-
-	LatticeState* parent = getHashEntry(state_id);
-	assert(parent);
-	m_closed.push_back(parent);
-
-	if (IsGoal(state_id)) {
-		SMPL_WARN("We are expanding the goal state (???)");
-		return;
-	}
-
-	for (int dx = -1; dx <= 1; ++dx)
-	{
-		for (int dy = -1; dy <= 1; ++dy)
-		{
-			// ignore ordinal directions for 4-connected grid
-			if (GRID == 4 && std::abs(dx * dy) == 1) {
-				continue;
-			}
-
-			generateSuccessor(parent, dx, dy, succ_ids, costs);
-		}
-	}
-}
-
 bool Movable::IsGoal(int state_id)
 {
 	assert(state_id >= 0);

@@ -25,6 +25,11 @@ public:
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
 	void Step(int k) override;
 
+	void GetSuccs(
+		int state_id,
+		std::vector<int>* succ_ids,
+		std::vector<unsigned int>* costs) override;
+
 	unsigned int GetGoalHeuristic(int state_id) override;
 	unsigned int GetGoalHeuristic(const LatticeState& s) override;
 
@@ -36,10 +41,10 @@ private:
 		const LatticeState* parent,
 		int dx, int dy,
 		std::vector<int>* succs,
-		std::vector<unsigned int>* costs) override;
+		std::vector<unsigned int>* costs);
 	unsigned int cost(
 		const LatticeState* s1,
-		const LatticeState* s2);
+		const LatticeState* s2) override;
 	bool convertPath(
 		const std::vector<int>& idpath) override;
 };

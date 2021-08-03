@@ -129,6 +129,37 @@ void Robot::Step(int k)
 	}
 }
 
+void Robot::GetSuccs(
+	int state_id,
+	std::vector<int>* succ_ids,
+	std::vector<unsigned int>* costs)
+{
+	assert(state_id >= 0);
+	succ_ids->clear();
+	costs->clear();
+
+	LatticeState* parent = getHashEntry(state_id);
+	assert(parent);
+	m_closed.push_back(parent);
+
+	if (IsGoal(state_id)) {
+		SMPL_WARN("We are expanding the goal state (???)");
+		return;
+	}
+
+	// r_shoulder_pan_joint
+	generateSuccessor(parent, 0, 1, succ_ids, costs);
+	generateSuccessor(parent, 0, -1, succ_ids, costs);
+
+	// r_elbow_flex_joint
+	generateSuccessor(parent, 3, 1, succ_ids, costs);
+	generateSuccessor(parent, 3, -1, succ_ids, costs);
+
+	// r_wrist_flex_joint
+	generateSuccessor(parent, 5, 1, succ_ids, costs);
+	generateSuccessor(parent, 5, -1, succ_ids, costs);
+}
+
 unsigned int Robot::GetGoalHeuristic(int state_id)
 {
 	// TODO: RRA* informed backwards Dijkstra's heuristic
@@ -198,16 +229,17 @@ bool Robot::setIKState(
 
 int Robot::generateSuccessor(
 	const LatticeState* parent,
-	int dx, int dy,
+	int jidx, int delta,
 	std::vector<int>* succs,
 	std::vector<unsigned int>* costs)
 {
 	LatticeState child;
 	child.t = parent->t + 1;
 	child.coord = parent->coord;
-	child.coord.at(0) += dx * 2;
-	child.coord.at(1) += dy * 2;
-	if (!setIKState(child.coord, parent->state, child.state)) {
+	child.coord.at(jidx) += delta;
+	child.state = State(m_rm->jointVariableCount());
+	coordToState(child.coord, child.state);
+	if (!m_rm->checkJointLimits(child.state)) {
 		return -1;
 	}
 
@@ -237,12 +269,14 @@ unsigned int Robot::cost(
 			return 0;
 		}
 
-		State s1_loc, s2_loc;
-		DiscToCont(s1->coord, s1_loc);
-		DiscToCont(s2->coord, s2_loc);
+		return COST_MULT;
 
-		double dist = 1.0f + EuclideanDist(s1_loc, s2_loc);
-		return (dist * COST_MULT);
+		// State s1_loc, s2_loc;
+		// DiscToCont(s1->coord, s1_loc);
+		// DiscToCont(s2->coord, s2_loc);
+
+		// double dist = 1.0f + EuclideanDist(s1_loc, s2_loc);
+		// return (dist * COST_MULT);
 
 		// // Works okay for WINDOW = 20, but not for WINDOW <= 10
 		// double bdist = m_cc->BoundaryDistance(s2f);

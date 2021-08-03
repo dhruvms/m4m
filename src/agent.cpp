@@ -52,6 +52,38 @@ void Agent::Step(int k)
 	}
 }
 
+void Agent::GetSuccs(
+	int state_id,
+	std::vector<int>* succ_ids,
+	std::vector<unsigned int>* costs)
+{
+	assert(state_id >= 0);
+	succ_ids->clear();
+	costs->clear();
+
+	LatticeState* parent = getHashEntry(state_id);
+	assert(parent);
+	m_closed.push_back(parent);
+
+	if (IsGoal(state_id)) {
+		SMPL_WARN("We are expanding the goal state (???)");
+		return;
+	}
+
+	for (int dx = -1; dx <= 1; ++dx)
+	{
+		for (int dy = -1; dy <= 1; ++dy)
+		{
+			// ignore ordinal directions for 4-connected grid
+			if (GRID == 4 && std::abs(dx * dy) == 1) {
+				continue;
+			}
+
+			generateSuccessor(parent, dx, dy, succ_ids, costs);
+		}
+	}
+}
+
 unsigned int Agent::GetGoalHeuristic(int state_id)
 {
 	// TODO: RRA* informed backwards Dijkstra's heuristic

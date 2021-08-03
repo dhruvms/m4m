@@ -26,11 +26,11 @@ public:
 	virtual bool AtGoal(const LatticeState& s, bool verbose=false) = 0;
 	virtual void Step(int k) = 0;
 
-	void GetSuccs(
+	bool IsGoal(int state_id);
+	virtual void GetSuccs(
 		int state_id,
 		std::vector<int>* succ_ids,
-		std::vector<unsigned int>* costs);
-	bool IsGoal(int state_id);
+		std::vector<unsigned int>* costs) = 0;
 	virtual unsigned int GetGoalHeuristic(int state_id) = 0;
 	virtual unsigned int GetGoalHeuristic(const LatticeState& s) = 0;
 
@@ -63,11 +63,6 @@ protected:
 	typedef smpl::PointerValueEqual<StateKey> StateEqual;
 	smpl::hash_map<StateKey*, int, StateHash, StateEqual> m_state_to_id;
 
-	virtual int generateSuccessor(
-		const LatticeState* parent,
-		int dx, int dy,
-		std::vector<int>* succs,
-		std::vector<unsigned int>* costs) = 0;
 	virtual unsigned int cost(
 		const LatticeState* s1,
 		const LatticeState* s2) = 0;
