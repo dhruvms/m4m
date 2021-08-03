@@ -36,6 +36,8 @@ public:
 	const std::vector<Object>* GetObject(const LatticeState& s) override;
 	using Movable::GetObject;
 
+	Coord GetEECoord();
+
 private:
 	ros::NodeHandle m_nh, m_ph;
 	std::string m_robot_description, m_planning_frame;
@@ -43,8 +45,21 @@ private:
 	std::unique_ptr<smpl::KDLRobotModel> m_rm;
 	moveit_msgs::RobotState m_start_state;
 
+	// cached from robot model
+	std::vector<double> m_min_limits;
+	std::vector<double> m_max_limits;
+	std::vector<bool> m_continuous;
+	std::vector<bool> m_bounded;
+
+	std::vector<int> m_coord_vals;
+	std::vector<double> m_coord_deltas;
+
 	double m_mass, m_b, m_z;
 	std::string m_shoulder, m_elbow, m_wrist, m_tip;
+	const smpl::urdf::Link* m_link_s = nullptr;
+	const smpl::urdf::Link* m_link_e = nullptr;
+	const smpl::urdf::Link* m_link_w = nullptr;
+	const smpl::urdf::Link* m_link_t = nullptr;
 
 	std::random_device m_dev;
 	std::mt19937 m_rng;
@@ -66,11 +81,15 @@ private:
 	bool convertPath(
 		const std::vector<int>& idpath) override;
 
+	void coordToState(const Coord& coord, State& state) const;
+	void stateToCoord(const State& state, Coord& coord) const;
+
 	// Robot Model functions
 	bool readRobotModelConfig(const ros::NodeHandle &nh);
 	bool setupRobotModel();
 	bool readStartState();
 	bool setReferenceStartState();
+	bool readResolutions(std::vector<double>& resolutions);
 
 	void initObjects();
 	void reinitObjects(const State& s);

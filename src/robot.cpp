@@ -68,12 +68,59 @@ bool Robot::Init()
 		return false;
 	}
 
+	// from smpl::ManipLattice
+	m_min_limits.resize(m_rm->jointVariableCount());
+	m_max_limits.resize(m_rm->jointVariableCount());
+	m_continuous.resize(m_rm->jointVariableCount());
+	m_bounded.resize(m_rm->jointVariableCount());
+	for (int jidx = 0; jidx < m_rm->jointVariableCount(); ++jidx)
+	{
+		m_min_limits[jidx] = m_rm->minPosLimit(jidx);
+		m_max_limits[jidx] = m_rm->maxPosLimit(jidx);
+		m_continuous[jidx] = m_rm->isContinuous(jidx);
+		m_bounded[jidx] = m_rm->hasPosLimit(jidx);
+	}
+
+	std::vector<int> discretization(m_rm->jointVariableCount());
+	std::vector<double> deltas(m_rm->jointVariableCount());
+	std::vector<double> resolutions(m_rm->jointVariableCount());
+	readResolutions(resolutions);
+	for (size_t vidx = 0; vidx < m_rm->jointVariableCount(); ++vidx)
+	{
+		if (m_continuous[vidx])
+		{
+			discretization[vidx] = (int)std::round((2.0 * M_PI) / resolutions[vidx]);
+			deltas[vidx] = (2.0 * M_PI) / (double)discretization[vidx];
+		}
+		else if (m_bounded[vidx])
+		{
+			auto span = std::fabs(m_max_limits[vidx] - m_min_limits[vidx]);
+			discretization[vidx] = std::max(1, (int)std::round(span / resolutions[vidx]));
+			deltas[vidx] = span / (double)discretization[vidx];
+		}
+		else
+		{
+			discretization[vidx] = std::numeric_limits<int>::max();
+			deltas[vidx] = resolutions[vidx];
+		}
+	}
+
+	m_coord_vals = std::move(discretization);
+	m_coord_deltas = std::move(deltas);
+
+	// setup planar approx
 	m_mass = R_MASS;
 	m_b = SEMI_MINOR;
 	m_shoulder = "r_shoulder_pan_link";
 	m_elbow = "r_elbow_flex_link";
 	m_wrist = "r_wrist_roll_link";
 	m_tip = "r_gripper_motor_screw_link"; // TODO: check
+
+	m_link_s = smpl::urdf::GetLink(&m_rm->m_robot_model, m_shoulder.c_str());
+	m_link_e = smpl::urdf::GetLink(&m_rm->m_robot_model, m_elbow.c_str());
+	m_link_w = smpl::urdf::GetLink(&m_rm->m_robot_model, m_wrist.c_str());
+	m_link_t = smpl::urdf::GetLink(&m_rm->m_robot_model, m_tip.c_str());
+
 	initObjects();
 
 	m_t = 0;
@@ -82,9 +129,10 @@ bool Robot::Init()
 	m_init.state.clear();
 	m_init.state.insert(m_init.state.begin(),
 		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
+
+	m_init.coord = Coord(m_rm->jointVariableCount());
+	stateToCoord(m_init.state, m_init.coord);
 	Eigen::Affine3d ee_pose = m_rm->computeFK(m_init.state);
-	State ee = {ee_pose.translation().x(), ee_pose.translation().y()};
-	ContToDisc(ee, m_init.coord);
 	m_z = ee_pose.translation().z();
 
 	reinitObjects(m_init.state);
@@ -97,13 +145,14 @@ bool Robot::Init()
 
 bool Robot::AtGoal(const LatticeState& s, bool verbose)
 {
-	reinitObjects(s.state);
 	if (m_phase == 0)
 	{
+		reinitObjects(s.state);
 		return m_cc->OOICollision(m_objs.back());
 	}
 
-	State ee = {m_objs.back().o_x, m_objs.back().o_y};
+	Eigen::Affine3d ee_pose = m_rm->computeFK(s.state);
+	State ee = {ee_pose.translation().x(), ee_pose.translation().y()};
 	double dist = EuclideanDist(ee, m_goalf);
 
 	if (verbose) {
@@ -169,16 +218,22 @@ unsigned int Robot::GetGoalHeuristic(int state_id)
 	assert(s);
 
 	if (s->state.empty()) {
-		DiscToCont(s->coord, s->state);
+		if (s->coord.size() == 2) {
+			DiscToCont(s->coord, s->state);
+		}
+		else {
+			coordToState(s->coord, s->state);
+		}
 	}
 
 	State ee;
 	if (s->state.size() == 2) {
+		// this should only be true for the goal state?
 		ee = s->state;
 	}
 	else {
-		reinitObjects(s->state);
-		ee = {m_objs.back().o_x, m_objs.back().o_y};
+		Eigen::Affine3d ee_pose = m_rm->computeFK(s->state);
+		ee = {ee_pose.translation().x(), ee_pose.translation().y()};
 	}
 
 	double dist = EuclideanDist(ee, m_goalf);
@@ -188,8 +243,8 @@ unsigned int Robot::GetGoalHeuristic(int state_id)
 unsigned int Robot::GetGoalHeuristic(const LatticeState& s)
 {
 	// TODO: RRA* informed backwards Dijkstra's heuristic
-	reinitObjects(s.state);
-	State ee = {m_objs.back().o_x, m_objs.back().o_y};
+	Eigen::Affine3d ee_pose = m_rm->computeFK(s.state);
+	State ee = {ee_pose.translation().x(), ee_pose.translation().y()};
 	double dist = EuclideanDist(ee, m_goalf);
 	return (dist * COST_MULT);
 }
@@ -225,6 +280,15 @@ bool Robot::setIKState(
 	}
 
 	return tries < 1;
+}
+
+Coord Robot::GetEECoord()
+{
+	Eigen::Affine3d ee_pose = m_rm->computeFK(m_current.state);
+	State ee = {ee_pose.translation().x(), ee_pose.translation().y()};
+	Coord ee_coord;
+	ContToDisc(ee, ee_coord);
+	return ee_coord;
 }
 
 int Robot::generateSuccessor(
@@ -376,6 +440,63 @@ bool Robot::convertPath(
 	return true;
 }
 
+// angles are counterclockwise from 0 to 360 in radians, 0 is the center of bin
+// 0, ...
+void Robot::coordToState(
+	const Coord& coord,
+	State& state) const
+{
+	assert((int)state.size() == m_rm->jointVariableCount() &&
+			(int)coord.size() == m_rm->jointVariableCount());
+
+	for (size_t i = 0; i < coord.size(); ++i)
+	{
+		if (m_continuous[i]) {
+			state[i] = coord[i] * m_coord_deltas[i];
+		}
+		else if (!m_bounded[i]) {
+			state[i] = (double)coord[i] * m_coord_deltas[i];
+		}
+		else {
+			state[i] = m_min_limits[i] + coord[i] * m_coord_deltas[i];
+		}
+	}
+}
+
+void Robot::stateToCoord(
+	const State& state,
+	Coord& coord) const
+{
+	assert((int)state.size() == m_rm->jointVariableCount() &&
+			(int)coord.size() == m_rm->jointVariableCount());
+
+	for (size_t i = 0; i < state.size(); ++i)
+	{
+		if (m_continuous[i])
+		{
+			auto pos_angle = smpl::angles::normalize_angle_positive(state[i]);
+
+			coord[i] = (int)((pos_angle + m_coord_deltas[i] * 0.5) / m_coord_deltas[i]);
+
+			if (coord[i] == m_coord_vals[i]) {
+				coord[i] = 0;
+			}
+		}
+		else if (!m_bounded[i])
+		{
+			if (state[i] >= 0.0) {
+				coord[i] = (int)(state[i] / m_coord_deltas[i] + 0.5);
+			}
+			else {
+				coord[i] = (int)(state[i] / m_coord_deltas[i] - 0.5);
+			}
+		}
+		else {
+			coord[i] = (int)(((state[i] - m_min_limits[i]) / m_coord_deltas[i]) + 0.5);
+		}
+	}
+}
+
 bool Robot::readRobotModelConfig(const ros::NodeHandle &nh)
 {
 	if (!nh.getParam("group_name", m_robot_config.group_name)) {
@@ -518,6 +639,47 @@ bool Robot::setReferenceStartState()
 	return true;
 }
 
+bool Robot::readResolutions(std::vector<double>& resolutions)
+{
+	std::string disc_string;
+	if (!m_ph.getParam("planning/discretization", disc_string))
+	{
+		SMPL_ERROR("Parameter 'discretization' not found in planning params");
+		return false;
+	}
+
+	auto disc = ParseMapFromString<double>(disc_string);
+	for (size_t vidx = 0; vidx < m_rm->jointVariableCount(); ++vidx)
+	{
+		auto& vname = m_rm->getPlanningJoints()[vidx];
+		std::string joint_name, local_name;
+		if (IsMultiDOFJointVariable(vname, &joint_name, &local_name))
+		{
+			// adjust variable name if a variable of a multi-dof joint
+			auto mdof_vname = joint_name + "_" + local_name;
+			auto dit = disc.find(mdof_vname);
+			if (dit == end(disc))
+			{
+				SMPL_ERROR("Discretization for variable '%s' not found in planning parameters", vname.c_str());
+				return false;
+			}
+			resolutions[vidx] = dit->second;
+		}
+		else
+		{
+			auto dit = disc.find(vname);
+			if (dit == end(disc))
+			{
+				SMPL_ERROR("Discretization for variable '%s' not found in planning parameters", vname.c_str());
+				return false;
+			}
+			resolutions[vidx] = dit->second;
+		}
+	}
+
+	return true;
+}
+
 void Robot::initObjects()
 {
 	Object o;
@@ -553,25 +715,21 @@ void Robot::initObjects()
 void Robot::reinitObjects(const State& s)
 {
 	// shoulder-elbow rectangle
-	const smpl::urdf::Link* link_s = smpl::urdf::GetLink(&m_rm->m_robot_model, m_shoulder.c_str());
-	const smpl::urdf::Link* link_e = smpl::urdf::GetLink(&m_rm->m_robot_model, m_elbow.c_str());
-	auto link_pose_s = m_rm->computeFKLink(s, link_s);
-	auto link_pose_e = m_rm->computeFKLink(s, link_e);
+	auto link_pose_s = m_rm->computeFKLink(s, m_link_s);
+	auto link_pose_e = m_rm->computeFKLink(s, m_link_e);
 	State F1 = {link_pose_s.translation().x(), link_pose_s.translation().y()};
 	State F2 = {link_pose_e.translation().x(), link_pose_e.translation().y()};
 	ArmRectObj(F1, F2, m_b, m_objs.at(0));
 
 	// elbow-wrist rectangle
-	const smpl::urdf::Link* link_w = smpl::urdf::GetLink(&m_rm->m_robot_model, m_wrist.c_str());
-	auto link_pose_w = m_rm->computeFKLink(s, link_w);
+	auto link_pose_w = m_rm->computeFKLink(s, m_link_w);
 	F1 = F2;
 	F2.at(0) = link_pose_w.translation().x();
 	F2.at(1) = link_pose_w.translation().y();
 	ArmRectObj(F1, F2, m_b, m_objs.at(1));
 
 	// wrist-tip rectangle
-	const smpl::urdf::Link* link_t = smpl::urdf::GetLink(&m_rm->m_robot_model, m_tip.c_str());
-	auto link_pose_t = m_rm->computeFKLink(s, link_t);
+	auto link_pose_t = m_rm->computeFKLink(s, m_link_t);
 	F1 = F2;
 	F2.at(0) = link_pose_t.translation().x();
 	F2.at(1) = link_pose_t.translation().y();

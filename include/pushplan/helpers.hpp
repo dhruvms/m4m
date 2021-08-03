@@ -18,7 +18,7 @@ static double GetTime()
 template <typename T>
 inline
 int sgn(T val) {
-    return (T(0) < val) - (val < T(0));
+	return (T(0) < val) - (val < T(0));
 }
 
 
@@ -62,6 +62,43 @@ State vector2D(const State& from, const State& to)
 	v.at(1) = to.at(1) - from.at(1);
 
 	return v;
+}
+
+template <class T>
+inline
+static auto ParseMapFromString(const std::string& s)
+	-> std::unordered_map<std::string, T>
+{
+	std::unordered_map<std::string, T> map;
+	std::istringstream ss(s);
+	std::string key;
+	T value;
+	while (ss >> key >> value) {
+		map.insert(std::make_pair(key, value));
+	}
+	return map;
+}
+
+// Return true if the variable is part of a multi-dof joint. Optionally store
+// the name of the joint and the local name of the variable.
+inline
+bool IsMultiDOFJointVariable(
+	const std::string& name,
+	std::string* joint_name,
+	std::string* local_name)
+{
+	auto slash_pos = name.find_last_of('/');
+	if (slash_pos != std::string::npos) {
+		if (joint_name != NULL) {
+			*joint_name = name.substr(0, slash_pos);
+		}
+		if (local_name != NULL) {
+			*local_name = name.substr(slash_pos + 1);
+		}
+		return true;
+	} else {
+		return false;
+	}
 }
 
 }

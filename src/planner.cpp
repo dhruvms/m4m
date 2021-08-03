@@ -176,7 +176,7 @@ void Planner::reinit()
 	}
 	else if (m_phase == 1)
 	{
-		m_ooi.SetGoalState(m_robot->GetCurrentState()->coord); // EE position
+		m_ooi.SetGoalState(m_robot->GetEECoord()); // EE position
 		m_robot->SetGoalState(m_ooi_g);
 	}
 	for (auto& a: m_agents) {
