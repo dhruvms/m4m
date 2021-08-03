@@ -38,6 +38,8 @@ public:
 	void reset(int phase);
 
 	const LatticeState* GetCurrentState() const { return &m_current; };
+	const Trajectory* GetMoveTraj() const { return &m_move; };
+
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
 	}

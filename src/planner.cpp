@@ -481,34 +481,25 @@ void Planner::writePlanState(int iter)
 
 	// write solution trajs
 	DATA << 'T' << '\n';
-	o = 1 + m_agents.size() + 1;
+	o = 1 + m_agents.size();
 	DATA << o << '\n';
 
-	agent_obs = m_ooi.GetObject();
 	auto move = m_ooi.GetMoveTraj();
 	DATA << 999 << '\n';
 	DATA << move->size() << '\n';
 	for (const auto& s: *move) {
-		DATA << s.p.x << ',' << s.p.y << '\n';
+		DATA << s.state.at(0) << ',' << s.state.at(1) << '\n';
 	}
 
 	for (const auto& a: m_agents)
 	{
 		agent_obs = a.GetObject();
 		move = a.GetMoveTraj();
-		DATA << agent_obs->id << '\n';
+		DATA << agent_obs->back().id << '\n';
 		DATA << move->size() << '\n';
 		for (const auto& s: *move) {
-			DATA << s.p.x << ',' << s.p.y << '\n';
+			DATA << s.state.at(0) << ',' << s.state.at(1) << '\n';
 		}
-	}
-
-	agent_obs = m_ee.GetObject();
-	move = m_ee.GetMoveTraj();
-	DATA << agent_obs->id << '\n';
-	DATA << move->size() << '\n';
-	for (const auto& s: *move) {
-		DATA << s.p.x << ',' << s.p.y << '\n';
 	}
 
 	DATA.close();
