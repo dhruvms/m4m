@@ -124,6 +124,7 @@ bool Robot::Init()
 	initObjects();
 
 	m_t = 0;
+	m_retrieved = 0;
 
 	m_init.t = m_t;
 	m_init.state.clear();
@@ -174,6 +175,13 @@ void Robot::Step(int k)
 			reinitObjects(m_current.state);
 
 			m_move.push_back(m_current);
+		}
+	}
+
+	if (m_phase == 1 && m_priority == 1 && !m_retrieve.empty())	{
+		m_retrieve.erase(m_retrieve.begin());
+		if (m_retrieve.size() == 1) {
+			m_retrieved = 1;
 		}
 	}
 }

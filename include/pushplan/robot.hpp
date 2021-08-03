@@ -65,8 +65,6 @@ private:
 	std::mt19937 m_rng;
 	std::uniform_real_distribution<double> m_distD;
 
-	Trajectory m_retrieve; // use TBD
-
 	bool setIKState(
 		const Coord& loc, const State& seed, State& state);
 

@@ -12,6 +12,7 @@ namespace clutter
 bool Agent::Init()
 {
 	m_t = 0;
+	m_retrieved = 0;
 
 	m_init.t = m_t;
 	m_init.state.push_back(m_objs.back().o_x);
