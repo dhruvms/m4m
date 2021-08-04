@@ -87,7 +87,7 @@ bool CollisionChecker::IsStateValid(
 {
 	State o1_loc = {s.state.at(0), s.state.at(1)}, o2_loc;
 	std::vector<State> o1_rect, o2_rect;
-	bool rect_o1 = false, rect_o2 = false;
+	bool rect_o1 = false, rect_o2;
 
 	// preprocess rectangle once only
 	if (o1.shape == 0)
@@ -107,6 +107,7 @@ bool CollisionChecker::IsStateValid(
 				// s2.state
 				for (const auto& o2: *o2_objs)
 				{
+					rect_o2 = false;
 					o2_loc = {o2.o_x, o2.o_y};
 					if (o2.shape == 0)
 					{
@@ -247,7 +248,7 @@ State CollisionChecker::GetRandomStateOutside(const Object* o)
 			g.at(0) = (m_distD(m_rng) * (gmax.at(0) - gmin.at(0))) + gmin.at(0);
 			g.at(1) = (m_distD(m_rng) * (gmax.at(1) - gmin.at(1))) + gmin.at(1);
 		}
-		while (LineSegCircleIntersect(g, (double)o->x_size, m_base.at(0), m_base.back()));
+		while (LineSegCircleIntersect(g, o->x_size, m_base.at(0), m_base.back()));
 	}
 	else
 	{
@@ -341,10 +342,10 @@ bool CollisionChecker::rectCircCollision(
 	const std::vector<State>& r1, const Object& c1, const State& c1_loc)
 {
 	return (PointInRectangle(c1_loc, r1) ||
-			LineSegCircleIntersect(c1_loc, (double)c1.x_size, r1.at(0), r1.at(1)) ||
-			LineSegCircleIntersect(c1_loc, (double)c1.x_size, r1.at(1), r1.at(2)) ||
-			LineSegCircleIntersect(c1_loc, (double)c1.x_size, r1.at(2), r1.at(3)) ||
-			LineSegCircleIntersect(c1_loc, (double)c1.x_size, r1.at(3), r1.at(0)));
+			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(0), r1.at(1)) ||
+			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(1), r1.at(2)) ||
+			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(2), r1.at(3)) ||
+			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(3), r1.at(0)));
 }
 
 bool CollisionChecker::circCircCollision(
@@ -401,16 +402,16 @@ bool CollisionChecker::circCollisionBase(
 		// the centre of the object circle must be inside shelf
 		// no part of the object can be outside the sides or back of shelf
 		return (!PointInRectangle(o_loc, m_base) ||
-				LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(0), m_base.at(1)) ||
-				LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(1), m_base.at(2)) ||
-				LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(2), m_base.at(3)));
+				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(0), m_base.at(1)) ||
+				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(1), m_base.at(2)) ||
+				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(2), m_base.at(3)));
 	}
 	else // object is robot or being extracted
 	{
 		// no part of the OOI can be outside the sides or back of shelf
-		return (LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(0), m_base.at(1)) ||
-				LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(1), m_base.at(2)) ||
-				LineSegCircleIntersect(o_loc, (double)o.x_size, m_base.at(2), m_base.at(3)));
+		return (LineSegCircleIntersect(o_loc, o.x_size, m_base.at(0), m_base.at(1)) ||
+				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(1), m_base.at(2)) ||
+				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(2), m_base.at(3)));
 
 	}
 }
