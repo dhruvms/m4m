@@ -38,6 +38,12 @@ public:
 	double GetBaseWidth() { return std::fabs(m_base.at(0).at(0) - m_base.at(1).at(0)); };
 	double GetBaseLength() { return std::fabs(m_base.at(0).at(1) - m_base.at(3).at(1)); };
 
+	double GetTableHeight() { return m_obstacles.at(0).o_z + m_obstacles.at(0).z_size; };
+	double OutsideXMin() { return m_base.at(0).at(0) - m_obstacles.at(m_base_loc).x_size; };
+	double OutsideYMin() { return m_base.at(0).at(1) + (m_obstacles.at(m_base_loc).y_size/3); };
+	double OutsideXMax() { return m_base.at(0).at(0); };
+	double OutsideYMax() { return m_base.back().at(1) - (m_obstacles.at(m_base_loc).y_size/3); };
+
 	int NumObstacles() { return (int)m_obstacles.size(); };
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
 
