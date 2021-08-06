@@ -224,11 +224,11 @@ State CollisionChecker::GetRandomStateOutside(const Object* o)
 	State g(2, 0.0);
 	State gmin(2, 0.0), gmax(2, 0.0);
 
-	gmin.at(0) = m_base.at(0).at(0) - m_obstacles.at(m_base_loc).x_size;
-	gmax.at(0) = m_base.at(0).at(0);
+	gmin.at(0) = OutsideXMin();
+	gmax.at(0) = OutsideXMax();
 
-	gmin.at(1) = m_base.at(0).at(1) + (m_obstacles.at(m_base_loc).y_size/3);
-	gmax.at(1) = m_base.back().at(1) - (m_obstacles.at(m_base_loc).y_size/3);
+	gmin.at(1) = OutsideYMin();
+	gmax.at(1) = OutsideYMax();
 
 	if (o->shape == 0) // rectangle
 	{
