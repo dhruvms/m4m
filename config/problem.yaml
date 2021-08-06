@@ -35,3 +35,9 @@ whca:
   res: 0.01
   grid: 8
   cost_mult: 1000
+
+objects:
+  min_size: 0.03
+  x_size: 0.08
+  y_size: 0.08
+  z_size: 0.2
