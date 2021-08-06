@@ -1,0 +1,8 @@
+<launch>
+    <param name="fridge" type="bool" value="true"/>
+
+    <node pkg="pushplan" type="sim.py" name="sim" output="log" >
+        <rosparam command="load" file="$(find pushplan)/config/sim.yaml"/>
+    </node>
+</launch>
+

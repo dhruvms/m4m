@@ -1,0 +1,6 @@
+sim:
+  cpus: 1
+
+objects:
+  friction_min: 0.001
+  friction_max: 0.5
