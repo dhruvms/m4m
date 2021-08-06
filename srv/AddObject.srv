@@ -1,0 +1,18 @@
+int64 sim_id
+int64 shape
+float64 o_x
+float64 o_y
+float64 o_z
+float64 o_r
+float64 o_p
+float64 o_yaw
+float64 x_size
+float64 y_size
+float64 z_size
+bool locked
+bool movable
+float64 mass
+float64 mu
+---
+int64 id
+int64[] removes

@@ -1,0 +1,13 @@
+int64 sim_id
+int64 obj_id
+float64 o_x
+float64 o_y
+float64 o_z
+float64 o_r
+float64 o_p
+float64 o_yaw
+bool movable
+float64 mu
+---
+int64 id
+int64[] removes
