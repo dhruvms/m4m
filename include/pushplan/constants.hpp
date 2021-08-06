@@ -1,6 +1,10 @@
 #ifndef CONSTANTS_HPP
 #define CONSTANTS_HPP
 
+#include <vector>
+#include <map>
+#include <string>
+
 namespace clutter
 {
 
@@ -13,6 +17,10 @@ extern int GRID;
 extern int COST_MULT;
 extern double SEMI_MINOR;
 extern double R_MASS;
+
+extern const std::vector<int> YCB_OBJECTS;
+extern const std::map<int, std::string> YCB_OBJECT_NAMES;
+extern const std::map<int, double> YCB_OBJECT_HEIGHTS;
 
 } // namespace clutter
 
