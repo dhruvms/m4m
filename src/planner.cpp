@@ -18,13 +18,14 @@
 namespace clutter
 {
 
-Planner::Planner(const std::string& scene_file)
+Planner::Planner(const std::string& scene_file, int scene_id)
 :
 m_scene_file(scene_file),
 m_num_agents(-1),
 m_ooi_idx(-1),
 m_t(0),
 m_phase(0),
+m_scene_id(scene_id),
 m_ph("~")
 {
 	setupGlobals();
@@ -73,7 +74,11 @@ m_ph("~")
 	for (auto& a: m_agents) {
 		a.Setup();
 	}
-	setupProblem();
+	while (!setupProblem()) {
+		continue;
+	}
+
+	m_simsrv = m_nh.advertiseService("run_sim", &Planner::runSim, this);
 }
 
 void Planner::Plan()
@@ -86,7 +91,10 @@ void Planner::Plan()
 		// SMPL_WARN("Some agent search failed. Must solve again!");
 		m_t = 0;
 		m_phase = 0;
-		setupProblem(true);
+
+		while (!setupProblem(true)) {
+			continue;
+		}
 
 		int res = cleanupLogs();
 		if (res == -1) {
@@ -182,6 +190,46 @@ bool Planner::whcastar()
 	return true;
 }
 
+bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
+{
+	m_sim = std::make_unique<BulletSim>(
+				std::string(), false,
+				m_scene_id, std::string(),
+				-1, -1);
+
+	if (!m_sim->SetRobotState(m_robot->GetStartState()->joint_state))
+	{
+		ROS_ERROR("Failed to set start state!");
+		return false;
+	}
+
+	int planning_arm = armId();
+	if (!m_sim->ResetArm(1 - planning_arm))
+	{
+		ROS_ERROR("Failed to reset other arm!");
+		return false;
+	}
+
+	int removed;
+	if (!m_sim->CheckScene(planning_arm, removed))
+	{
+		ROS_ERROR("Failed to check for start state collisions with objects!");
+		return false;
+	}
+
+	if (!m_sim->ResetScene()) {
+		ROS_ERROR("Failed to reset scene objects!");
+	}
+
+	if (!m_sim->SetColours())
+	{
+		ROS_ERROR("Failed to set object colours in scene!");
+		return false;
+	}
+
+	return true;
+}
+
 const std::vector<Object>* Planner::GetObject(const LatticeState& s, int priority)
 {
 	if (priority == 0) {
@@ -266,17 +314,21 @@ void Planner::step_agents(int k)
 	m_t += k;
 }
 
-void Planner::setupProblem(bool random)
+bool Planner::setupProblem(bool random)
 {
 	// Set agent current positions and time
 	m_ooi.Init();
 	m_robot->Init();
 	if (random) {
-		m_robot->RandomiseStart();
+		if (!m_robot->RandomiseStart()) {
+			return false;
+		}
 	}
 	for (auto& a: m_agents) {
 		a.Init();
 	}
+
+	return true;
 }
 
 int Planner::cleanupLogs()
@@ -507,7 +559,7 @@ void Planner::writePlanState(int iter)
 
 void Planner::setupGlobals()
 {
-	m_ph.getParam("fridge", FRIDGE);
+	m_ph.getParam("/fridge", FRIDGE);
 	m_ph.getParam("allowed_planning_time", MAX_PLANNING_TIME);
 	m_ph.getParam("whca/window", WINDOW);
 	m_ph.getParam("whca/goal_thresh", GOAL_THRESH);
@@ -516,6 +568,26 @@ void Planner::setupGlobals()
 	m_ph.getParam("whca/cost_mult", COST_MULT);
 	m_ph.getParam("robot/semi_minor", SEMI_MINOR);
 	m_ph.getParam("robot/robot_obj_mass", R_MASS);
+}
+
+int Planner::armId()
+{
+	int arm;
+	for (const auto& name : m_robot->GetStartState()->joint_state.name)
+	{
+		if (name.find("r_") == 0)
+		{
+			arm = 1;
+			break;
+		}
+
+		else if (name.find("l_") == 0)
+		{
+			arm = 0;
+			break;
+		}
+	}
+	return arm;
 }
 
 } // namespace clutter
