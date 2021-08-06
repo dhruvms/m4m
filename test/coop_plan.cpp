@@ -43,8 +43,10 @@ int main(int argc, char** argv)
 	planfile = planfile.substr(0, found + 1) + "../../../../simplan/src/simplan/data/clutter_scenes/";
 	planfile += level + "/plan_" + scene + "_SCENE.txt";
 
-	Planner p(planfile);
+	Planner p(planfile, scene_id);
 	p.Plan();
+
+	ros::spin();
 
 	return 0;
 }
