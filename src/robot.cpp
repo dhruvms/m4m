@@ -3,6 +3,8 @@
 #include <pushplan/constants.hpp>
 
 #include <smpl/angles.h>
+#include <smpl/debug/marker_utils.h>
+#include <smpl/debug/visualizer_ros.h>
 #include <smpl/console/console.h>
 #include <eigen_conversions/eigen_msg.h>
 
@@ -115,6 +117,8 @@ bool Robot::Setup()
 	m_elbow = "r_elbow_flex_link";
 	m_wrist = "r_wrist_roll_link";
 	m_tip = "r_gripper_motor_screw_link"; // TODO: check
+	m_table_z = m_cc->GetTableHeight();
+	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
 
 	m_link_s = smpl::urdf::GetLink(&m_rm->m_robot_model, m_shoulder.c_str());
 	m_link_e = smpl::urdf::GetLink(&m_rm->m_robot_model, m_elbow.c_str());
@@ -122,6 +126,16 @@ bool Robot::Setup()
 	m_link_t = smpl::urdf::GetLink(&m_rm->m_robot_model, m_tip.c_str());
 
 	initObjects();
+
+	smpl::RobotState dummy;
+	dummy.insert(dummy.begin(),
+		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
+	m_rm->computeFK(dummy); // for reasons unknown
+	if (!reinitStartState())
+	{
+		ROS_ERROR("Failed to reinit start state!");
+		return false;
+	}
 
 	if (!m_wastar) {
 		m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
@@ -147,7 +161,6 @@ bool Robot::Init()
 	m_init.coord = Coord(m_rm->jointVariableCount());
 	stateToCoord(m_init.state, m_init.coord);
 	Eigen::Affine3d ee_pose = m_rm->computeFK(m_init.state);
-	m_z = ee_pose.translation().z();
 
 	reinitObjects(m_init.state);
 	m_current = m_init;
@@ -155,32 +168,24 @@ bool Robot::Init()
 	return true;
 }
 
-void Robot::RandomiseStart()
+bool Robot::RandomiseStart()
 {
-	smpl::RobotState s;
-	double x = 0.0, z = 0.0, diff = 0.0;
-	do
+	if (!reinitStartState())
 	{
-		getRandomState(s);
-		if (!m_rm->checkJointLimits(s)) {
-			continue;
-		}
-
-		Eigen::Affine3d ee_pose = m_rm->computeFK(s);
-		z = ee_pose.translation().z();
-		diff = std::fabs(z - m_z);
-
-		x = m_cc->GetMinX() - ee_pose.translation().x();
+		ROS_ERROR("Failed to randomise start!");
+		return false;
 	}
-	while (diff < RES && x > 0.05 && x < 0.2);
 
-	m_init.state = s;
+	m_init.state.clear();
+	m_init.state.insert(m_init.state.begin(),
+		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
 	m_init.coord = Coord(m_rm->jointVariableCount());
 	stateToCoord(m_init.state, m_init.coord);
-	m_z = z;
 
 	reinitObjects(m_init.state);
 	m_current = m_init;
+
+	return true;
 }
 
 bool Robot::AtGoal(const LatticeState& s, bool verbose)
@@ -327,6 +332,51 @@ void Robot::getRandomState(smpl::RobotState& s)
 			s.at(jidx) = m_distD(m_rng) * span + m_min_limits[jidx];
 		}
 	}
+}
+
+bool Robot::reinitStartState()
+{
+	double x, y, deg5 = 5.0 * (M_PI/180.0);
+	double xmin = m_cc->OutsideXMin(), xmax = m_cc->OutsideXMax();
+	double ymin = m_cc->OutsideYMin(), ymax = m_cc->OutsideYMax();
+
+	Eigen::Affine3d ee_pose;
+	smpl::RobotState s, seed;
+	seed.insert(seed.begin(),
+		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
+	do
+	{
+		x = (m_distD(m_rng) * (xmax - xmin)) + xmin;
+		y = (m_distD(m_rng) * (ymax - ymin)) + ymin;
+		ee_pose = Eigen::Translation3d(x, y, m_table_z + 0.05) *
+					Eigen::AngleAxisd((m_distD(m_rng) * M_PI_2) - M_PI_4, Eigen::Vector3d::UnitZ()) *
+					Eigen::AngleAxisd(((2 * m_distD(m_rng)) - 1) * deg5, Eigen::Vector3d::UnitY()) *
+					Eigen::AngleAxisd(((2 * m_distD(m_rng)) - 1) * deg5, Eigen::Vector3d::UnitX());
+
+		if (m_rm->computeIKSearch(ee_pose, seed, s))
+		{
+			if (m_rm->checkJointLimits(s)) {
+				break;
+			}
+		}
+		getRandomState(seed);
+	}
+	while (true);
+
+	m_start_state.joint_state.position.erase(
+		m_start_state.joint_state.position.begin() + 1,
+		m_start_state.joint_state.position.begin() + 1 + s.size());
+	m_start_state.joint_state.position.insert(
+		m_start_state.joint_state.position.begin() + 1,
+		s.begin(), s.end());
+
+	if(!setReferenceStartState())
+	{
+		ROS_ERROR("Failed to set reinit-ed start state!");
+		return false;
+	}
+
+	return true;
 }
 
 int Robot::generateSuccessor(
@@ -668,7 +718,7 @@ bool Robot::setReferenceStartState()
 			ROS_WARN("Failed to do the thing");
 			continue;
 		}
-		ROS_INFO("Set joint %s to %f", m_start_state.joint_state.name[i].c_str(), m_start_state.joint_state.position[i]);
+		// ROS_INFO("Set joint %s to %f", m_start_state.joint_state.name[i].c_str(), m_start_state.joint_state.position[i]);
 		SetVariablePosition(&reference_state, var, m_start_state.joint_state.position[i]);
 	}
 	SetReferenceState(m_rm.get(), GetVariablePositions(&reference_state));

@@ -22,7 +22,7 @@ public:
 
 	bool Setup() override;
 	bool Init() override;
-	void RandomiseStart();
+	bool RandomiseStart();
 
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
 	void Step(int k) override;
@@ -39,6 +39,7 @@ public:
 	using Movable::GetObject;
 
 	Coord GetEECoord();
+	const moveit_msgs::RobotState* GetStartState() { return &m_start_state; };
 
 private:
 	ros::NodeHandle m_nh, m_ph;
@@ -56,7 +57,7 @@ private:
 	std::vector<int> m_coord_vals;
 	std::vector<double> m_coord_deltas;
 
-	double m_mass, m_b, m_z;
+	double m_mass, m_b, m_table_z;
 	std::string m_shoulder, m_elbow, m_wrist, m_tip;
 	const smpl::urdf::Link* m_link_s = nullptr;
 	const smpl::urdf::Link* m_link_e = nullptr;
@@ -68,6 +69,7 @@ private:
 	std::uniform_real_distribution<double> m_distD;
 
 	void getRandomState(smpl::RobotState& s);
+	bool reinitStartState();
 
 	int generateSuccessor(
 		const LatticeState* parent,
