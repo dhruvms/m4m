@@ -3,9 +3,10 @@
 
     <param name="robot_description" command="$(find xacro)/xacro.py '$(find pushplan)/config/urdf/pr2_description/robots/pr2.urdf.xacro'"/>
 
+    <param name="fridge" type="bool" value="true"/>
     <node pkg="pushplan" type="coop_plan" name="coop_plan" output="screen" respawn="false">
         <!-- launch-prefix="gdb -ex run - - args" -->
-    	<param name="planning_frame" value="odom_combined"/>
+        <param name="planning_frame" value="odom_combined"/>
 
         <!-- 1. robot model (for planning) -->
         <rosparam param="robot_model">
@@ -40,9 +41,8 @@
         <param name="object_filename" value="$(find pushplan)/config/env/tabletop.env"/>
 
         <!-- 3. Scene -->
-        <param name="scene_id" type="string" value="300182" />
+        <param name="scene_id" type="string" value="100000" />
         <param name="allowed_planning_time" value="3.0"/>
-        <param name="fridge" type="bool" value="true"/>
     </node>
 
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"/>
