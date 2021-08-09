@@ -3,7 +3,7 @@ import pybullet as p
 from collections import namedtuple
 
 PR2_URDF = '../config/urdf/pr2_description/pr2.urdf'
-CLEARANCE = 0.01
+CLEARANCE = 0.0
 GUI = True
 CLIENT = 0
 TABLE_COLOUR = [0.5, 0.5, 0.5]

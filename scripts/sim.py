@@ -20,6 +20,7 @@ from pushplan.srv import ResetArm, ResetArmResponse
 from pushplan.srv import CheckScene, CheckSceneResponse
 from pushplan.srv import ResetScene, ResetSceneResponse, ResetSceneRequest
 from pushplan.srv import SetColours, SetColoursResponse
+from pushplan.srv import ExecTraj, ExecTrajResponse
 
 from utils import *
 
@@ -72,6 +73,8 @@ class BulletSim:
 										SetColours, self.SetColours)
 		self.reset_simulation = rospy.Service('reset_simulation',
 										ResetSimulation, self.ResetSimulation)
+		self.exec_traj = rospy.Service('exec_traj',
+												ExecTraj, self.ExecTrajDefault)
 
 		self.ResetSimulation(-1)
 
@@ -235,11 +238,11 @@ class BulletSim:
 			joint_idxs = joints_from_names(robot_id, sim_data['start_joint_names'], sim=sim)
 			for jidx, jval in zip(joint_idxs, req.state.position):
 				sim.resetJointState(robot_id, jidx, jval)
-			sim.stepSimulation()
 
 			gripper_joints = joints_from_names(robot_id, PR2_GROUPS['right_gripper'], sim=sim)
 			for gjidx in gripper_joints:
 				sim.resetJointState(robot_id, gjidx, 0.0)
+
 			sim.stepSimulation()
 
 			self.enableCollisionsWithObjects(sim_id)
@@ -371,6 +374,58 @@ class BulletSim:
 					sim_data['objs'][obj_id]['type'] = 1
 
 		return SetColoursResponse(True)
+
+	def ExecTrajDefault(self, req):
+		sim_id = 0
+		sim = self.sims[sim_id]
+		sim_data = self.sim_datas[sim_id]
+		robot_id = sim_data['robot_id']
+
+		curr_timestep = 0
+		curr_pose = np.asarray(req.traj.points[0].positions)
+
+		gripper_joints = joints_from_names(robot_id, PR2_GROUPS['right_gripper'], sim=sim)
+		# arm_joints = joints_from_names(robot_id, PR2_GROUPS['right_arm'], sim=sim)
+		arm_joints = joints_from_names(robot_id, req.traj.joint_names, sim=sim)
+
+		# # ONLY FOR INITIAL TESTING
+		# self.disableCollisionsWithObjects(sim_id)
+		# for joint in get_joints(robot_id, sim=sim):
+		# 	sim.setCollisionFilterPair(robot_id, 1, joint, -1,
+		# 								enableCollision=0)
+
+		for jidx, jval in zip(arm_joints, curr_pose):
+			sim.resetJointState(robot_id, jidx, jval)
+		for gjidx in gripper_joints:
+			sim.resetJointState(robot_id, gjidx, 0.0)
+		sim.stepSimulation()
+
+		for point in req.traj.points[1:]:
+			prev_timestep = curr_timestep
+			curr_timestep = point.time_from_start.to_sec()
+			time_diff = (curr_timestep - prev_timestep) * 10
+			duration = time_diff * 240
+			prev_pose = curr_pose
+			curr_pose = np.asarray(point.positions)
+			target_vel = shortest_angle_diff(curr_pose, prev_pose)/time_diff
+
+			sim.setJointMotorControlArray(
+					robot_id, arm_joints,
+					controlMode=sim.VELOCITY_CONTROL,
+					targetVelocities=target_vel)
+
+			for i in range(int(duration)):
+				sim.stepSimulation()
+
+		# To simulate the scene after execution of the trajectory
+		sim.setJointMotorControlArray(
+				robot_id, arm_joints,
+				controlMode=sim.VELOCITY_CONTROL,
+				targetVelocities=len(arm_joints)*[0.0])
+		for i in range(1000):
+			sim.stepSimulation()
+
+		return ExecTrajResponse(True)
 
 
 	def disableCollisionsWithObjects(self, sim_id):
