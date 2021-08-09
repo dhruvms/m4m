@@ -1,11 +1,18 @@
 #include <pushplan/robot.hpp>
 #include <pushplan/geometry.hpp>
 #include <pushplan/constants.hpp>
+#include <pushplan/pr2_allowed_collision_pairs.h>
 
+#include <smpl/stl/memory.h>
+#include <sbpl_collision_checking/shapes.h>
+#include <sbpl_collision_checking/types.h>
 #include <smpl/angles.h>
 #include <smpl/debug/marker_utils.h>
 #include <smpl/debug/visualizer_ros.h>
 #include <smpl/console/console.h>
+#include <smpl/ros/factories.h>
+#include <smpl_urdf_robot_model/urdf_robot_model.h>
+#include <smpl/distance_map/euclid_distance_map.h>
 #include <eigen_conversions/eigen_msg.h>
 
 namespace clutter
@@ -49,10 +56,22 @@ bool Robot::Setup()
 	}
 
 	if (!setupRobotModel() || !m_rm)
-	{
-		ROS_ERROR("Failed to set up Robot Model");
+	{		ROS_ERROR("Failed to set up Robot Model");
 		return false;
 	}
+
+	//////////////////////////////////
+	// Initialize Collision Checker //
+	//////////////////////////////////
+
+	initOccupancyGrid();
+
+	if (!initCollisionChecker())
+	{
+		ROS_ERROR("Failed to initialise collision checker!");
+		return false;
+	}
+	m_cc_i->setWorldToModelTransform(Eigen::Affine3d::Identity());
 
 	// Read in start state from file and update the scene...
 	// Start state is also required by the planner...
@@ -141,6 +160,24 @@ bool Robot::Setup()
 		m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
 	}
 
+	return true;
+}
+
+bool Robot::AddObstacles(const std::vector<Object>& obstacles)
+{
+	for (const auto& obs: obstacles)
+	{
+		moveit_msgs::CollisionObject obj_msg;
+		if (!getCollisionObjectMsg(obs, obj_msg)) {
+			return false;
+		}
+		if (!processCollisionObjectMsg(obj_msg)) {
+			return false;
+		}
+	}
+
+	SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	SV_SHOW_INFO(m_cc_i->getOccupiedVoxelsVisualization());
 	return true;
 }
 
@@ -363,17 +400,22 @@ void Robot::GetSuccs(
 		return;
 	}
 
-	// r_shoulder_pan_joint
-	generateSuccessor(parent, 0, 1, succ_ids, costs);
-	generateSuccessor(parent, 0, -1, succ_ids, costs);
+	for(int jidx = 0; jidx < m_rm->jointVariableCount(); jidx++)
+	{
+		generateSuccessor(parent, jidx, 1, succ_ids, costs);
+		generateSuccessor(parent, jidx, -1, succ_ids, costs);
+	}
+	// // r_shoulder_pan_joint
+	// generateSuccessor(parent, 0, 1, succ_ids, costs);
+	// generateSuccessor(parent, 0, -1, succ_ids, costs);
 
-	// r_elbow_flex_joint
-	generateSuccessor(parent, 3, 1, succ_ids, costs);
-	generateSuccessor(parent, 3, -1, succ_ids, costs);
+	// // r_elbow_flex_joint
+	// generateSuccessor(parent, 3, 1, succ_ids, costs);
+	// generateSuccessor(parent, 3, -1, succ_ids, costs);
 
-	// r_wrist_flex_joint
-	generateSuccessor(parent, 5, 1, succ_ids, costs);
-	generateSuccessor(parent, 5, -1, succ_ids, costs);
+	// // r_wrist_flex_joint
+	// generateSuccessor(parent, 5, 1, succ_ids, costs);
+	// generateSuccessor(parent, 5, -1, succ_ids, costs);
 }
 
 unsigned int Robot::GetGoalHeuristic(int state_id)
@@ -452,7 +494,7 @@ void Robot::getRandomState(smpl::RobotState& s)
 bool Robot::reinitStartState()
 {
 	double x, y, deg5 = 5.0 * (M_PI/180.0);
-	double xmin = m_cc->OutsideXMin(), xmax = m_cc->OutsideXMax();
+	double xmin = m_cc->OutsideXMin(), xmax = m_cc->OutsideXMax() - 0.05;
 	double ymin = m_cc->OutsideYMin(), ymax = m_cc->OutsideYMax();
 
 	Eigen::Affine3d ee_pose;
@@ -506,7 +548,22 @@ int Robot::generateSuccessor(
 	child.coord.at(jidx) += delta;
 	child.state = State(m_rm->jointVariableCount());
 	coordToState(child.coord, child.state);
+
+	// reject invalid successors
 	if (!m_rm->checkJointLimits(child.state)) {
+		return -1;
+	}
+	if (!m_cc_i->isStateValid(child.state)) {
+		std::string ns_vis = "collides";
+		auto markers = m_cc_i->getCollisionModelVisualization(child.state);
+		for (auto& marker : markers) {
+			marker.ns = ns_vis;
+		}
+		SV_SHOW_INFO_NAMED(ns_vis.c_str(), markers);
+		return -1;
+	}
+	Eigen::Affine3d ee_pose = m_rm->computeFK(child.state);
+	if (std::fabs(ee_pose.translation().z() - (m_table_z + 0.05)) > 0.05) {
 		return -1;
 	}
 
@@ -839,6 +896,8 @@ bool Robot::setReferenceStartState()
 	SetReferenceState(m_rm.get(), GetVariablePositions(&reference_state));
 
 	// Set reference state in the collision scene here...
+	setCollisionRobotState();
+
 	return true;
 }
 
@@ -856,7 +915,7 @@ bool Robot::readResolutions(std::vector<double>& resolutions)
 	{
 		auto& vname = m_rm->getPlanningJoints()[vidx];
 		std::string joint_name, local_name;
-		if (IsMultiDOFJointVariable(vname, &joint_name, &local_name))
+		if (smpl::IsMultiDOFJointVariable(vname, &joint_name, &local_name))
 		{
 			// adjust variable name if a variable of a multi-dof joint
 			auto mdof_vname = joint_name + "_" + local_name;

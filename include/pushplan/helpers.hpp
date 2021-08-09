@@ -79,28 +79,6 @@ static auto ParseMapFromString(const std::string& s)
 	return map;
 }
 
-// Return true if the variable is part of a multi-dof joint. Optionally store
-// the name of the joint and the local name of the variable.
-inline
-bool IsMultiDOFJointVariable(
-	const std::string& name,
-	std::string* joint_name,
-	std::string* local_name)
-{
-	auto slash_pos = name.find_last_of('/');
-	if (slash_pos != std::string::npos) {
-		if (joint_name != NULL) {
-			*joint_name = name.substr(0, slash_pos);
-		}
-		if (local_name != NULL) {
-			*local_name = name.substr(slash_pos + 1);
-		}
-		return true;
-	} else {
-		return false;
-	}
-}
-
 }
 
 #endif // HELPERS_HPP

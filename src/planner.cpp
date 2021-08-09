@@ -32,17 +32,16 @@ m_ph("~")
 	setupGlobals();
 
 	m_agents.clear();
-	m_robot = std::make_unique<Robot>();
-
-	std::vector<Object> obstacles;
-	parse_scene(obstacles);
+	std::vector<Object> all_obstacles, pruned_obstacles;
+	parse_scene(all_obstacles);
+	pruned_obstacles = all_obstacles;
 
 	// only keep the base of the fridge shelf
 	if (FRIDGE)
 	{
-		auto fbegin = obstacles.begin();
-		auto fend = obstacles.end();
-		for (auto itr = obstacles.begin(); itr != obstacles.end(); ++itr)
+		auto fbegin = pruned_obstacles.begin();
+		auto fend = pruned_obstacles.end();
+		for (auto itr = pruned_obstacles.begin(); itr != pruned_obstacles.end(); ++itr)
 		{
 			if (itr->id == 2) {
 				fbegin = itr;
@@ -52,15 +51,17 @@ m_ph("~")
 				break;
 			}
 		}
-		obstacles.erase(fbegin, fend);
+		pruned_obstacles.erase(fbegin, fend);
 	}
 
-	m_cc = std::make_shared<CollisionChecker>(this, obstacles);
-	obstacles.clear();
+	m_cc = std::make_shared<CollisionChecker>(this, pruned_obstacles);
+	pruned_obstacles.clear();
 
 	// Get OOI goal
 	m_ooi_gf = m_cc->GetRandomStateOutside(&m_ooi.GetObject()->back());
 	ContToDisc(m_ooi_gf, m_ooi_g);
+
+	m_robot = std::make_unique<Robot>();
 
 	m_ooi.SetCC(m_cc);
 	m_robot->SetCC(m_cc);
@@ -75,6 +76,12 @@ m_ph("~")
 	for (auto& a: m_agents) {
 		a.Setup();
 	}
+
+	if (!m_robot->AddObstacles(all_obstacles)) {
+		SMPL_ERROR("Robot collision space setup failed!");
+	}
+	all_obstacles.clear();
+
 	while (!setupProblem()) {
 		continue;
 	}

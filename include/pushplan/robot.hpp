@@ -4,7 +4,10 @@
 #include <pushplan/types.hpp>
 #include <pushplan/movable.hpp>
 
-#include <ros/ros.h>
+#include <smpl/debug/marker.h>
+#include <smpl/distance_map/distance_map_interface.h>
+#include <smpl/occupancy_grid.h>
+#include <sbpl_collision_checking/collision_space.h>
 #include <sbpl_kdl_robot_model/kdl_robot_model.h>
 #include <moveit_msgs/RobotState.h>
 #include <moveit_msgs/RobotTrajectory.h>
@@ -23,6 +26,7 @@ public:
 	Robot() : m_ph("~"), m_rng(m_dev()) {};
 
 	bool Setup() override;
+	bool AddObstacles(const std::vector<Object>& obstacles);
 	bool Init() override;
 	bool RandomiseStart();
 
@@ -74,6 +78,13 @@ private:
 	std::random_device m_dev;
 	std::mt19937 m_rng;
 	std::uniform_real_distribution<double> m_distD;
+
+	std::shared_ptr<smpl::DistanceMapInterface> m_df_i;
+	std::unique_ptr<smpl::OccupancyGrid> m_grid_i;
+	std::unique_ptr<smpl::collision::CollisionSpace> m_cc_i;
+	std::vector<std::unique_ptr<smpl::collision::CollisionShape>> m_collision_shapes;
+	std::vector<std::unique_ptr<smpl::collision::CollisionObject>> m_collision_objects;
+	double m_df_res;
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();

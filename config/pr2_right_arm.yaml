@@ -15,3 +15,13 @@ planning:
   rpy_snap_dist_thresh: 0.2
   xyzrpy_snap_dist_thresh: 0.2
   short_dist_mprims_thresh: 0.1
+
+occupancy_grid:
+  size_x: 3.0
+  size_y: 2.0
+  size_z: 1.25
+  res: 0.01
+  origin_x: -1.0
+  origin_y: -1.5
+  origin_z: 0.25
+  max_dist: 1.5
