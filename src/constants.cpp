@@ -9,6 +9,7 @@ int clutter::GRID;
 int clutter::COST_MULT;
 double clutter::SEMI_MINOR;
 double clutter::R_MASS;
+double clutter::R_SPEED;
 
 const std::vector<int> clutter::YCB_OBJECTS = {2, 3, 4, 5, 6, 10, 19, 24, 25, 35};
 const std::map<int, std::string> clutter::YCB_OBJECT_NAMES = {

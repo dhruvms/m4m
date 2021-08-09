@@ -188,6 +188,121 @@ bool Robot::RandomiseStart()
 	return true;
 }
 
+void Robot::ProfileTraj(Trajectory& traj)
+{
+	double prev_time = 0.0, wp_time = 0.0;
+	for (size_t i = 1; i < traj.size(); ++i)
+	{
+		wp_time += profileAction(traj.at(i-1).state, traj.at(i).state);
+		traj.at(i-1).state.push_back(prev_time);
+		prev_time = wp_time;
+	}
+	traj.back().state.push_back(prev_time);
+}
+
+void Robot::ConvertTraj(
+	const Trajectory& traj_in,
+	moveit_msgs::RobotTrajectory& traj_out)
+{
+	traj_out.joint_trajectory.header.frame_id = m_planning_frame;
+	traj_out.multi_dof_joint_trajectory.header.frame_id = m_planning_frame;
+
+	traj_out.joint_trajectory.joint_names.clear();
+	traj_out.joint_trajectory.points.clear();
+	traj_out.multi_dof_joint_trajectory.joint_names.clear();
+	traj_out.multi_dof_joint_trajectory.points.clear();
+
+	// fill joint names header for both single- and multi-dof joint trajectories
+	auto& variable_names = m_rm->getPlanningJoints();
+	for (auto& var_name : variable_names) {
+		std::string joint_name;
+		if (smpl::IsMultiDOFJointVariable(var_name, &joint_name)) {
+			auto it = std::find(
+					begin(traj_out.multi_dof_joint_trajectory.joint_names),
+					end(traj_out.multi_dof_joint_trajectory.joint_names),
+					joint_name);
+			if (it == end(traj_out.multi_dof_joint_trajectory.joint_names)) {
+				// avoid duplicates
+				traj_out.multi_dof_joint_trajectory.joint_names.push_back(joint_name);
+			}
+		} else {
+			traj_out.joint_trajectory.joint_names.push_back(var_name);
+		}
+	}
+
+	// empty or number of points in the path
+	if (!traj_out.joint_trajectory.joint_names.empty()) {
+		traj_out.joint_trajectory.points.resize(traj_in.size());
+	}
+	// empty or number of points in the path
+	if (!traj_out.multi_dof_joint_trajectory.joint_names.empty()) {
+		traj_out.multi_dof_joint_trajectory.points.resize(traj_in.size());
+	}
+
+	for (size_t pidx = 0; pidx < traj_in.size(); ++pidx) {
+		auto& point = traj_in[pidx].state;
+
+		for (size_t vidx = 0; vidx < variable_names.size(); ++vidx) {
+			auto& var_name = variable_names[vidx];
+
+			std::string joint_name, local_name;
+			if (smpl::IsMultiDOFJointVariable(var_name, &joint_name, &local_name)) {
+				auto& p = traj_out.multi_dof_joint_trajectory.points[pidx];
+				p.transforms.resize(traj_out.multi_dof_joint_trajectory.joint_names.size());
+
+				auto it = std::find(
+						begin(traj_out.multi_dof_joint_trajectory.joint_names),
+						end(traj_out.multi_dof_joint_trajectory.joint_names),
+						joint_name);
+				if (it == end(traj_out.multi_dof_joint_trajectory.joint_names)) continue;
+
+				auto tidx = std::distance(begin(traj_out.multi_dof_joint_trajectory.joint_names), it);
+
+				if (local_name == "x" ||
+					local_name == "trans_x")
+				{
+					p.transforms[tidx].translation.x = point[vidx];
+				} else if (local_name == "y" ||
+					local_name == "trans_y")
+				{
+					p.transforms[tidx].translation.y = point[vidx];
+				} else if (local_name == "trans_z") {
+					p.transforms[tidx].translation.z = point[vidx];
+				} else if (local_name == "theta") {
+					Eigen::Quaterniond q(Eigen::AngleAxisd(point[vidx], Eigen::Vector3d::UnitZ()));
+					tf::quaternionEigenToMsg(q, p.transforms[tidx].rotation);
+				} else if (local_name == "rot_w") {
+					p.transforms[tidx].rotation.w = point[vidx];
+				} else if (local_name == "rot_x") {
+					p.transforms[tidx].rotation.x = point[vidx];
+				} else if (local_name == "rot_y") {
+					p.transforms[tidx].rotation.y = point[vidx];
+				} else if (local_name == "rot_z") {
+					p.transforms[tidx].rotation.z = point[vidx];
+				} else {
+					SMPL_WARN("Unrecognized multi-dof local variable name '%s'", local_name.c_str());
+					continue;
+				}
+			} else {
+				auto& p = traj_out.joint_trajectory.points[pidx];
+				p.positions.resize(traj_out.joint_trajectory.joint_names.size());
+
+				auto it = std::find(
+						begin(traj_out.joint_trajectory.joint_names),
+						end(traj_out.joint_trajectory.joint_names),
+						var_name);
+				if (it == end(traj_out.joint_trajectory.joint_names)) continue;
+
+				auto posidx = std::distance(begin(traj_out.joint_trajectory.joint_names), it);
+
+				p.positions[posidx] = point[vidx];
+				p.time_from_start = ros::Duration(point.back());
+			}
+		}
+	}
+	traj_out.joint_trajectory.header.stamp = ros::Time::now();
+}
+
 bool Robot::AtGoal(const LatticeState& s, bool verbose)
 {
 	if (m_phase == 0)
@@ -822,6 +937,451 @@ void Robot::reinitObjects(const State& s)
 	F2.at(0) = link_pose_t.translation().x();
 	F2.at(1) = link_pose_t.translation().y();
 	ArmRectObj(F1, F2, m_b, m_objs.at(2));
+}
+
+double Robot::profileAction(
+	const smpl::RobotState& parent, const smpl::RobotState& succ)
+{
+	double max_time = 0;
+	for(int jidx = 0; jidx < m_rm->jointVariableCount(); jidx++)
+	{
+		auto from_pos = parent[jidx];
+		auto to_pos = succ[jidx];
+		auto vel = m_rm->velLimit(jidx) * R_SPEED;
+		if (vel <= 0.0) {
+			continue;
+		}
+		auto t = 0.0;
+		if (m_rm->isContinuous(jidx)) {
+			t = smpl::angles::shortest_angle_dist(from_pos, to_pos) / vel;
+		} else {
+			t = std::fabs(to_pos - from_pos) / vel;
+		}
+
+		max_time = std::max(max_time, t);
+	}
+	return max_time;
+}
+
+void Robot::initOccupancyGrid()
+{
+	double df_size_x, df_size_y, df_size_z;
+	double df_origin_x, df_origin_y, df_origin_z;
+	double max_distance;
+
+	m_ph.getParam("occupancy_grid/size_x", df_size_x);
+	m_ph.getParam("occupancy_grid/size_y", df_size_y);
+	m_ph.getParam("occupancy_grid/size_z", df_size_z);
+	m_ph.getParam("occupancy_grid/origin_x", df_origin_x);
+	m_ph.getParam("occupancy_grid/origin_y", df_origin_y);
+	m_ph.getParam("occupancy_grid/origin_z", df_origin_z);
+	m_ph.getParam("occupancy_grid/max_dist", max_distance);
+	m_ph.getParam("occupancy_grid/res", m_df_res);
+	m_ph.getParam("planning_frame", m_planning_frame);
+
+	using DistanceMapType = smpl::EuclidDistanceMap;
+
+	m_df_i = std::make_shared<DistanceMapType>(
+			df_origin_x, df_origin_y, df_origin_z,
+			df_size_x, df_size_y, df_size_z,
+			m_df_res,
+			max_distance);
+
+	bool ref_counted = false;
+	m_grid_i = std::make_unique<smpl::OccupancyGrid>(m_df_i, ref_counted);
+	m_grid_i->setReferenceFrame(m_planning_frame);
+	SV_SHOW_INFO(m_grid_i->getBoundingBoxVisualization());
+}
+
+bool Robot::initCollisionChecker()
+{
+	smpl::collision::CollisionModelConfig cc_conf;
+	if (!smpl::collision::CollisionModelConfig::Load(m_ph, cc_conf)) {
+		ROS_ERROR("Failed to load Collision Model Config");
+		return false;
+	}
+
+	m_cc_i = std::make_unique<smpl::collision::CollisionSpace>();
+	if (!m_cc_i->init(
+			m_grid_i.get(),
+			m_robot_description,
+			cc_conf,
+			m_robot_config.group_name,
+			m_robot_config.planning_joints))
+	{
+		ROS_ERROR("Failed to initialize immovable Collision Space");
+		return false;
+	}
+
+	if (m_cc_i->robotCollisionModel()->name() == "pr2") {
+		// sbpl_collision_checking/types.h
+		smpl::collision::AllowedCollisionMatrix acm;
+		for (auto& pair : PR2AllowedCollisionPairs) {
+			acm.setEntry(pair.first, pair.second, true);
+		}
+		m_cc_i->setAllowedCollisionMatrix(acm);
+	}
+
+	return true;
+}
+
+bool Robot::getCollisionObjectMsg(
+			const Object& object,
+			moveit_msgs::CollisionObject& obj_msg,
+			bool remove)
+{
+	obj_msg.id = std::to_string(object.id);
+	obj_msg.operation = remove ? moveit_msgs::CollisionObject::REMOVE :
+										moveit_msgs::CollisionObject::ADD;
+
+	if (remove) {
+		return true;
+	}
+
+	obj_msg.header.frame_id = m_planning_frame;
+	obj_msg.header.stamp = ros::Time::now();
+
+	shape_msgs::SolidPrimitive object_prim;
+	switch (object.shape)
+	{
+		case 1: {
+			object_prim.type = shape_msgs::SolidPrimitive::SPHERE;
+			object_prim.dimensions.resize(1);
+			object_prim.dimensions[0] = object.x_size;
+			break;
+		}
+
+		case 2: {
+			object_prim.type = shape_msgs::SolidPrimitive::CYLINDER;
+			object_prim.dimensions.resize(2);
+			object_prim.dimensions[0] = object.z_size;
+			object_prim.dimensions[1] = object.x_size;
+			break;
+		}
+
+		case 0:
+		default: {
+			object_prim.type = shape_msgs::SolidPrimitive::BOX;
+			object_prim.dimensions.resize(3);
+			object_prim.dimensions[0] = object.x_size * 2.0;
+			object_prim.dimensions[1] = object.y_size * 2.0;
+			object_prim.dimensions[2] = object.z_size * 2.0;
+			break;
+		}
+	}
+
+	geometry_msgs::Pose pose;
+	pose.position.x = object.o_x;
+	pose.position.y = object.o_y;
+	pose.position.z = object.o_z;
+
+	Eigen::Quaterniond q;
+	smpl::angles::from_euler_zyx(
+			object.o_yaw, object.o_pitch, object.o_roll, q);
+
+	geometry_msgs::Quaternion orientation;
+	tf::quaternionEigenToMsg(q, orientation);
+
+	pose.orientation = orientation;
+
+	obj_msg.primitives.push_back(object_prim);
+	obj_msg.primitive_poses.push_back(pose);
+
+	return true;
+}
+
+/// \brief Process a collision object
+/// \param object The collision object to be processed
+/// \return true if the object was processed successfully; false otherwise
+bool Robot::processCollisionObjectMsg(
+	const moveit_msgs::CollisionObject& object, bool movable)
+{
+	if (object.operation == moveit_msgs::CollisionObject::ADD) {
+		return addCollisionObjectMsg(object, movable);
+	}
+	else if (object.operation == moveit_msgs::CollisionObject::REMOVE) {
+		return removeCollisionObjectMsg(object, movable);
+	}
+	// else if (object.operation == moveit_msgs::CollisionObject::APPEND) {
+	// 	return AppendCollisionObjectMsg(object);
+	// }
+	// else if (object.operation == moveit_msgs::CollisionObject::MOVE) {
+	// 	return MoveCollisionObjectMsg(object);
+	// }
+	else {
+		return false;
+	}
+}
+
+bool Robot::addCollisionObjectMsg(
+	const moveit_msgs::CollisionObject& object, bool movable)
+{
+	if (m_cc_i->worldCollisionModel()->hasObjectWithName(object.id)) {
+		return false;
+	}
+
+	if (object.header.frame_id != m_cc_i->getReferenceFrame()) {
+		ROS_ERROR("Collision object must be specified in the Collision Space's reference frame (%s)", m_cc_i->getReferenceFrame().c_str());
+		return false;
+	}
+
+	if (!checkCollisionObjectSanity(object)) {
+		return false;
+	}
+
+	std::vector<smpl::collision::CollisionShape*> shapes;
+	smpl::collision::AlignedVector<Eigen::Affine3d> shape_poses;
+
+	for (size_t i = 0; i < object.primitives.size(); ++i) {
+		auto& prim = object.primitives[i];
+
+		std::unique_ptr<smpl::collision::CollisionShape> shape;
+		switch (prim.type) {
+		case shape_msgs::SolidPrimitive::BOX:
+			shape = smpl::make_unique<smpl::collision::BoxShape>(
+					prim.dimensions[shape_msgs::SolidPrimitive::BOX_X],
+					prim.dimensions[shape_msgs::SolidPrimitive::BOX_Y],
+					prim.dimensions[shape_msgs::SolidPrimitive::BOX_Z]);
+			break;
+		case shape_msgs::SolidPrimitive::SPHERE:
+			shape = smpl::make_unique<smpl::collision::SphereShape>(
+					prim.dimensions[shape_msgs::SolidPrimitive::SPHERE_RADIUS]);
+			break;
+		case shape_msgs::SolidPrimitive::CYLINDER:
+			shape = smpl::make_unique<smpl::collision::CylinderShape>(
+					prim.dimensions[shape_msgs::SolidPrimitive::CYLINDER_RADIUS],
+					prim.dimensions[shape_msgs::SolidPrimitive::CYLINDER_HEIGHT]);
+			break;
+		case shape_msgs::SolidPrimitive::CONE:
+			shape = smpl::make_unique<smpl::collision::ConeShape>(
+					prim.dimensions[shape_msgs::SolidPrimitive::CONE_RADIUS],
+					prim.dimensions[shape_msgs::SolidPrimitive::CONE_HEIGHT]);
+			break;
+		default:
+			assert(0);
+		}
+
+		m_collision_shapes.push_back(std::move(shape));
+		shapes.push_back(m_collision_shapes.back().get());
+
+		auto& prim_pose = object.primitive_poses[i];
+		Eigen::Affine3d transform;
+		tf::poseMsgToEigen(prim_pose, transform);
+		shape_poses.push_back(transform);
+	}
+
+	for (size_t i = 0; i < object.planes.size(); ++i) {
+		auto& plane = object.planes[i];
+
+		auto shape = smpl::make_unique<smpl::collision::PlaneShape>(
+				plane.coef[0], plane.coef[1], plane.coef[2], plane.coef[3]);
+		m_collision_shapes.push_back(std::move(shape));
+		shapes.push_back(m_collision_shapes.back().get());
+
+		auto& plane_pose = object.plane_poses[i];
+		Eigen::Affine3d transform;
+		tf::poseMsgToEigen(plane_pose, transform);
+		shape_poses.push_back(transform);
+	}
+
+	for (size_t i = 0; i < object.meshes.size(); ++i) {
+		auto& mesh = object.meshes[i];
+
+		assert(0); // TODO: implement
+
+		auto& mesh_pose = object.mesh_poses[i];
+		Eigen::Affine3d transform;
+		tf::poseMsgToEigen(mesh_pose, transform);
+		shape_poses.push_back(transform);
+	}
+
+	// create the collision object
+	auto co = smpl::make_unique<smpl::collision::CollisionObject>();
+	co->id = object.id;
+	co->shapes = std::move(shapes);
+	co->shape_poses = std::move(shape_poses);
+
+	m_collision_objects.push_back(std::move(co));
+	return m_cc_i->insertObject(m_collision_objects.back().get());
+}
+
+bool Robot::removeCollisionObjectMsg(
+	const moveit_msgs::CollisionObject& object, bool movable)
+{
+	// find the collision object with this name
+	auto* _object = findCollisionObject(object.id);
+	if (!_object) {
+		return false;
+	}
+
+	// remove from collision space
+	if (!m_cc_i->removeObject(_object)) {
+		return false;
+	}
+
+	// remove all collision shapes belonging to this object
+	auto belongs_to_object = [_object](const std::unique_ptr<smpl::collision::CollisionShape>& shape) {
+		auto is_shape = [&shape](const smpl::collision::CollisionShape* s) {
+			return s == shape.get();
+		};
+		auto it = std::find_if(
+				begin(_object->shapes), end(_object->shapes), is_shape);
+		return it != end(_object->shapes);
+	};
+
+	auto rit = std::remove_if(
+			begin(m_collision_shapes), end(m_collision_shapes),
+			belongs_to_object);
+	m_collision_shapes.erase(rit, end(m_collision_shapes));
+
+	// remove the object itself
+	auto is_object = [_object](const std::unique_ptr<smpl::collision::CollisionObject>& object) {
+		return object.get() == _object;
+	};
+	auto rrit = std::remove_if(
+			begin(m_collision_objects), end(m_collision_objects), is_object);
+	m_collision_objects.erase(rrit, end(m_collision_objects));
+
+	return true;
+}
+
+bool Robot::checkCollisionObjectSanity(
+	const moveit_msgs::CollisionObject& object) const
+{
+	if (object.primitives.size() != object.primitive_poses.size()) {
+		ROS_ERROR("Mismatched sizes of primitives and primitive poses");
+		return false;
+	}
+
+	if (object.meshes.size() != object.mesh_poses.size()) {
+		ROS_ERROR("Mismatches sizes of meshes and mesh poses");
+		return false;
+	}
+
+	// check solid primitive for correct format
+	for (auto& prim : object.primitives) {
+		switch (prim.type) {
+		case shape_msgs::SolidPrimitive::BOX:
+		{
+			if (prim.dimensions.size() != 3) {
+				ROS_ERROR("Invalid number of dimensions for box of collision object '%s' (Expected: %d, Actual: %zu)", object.id.c_str(), 3, prim.dimensions.size());
+				return false;
+			}
+		}   break;
+		case shape_msgs::SolidPrimitive::SPHERE:
+		{
+			if (prim.dimensions.size() != 1) {
+				ROS_ERROR("Invalid number of dimensions for sphere of collision object '%s' (Expected: %d, Actual: %zu)", object.id.c_str(), 1, prim.dimensions.size());
+				return false;
+			}
+		}   break;
+		case shape_msgs::SolidPrimitive::CYLINDER:
+		{
+			if (prim.dimensions.size() != 2) {
+				ROS_ERROR("Invalid number of dimensions for cylinder of collision object '%s' (Expected: %d, Actual: %zu)", object.id.c_str(), 2, prim.dimensions.size());
+				return false;
+			}
+		}   break;
+		case shape_msgs::SolidPrimitive::CONE:
+		{
+			if (prim.dimensions.size() != 2) {
+				ROS_ERROR("Invalid number of dimensions for cone of collision object '%s' (Expected: %d, Actual: %zu)", object.id.c_str(), 2, prim.dimensions.size());
+				return false;
+			}
+		}   break;
+		default:
+			ROS_ERROR("Unrecognized SolidPrimitive type");
+			return false;
+		}
+	}
+
+	return true;
+}
+
+auto Robot::findCollisionObject(const std::string& id) const
+	-> smpl::collision::CollisionObject*
+{
+	for (auto& object : m_collision_objects) {
+		if (object->id == id) {
+			return object.get();
+		}
+	}
+	return nullptr;
+}
+
+bool Robot::setCollisionRobotState()
+{
+	if (m_start_state.joint_state.name.size() != m_start_state.joint_state.position.size()) {
+		ROS_ERROR("Joint state contains mismatched number of joint names and joint positions");
+		return false;
+	}
+
+	for (size_t i = 0; i < m_start_state.joint_state.name.size(); ++i)
+	{
+		auto& joint_name = m_start_state.joint_state.name[i];
+		double joint_position = m_start_state.joint_state.position[i];
+		if (!m_cc_i->setJointPosition(joint_name, joint_position)) {
+			ROS_ERROR("Failed to set position of joint '%s' to %f", joint_name.c_str(), joint_position);
+			return false;
+		}
+	}
+
+	auto& multi_dof_joint_state = m_start_state.multi_dof_joint_state;
+	for (size_t i = 0; i < multi_dof_joint_state.joint_names.size(); ++i) {
+		auto& joint_name = multi_dof_joint_state.joint_names[i];
+		auto& joint_transform = multi_dof_joint_state.transforms[i];
+		// TODO: Need a way to identify what type of joint this is to extract
+		// its condensed set of variables. Might be worth adding a function to
+		// CollisionSpace to handle setting any joint from its local transform.
+	}
+
+	// TODO: world -> model transform should be handled by multi_dof joint
+	// state.
+
+	// // TODO: ProcessAttachedCollisionObject will need to be copied from CollisionSpaceScene
+	// auto& attached_collision_objects = m_start_state.attached_collision_objects;
+	// for (auto& aco : attached_collision_objects) {
+	// 	if (!ProcessAttachedCollisionObject(aco)) {
+	// 		ROS_WARN_NAMED(LOG, "Failed to process attached collision object");
+	// 		return false;
+	// 	}
+	// }
+
+	return true;
+}
+
+auto Robot::makePathVisualization() const
+	-> std::vector<smpl::visual::Marker>
+{
+	std::vector<smpl::visual::Marker> ma;
+
+	if (m_move.empty()) {
+		return ma;
+	}
+
+	auto cinc = 1.0f / float(m_move.size());
+	for (size_t i = 0; i < m_move.size(); ++i) {
+		auto markers = m_cc_i->getCollisionModelVisualization(m_move[i].state);
+
+		for (auto& marker : markers) {
+			auto r = 0.1f;
+			auto g = cinc * (float)(m_move.size() - (i + 1));
+			auto b = cinc * (float)i;
+			marker.color = smpl::visual::Color{ r, g, b, 1.0f };
+		}
+
+		for (auto& m : markers) {
+			ma.push_back(std::move(m));
+		}
+	}
+
+	for (size_t i = 0; i < ma.size(); ++i) {
+		auto& marker = ma[i];
+		marker.ns = "trajectory";
+		marker.id = i;
+	}
+
+	return ma;
 }
 
 } // namespace clutter

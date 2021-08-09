@@ -9,6 +9,7 @@
 #include "pushplan/CheckScene.h"
 #include "pushplan/ResetScene.h"
 #include "pushplan/SetColours.h"
+#include "pushplan/ExecTraj.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -190,6 +191,21 @@ bool BulletSim::SetColours()
 		ROS_ERROR("Failed to set colours in the scene.");
 		return false;
 	}
+
+	return true;
+}
+
+bool BulletSim::ExecTraj(const trajectory_msgs::JointTrajectory& traj)
+{
+	pushplan::ExecTraj srv;
+	srv.request.traj = traj;
+
+	if (!m_services.at(m_servicemap["exec_traj"]).call(srv))
+	{
+		ROS_ERROR("Failed to execute trajector in sim.");
+		return false;
+	}
+
 
 	return true;
 }
@@ -901,14 +917,16 @@ void BulletSim::setupServices()
 			m_nh.serviceClient<pushplan::AddYCBObject>("/add_ycb_object"));
 
 	m_servicemap["add_robot"] = m_services.size();
-	m_services.push_back(m_nh.serviceClient<pushplan::AddRobot>("/add_robot"));
+	m_services.push_back(
+			m_nh.serviceClient<pushplan::AddRobot>("/add_robot"));
 
 	m_servicemap["set_robot_state"] = m_services.size();
 	m_services.push_back(
 			m_nh.serviceClient<pushplan::SetRobotState>("/set_robot_state"));
 
 	m_servicemap["reset_arm"] = m_services.size();
-	m_services.push_back(m_nh.serviceClient<pushplan::ResetArm>("/reset_arm"));
+	m_services.push_back(
+			m_nh.serviceClient<pushplan::ResetArm>("/reset_arm"));
 
 	m_servicemap["check_scene"] = m_services.size();
 	m_services.push_back(
@@ -925,6 +943,10 @@ void BulletSim::setupServices()
 	m_servicemap["reset_simulation"] = m_services.size();
 	m_services.push_back(
 			m_nh.serviceClient<pushplan::ResetSimulation>("/reset_simulation"));
+
+	m_servicemap["exec_traj"] = m_services.size();
+	m_services.push_back(
+			m_nh.serviceClient<pushplan::ExecTraj>("/exec_traj"));
 }
 
 bool BulletSim::removeObject(const int& id)

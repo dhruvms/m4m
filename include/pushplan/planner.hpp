@@ -41,6 +41,8 @@ private:
 	Coord m_ooi_g;
 	State m_ooi_gf;
 
+	Trajectory m_exec;
+
 	std::vector<size_t> m_priorities;
 
 	ros::NodeHandle m_ph, m_nh;

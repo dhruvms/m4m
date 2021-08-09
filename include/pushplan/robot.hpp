@@ -7,6 +7,8 @@
 #include <ros/ros.h>
 #include <sbpl_kdl_robot_model/kdl_robot_model.h>
 #include <moveit_msgs/RobotState.h>
+#include <moveit_msgs/RobotTrajectory.h>
+#include <ros/ros.h>
 
 #include <string>
 #include <memory>
@@ -23,6 +25,11 @@ public:
 	bool Setup() override;
 	bool Init() override;
 	bool RandomiseStart();
+
+	void ProfileTraj(Trajectory& traj);
+	void ConvertTraj(
+		const Trajectory& traj_in,
+		moveit_msgs::RobotTrajectory& traj_out);
 
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
 	void Step(int k) override;
@@ -94,6 +101,32 @@ private:
 
 	void initObjects();
 	void reinitObjects(const State& s);
+
+	double profileAction(
+		const smpl::RobotState& parent,
+		const smpl::RobotState& succ);
+
+	void initOccupancyGrid();
+	bool initCollisionChecker();
+	bool getCollisionObjectMsg(
+		const Object& object,
+		moveit_msgs::CollisionObject& obj_msg,
+		bool remove=false);
+	bool processCollisionObjectMsg(
+		const moveit_msgs::CollisionObject& object, bool movable=false);
+
+	bool addCollisionObjectMsg(
+		const moveit_msgs::CollisionObject& object, bool movable);
+	bool removeCollisionObjectMsg(
+		const moveit_msgs::CollisionObject& object, bool movable);
+	bool checkCollisionObjectSanity(
+		const moveit_msgs::CollisionObject& object) const;
+	auto findCollisionObject(const std::string& id) const
+		-> smpl::collision::CollisionObject*;
+	bool setCollisionRobotState();
+
+	auto makePathVisualization() const
+	-> std::vector<smpl::visual::Marker>;
 };
 
 } // namespace clutter

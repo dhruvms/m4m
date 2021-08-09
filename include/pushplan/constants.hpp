@@ -17,6 +17,7 @@ extern int GRID;
 extern int COST_MULT;
 extern double SEMI_MINOR;
 extern double R_MASS;
+extern double R_SPEED;
 
 extern const std::vector<int> YCB_OBJECTS;
 extern const std::map<int, std::string> YCB_OBJECT_NAMES;

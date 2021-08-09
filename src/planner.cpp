@@ -4,6 +4,7 @@
 #include <pushplan/geometry.hpp>
 
 #include <smpl/console/console.h>
+#include <moveit_msgs/RobotTrajectory.h>
 
 #include <iostream>
 #include <fstream>
@@ -105,6 +106,10 @@ void Planner::Plan()
 	}
 	double time_taken = GetTime() - start_time;
 	SMPL_INFO("Planning took %f seconds. (%d runs)", time_taken, runs);
+
+	auto robot_traj = m_robot->GetMoveTraj();
+	m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
+	m_robot->ProfileTraj(m_exec);
 }
 
 bool Planner::whcastar()
@@ -142,6 +147,7 @@ bool Planner::whcastar()
 
 		iter_time = GetTime() - start_time;
 		if (iter_time > MAX_PLANNING_TIME) {
+			SMPL_WARN("Timeout!");
 			return false;
 		}
 	}
@@ -219,11 +225,20 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 
 	if (!m_sim->ResetScene()) {
 		ROS_ERROR("Failed to reset scene objects!");
+		return false;
 	}
 
 	if (!m_sim->SetColours())
 	{
 		ROS_ERROR("Failed to set object colours in scene!");
+		return false;
+	}
+
+	moveit_msgs::RobotTrajectory to_exec;
+	m_robot->ConvertTraj(m_exec, to_exec);
+	if (!m_sim->ExecTraj(to_exec.joint_trajectory))
+	{
+		ROS_ERROR("Failed to exec traj!");
 		return false;
 	}
 
@@ -568,6 +583,7 @@ void Planner::setupGlobals()
 	m_ph.getParam("whca/cost_mult", COST_MULT);
 	m_ph.getParam("robot/semi_minor", SEMI_MINOR);
 	m_ph.getParam("robot/robot_obj_mass", R_MASS);
+	m_ph.getParam("robot/speed", R_SPEED);
 }
 
 int Planner::armId()

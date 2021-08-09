@@ -2,6 +2,7 @@
 #define BULLET_SIM_HPP
 
 #include <sensor_msgs/JointState.h>
+#include <trajectory_msgs/JointTrajectory.h>
 #include <ros/ros.h>
 #include <Eigen/Eigen>
 
@@ -26,6 +27,7 @@ public:
 	bool CheckScene(const int& arm, int& count);
 	bool ResetScene();
 	bool SetColours();
+	bool ExecTraj(const trajectory_msgs::JointTrajectory& traj);
 
 private:
 	int m_num_immov, m_num_mov, m_robot_id, m_tables;
