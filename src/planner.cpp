@@ -87,6 +87,7 @@ m_ph("~")
 	}
 
 	m_simsrv = m_nh.advertiseService("run_sim", &Planner::runSim, this);
+	m_animsrv = m_nh.advertiseService("anim_soln", &Planner::animateSolution, this);
 }
 
 void Planner::Plan()
@@ -200,6 +201,12 @@ bool Planner::whcastar()
 	total_time += phase_time;
 	SMPL_INFO("WHCA* Phase 2 planning took %f seconds. Total time = %f seconds.", phase_time, total_time);
 
+	return true;
+}
+
+bool Planner::animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
+{
+	m_robot->AnimateSolution();
 	return true;
 }
 

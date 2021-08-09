@@ -46,10 +46,12 @@ private:
 	std::vector<size_t> m_priorities;
 
 	ros::NodeHandle m_ph, m_nh;
-	ros::ServiceServer m_simsrv;
+	ros::ServiceServer m_simsrv, m_animsrv;
 
 	bool whcastar();
+
 	bool runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
+	bool animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 
 	void reinit();
 	void prioritize();

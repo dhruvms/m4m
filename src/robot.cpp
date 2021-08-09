@@ -15,6 +15,8 @@
 #include <smpl/distance_map/euclid_distance_map.h>
 #include <eigen_conversions/eigen_msg.h>
 
+#include <thread>
+
 namespace clutter
 {
 
@@ -379,6 +381,25 @@ void Robot::Step(int k)
 		if (m_retrieve.size() == 1) {
 			m_retrieved = 1;
 		}
+	}
+}
+
+void Robot::AnimateSolution()
+{
+	SV_SHOW_INFO_NAMED("trajectory", makePathVisualization());
+
+	size_t pidx = 0;
+	while (ros::ok())
+	{
+		auto& point = m_move[pidx];
+		auto markers = m_cc_i->getCollisionRobotVisualization(point.state);
+		for (auto& m : markers.markers) {
+			m.ns = "path_animation";
+		}
+		SV_SHOW_INFO(markers);
+		std::this_thread::sleep_for(std::chrono::milliseconds(200));
+		pidx++;
+		pidx %= m_move.size();
 	}
 }
 

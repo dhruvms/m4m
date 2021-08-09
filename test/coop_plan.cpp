@@ -13,7 +13,6 @@ int main(int argc, char** argv)
 	ros::NodeHandle nh;
 	ros::NodeHandle ph("~");
 
-	ROS_INFO("Initialize visualizer");
 	smpl::VisualizerROS visualizer(nh, 100);
 	smpl::viz::set_visualizer(&visualizer);
 

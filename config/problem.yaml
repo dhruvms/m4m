@@ -28,9 +28,10 @@ robot:
   qw: 1.0
   semi_minor: 0.03
   robot_obj_mass: 0.5
+  speed: 0.1
 
 whca:
-  window: 4
+  window: 2
   goal_thresh: 0.02
   res: 0.01
   grid: 8
