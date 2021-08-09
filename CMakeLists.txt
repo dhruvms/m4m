@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
 	tf
 	std_msgs
 	sensor_msgs
+	trajectory_msgs
 	message_generation
 )
 find_package(smpl REQUIRED)
@@ -38,12 +39,14 @@ add_service_files(
 	ResetArm.srv
 	SetRobotState.srv
 	SetColours.srv
+	ExecTraj.srv
 )
 
 generate_messages(
 	DEPENDENCIES
 	std_msgs
 	sensor_msgs
+	trajectory_msgs
 )
 
 catkin_package(
