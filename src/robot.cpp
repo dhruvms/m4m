@@ -575,12 +575,12 @@ int Robot::generateSuccessor(
 		return -1;
 	}
 	if (!m_cc_i->isStateValid(child.state)) {
-		std::string ns_vis = "collides";
-		auto markers = m_cc_i->getCollisionModelVisualization(child.state);
-		for (auto& marker : markers) {
-			marker.ns = ns_vis;
-		}
-		SV_SHOW_INFO_NAMED(ns_vis.c_str(), markers);
+		// std::string ns_vis = "collides";
+		// auto markers = m_cc_i->getCollisionModelVisualization(child.state);
+		// for (auto& marker : markers) {
+		// 	marker.ns = ns_vis;
+		// }
+		// SV_SHOW_INFO_NAMED(ns_vis.c_str(), markers);
 		return -1;
 	}
 	Eigen::Affine3d ee_pose = m_rm->computeFK(child.state);
@@ -1148,6 +1148,14 @@ bool Robot::getCollisionObjectMsg(
 			object_prim.dimensions[2] = object.z_size * 2.0;
 			break;
 		}
+	}
+
+	int table_ids = FRIDGE ? 5 : 1;
+	if (object.id <= table_ids)
+	{
+		object_prim.dimensions[0] *= (1.0 + (sqrt(3) * m_df_res));
+		object_prim.dimensions[1] *= (1.0 + (sqrt(3) * m_df_res));
+		object_prim.dimensions[2] *= (1.0 + (sqrt(3) * m_df_res));
 	}
 
 	geometry_msgs::Pose pose;
