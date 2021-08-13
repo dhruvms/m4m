@@ -137,7 +137,7 @@ bool Robot::Setup()
 	m_shoulder = "r_shoulder_pan_link";
 	m_elbow = "r_elbow_flex_link";
 	m_wrist = "r_wrist_roll_link";
-	m_tip = "r_gripper_motor_screw_link"; // TODO: check
+	m_tip = "r_gripper_finger_dummy_planning_link"; // TODO: check
 	m_table_z = m_cc->GetTableHeight();
 	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
 
