@@ -62,9 +62,14 @@ void Agent::Step(int k)
 	{
 		if (s.t == m_t)
 		{
-			m_current = s;
-
-			m_move.push_back(m_current);
+			if (m_current.state != s.state)
+			{
+				m_current = s;
+				m_move.push_back(m_current);
+			}
+			else {
+				m_current.t = s.t;
+			}
 		}
 	}
 }
