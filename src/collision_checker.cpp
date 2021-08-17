@@ -102,11 +102,18 @@ bool CollisionChecker::IsStateValid(
 		{
 			if (s.t == s2.t)
 			{
-				auto o2_objs = m_planner->GetObject(s2, p);
+				auto a2_objs = m_planner->GetObject(s2, p);
 				// (o2.o_x, o2.o_y) are consistent with
 				// s2.state
-				for (const auto& o2: *o2_objs)
+				for (const auto& ao: *a2_objs)
 				{
+					Object o2 = ao;
+					if (p == 0)
+					{
+						o2.x_size += RES;
+						o2.y_size += RES;
+					}
+
 					rect_o2 = false;
 					o2_loc = {o2.o_x, o2.o_y};
 					if (o2.shape == 0)
