@@ -4,8 +4,6 @@
 
 #include <smpl/console/console.h>
 
-#include <iostream>
-
 namespace clutter
 {
 
@@ -126,13 +124,17 @@ bool CollisionChecker::IsStateValid(
 					{
 						if (rect_o2)
 						{
-							if (rectRectCollision(o1_rect, o2_rect)) {
+							if (rectRectCollision(o1_rect, o2_rect))
+							{
+								updateConflicts(o1, priority, o2, p);
 								return false;
 							}
 						}
 						else
 						{
-							if (rectCircCollision(o1_rect, o2, o2_loc)) {
+							if (rectCircCollision(o1_rect, o2, o2_loc))
+							{
+								updateConflicts(o1, priority, o2, p);
 								return false;
 							}
 						}
@@ -141,13 +143,17 @@ bool CollisionChecker::IsStateValid(
 					{
 						if (rect_o2)
 						{
-							if (rectCircCollision(o2_rect, o1, o1_loc)) {
+							if (rectCircCollision(o2_rect, o1, o1_loc))
+							{
+								updateConflicts(o1, priority, o2, p);
 								return false;
 							}
 						}
 						else
 						{
-							if (circCircCollision(o1, o1_loc, o2, o2_loc)) {
+							if (circCircCollision(o1, o1_loc, o2, o2_loc))
+							{
+								updateConflicts(o1, priority, o2, p);
 								return false;
 							}
 						}
@@ -421,6 +427,17 @@ bool CollisionChecker::circCollisionBase(
 				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(2), m_base.at(3)));
 
 	}
+}
+
+bool CollisionChecker::updateConflicts(
+	const Object& o1, int p1,
+	const Object& o2, int p2)
+{
+	if (p1 == 0 || p2 == 0) {
+		return false;
+	}
+
+	m_conflicts.insert(std::make_pair(o1.id, o2.id));
 }
 
 } // namespace clutter

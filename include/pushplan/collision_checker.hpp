@@ -3,9 +3,48 @@
 
 #include <pushplan/types.hpp>
 
+#include <boost/functional/hash.hpp>
+
 #include <vector>
 #include <random>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <iostream>
+
+namespace std
+{
+
+class PairHash
+{
+public:
+	// id is returned as hash function
+	size_t operator()(const pair<int, int>& s) const
+	{
+		size_t seed = 0;
+		boost::hash_combine(seed, s.first);
+		boost::hash_combine(seed, s.second);
+		return seed;
+	}
+};
+
+inline
+bool operator==(const pair<int, int>& a, const pair<int, int>& b)
+{
+	return (a.first == b.first && a.second == b.second) ||
+				(a.first == b.second && a.second == b.first);
+}
+
+inline
+ostream& operator<<(ostream& os, unordered_set<pair<int, int>, PairHash> const& s)
+{
+	os << "[" << s.size() << "] { ";
+	for (pair<int, int> i : s)
+		os << "(" << i.first << ", " << i.second << ") ";
+	return os << "}\n";
+}
+
+} // namespace std
 
 namespace clutter
 {
@@ -47,6 +86,8 @@ public:
 	int NumObstacles() { return (int)m_obstacles.size(); };
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
 
+	void PrintConflicts() { std::cout << m_conflicts << std::endl; }
+
 private:
 	Planner* m_planner = nullptr;
 
@@ -55,6 +96,7 @@ private:
 	size_t m_base_loc;
 	std::vector<State> m_base;
 	std::vector<Trajectory> m_trajs;
+	std::unordered_set<std::pair<int, int>, std::PairHash> m_conflicts;
 
 	std::random_device m_dev;
 	std::mt19937 m_rng;
@@ -77,6 +119,10 @@ private:
 	bool circCollisionBase(
 		const State& o_loc, const Object& o,
 		const int& priority);
+
+	bool updateConflicts(
+		const Object& o1, int p1,
+		const Object& o2, int p2);
 };
 
 } // namespace clutter

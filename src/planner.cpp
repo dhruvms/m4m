@@ -115,6 +115,8 @@ void Planner::Plan()
 	double time_taken = GetTime() - start_time;
 	SMPL_INFO("Planning took %f seconds. (%d runs)", time_taken, runs);
 
+	m_cc->PrintConflicts();
+
 	auto robot_traj = m_robot->GetMoveTraj();
 	m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
 	m_robot->ProfileTraj(m_exec);
