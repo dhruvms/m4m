@@ -26,6 +26,8 @@ public:
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
 	void Step(int k) override;
 
+	void GetSE2Push(std::vector<double>& push);
+
 	void GetSuccs(
 		int state_id,
 		std::vector<int>* succ_ids,

@@ -218,6 +218,27 @@ void ArmRectObj(
 	o.y_size = b;
 }
 
+inline
+void LineLineIntersect(
+	const State& l1a, const State& l1b,
+	const State& l2a, const State& l2b,
+	State& p)
+{
+	p.clear();
+	p.resize(2, 0.0);
+
+	double D = ((l1a.at(0) - l1b.at(0)) * (l2a.at(1) - l2b.at(1))) -
+					((l1a.at(1) - l1b.at(1)) * (l2a.at(0) - l2b.at(0)));
+
+	p.at(0) = ((l1a.at(0)*l1b.at(1) - l1a.at(1)*l1b.at(0)) * (l2a.at(0) - l2b.at(0))) -
+				((l1a.at(0) - l1b.at(0)) * (l2a.at(0)*l2b.at(1) - l2a.at(1)*l2b.at(0)));
+	p.at(1) = ((l1a.at(0)*l1b.at(1) - l1a.at(1)*l1b.at(0)) * (l2a.at(1) - l2b.at(1))) -
+				((l1a.at(1) - l1b.at(1)) * (l2a.at(0)*l2b.at(1) - l2a.at(1)*l2b.at(0)));
+
+	p.at(0) /= D;
+	p.at(1) /= D;
+}
+
 } // namespace clutter
 
 

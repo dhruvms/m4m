@@ -74,6 +74,47 @@ void Agent::Step(int k)
 	}
 }
 
+void Agent::GetSE2Push(std::vector<double>& push)
+{
+	push.clear();
+	push.resize(3, 0.0); // (x, y, yaw)
+
+	double move_dir = std::atan2(
+					m_move.back().state.at(1) - m_move.front().state.at(1),
+					m_move.back().state.at(0) - m_move.front().state.at(0));
+	push.at(0) = m_objs.back().o_x + std::cos(move_dir + M_PI) * (m_objs.back().x_size + 0.02);
+	push.at(1) = m_objs.back().o_y + std::sin(move_dir + M_PI) * (m_objs.back().x_size + 0.02);
+	push.at(2) = move_dir;
+
+	if (m_objs.back().shape == 0)
+	{
+		// get my object rectangle
+		std::vector<State>& rect;
+		State o = {m_objs.back().o_x, m_objs.back().o_y};
+		GetRectObjAtPt(o, m_objs.back(), rect);
+
+		// find rectangle side away from push direction
+		State p = {push.at(0), push.at(1)};
+		std::vector<double> dists = {
+			PtDistFromLine(p, rect.at(0), rect.at(1)),
+			PtDistFromLine(p, rect.at(1), rect.at(2)),
+			PtDistFromLine(p, rect.at(2), rect.at(3)),
+			PtDistFromLine(p, rect.at(3), rect.at(0))
+		};
+		int side = std::distance(dists.begin(), std::min_element(dists.begin(), dists.end()));
+
+		// compute push point on side
+		State push_pt;
+		LineLineIntersect(o, p, rect.at(side), rect.at((side + 1) % 4), push_pt);
+		push_pt.at(0) += std::cos(move_dir + M_PI) * 0.02;
+		push_pt.at(1) += std::sin(move_dir + M_PI) * 0.02;
+
+		// update push
+		push.at(0) = push_pt.at(0);
+		push.at(1) = push_pt.at(1);
+	}
+}
+
 void Agent::GetSuccs(
 	int state_id,
 	std::vector<int>* succ_ids,
