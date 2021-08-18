@@ -406,7 +406,7 @@ void Robot::SetPushGoal(const std::vector<double>& push)
 
 	m_goal_vec[0] = push[0]; // x
 	m_goal_vec[1] = push[1]; // y
-	m_goal_vec[5] = push[5]; // yaw
+	m_goal_vec[5] = push[2]; // yaw
 	m_goal_vec[2] = m_table_z + 0.05; // z
 	m_goal_vec[3] = 0.0; // roll
 	m_goal_vec[4] = 0.0; // pitch

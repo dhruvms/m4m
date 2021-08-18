@@ -146,7 +146,7 @@ bool Planner::Rearrange()
 		return false;
 	}
 
-	SMPL_INFO("First-order scene! Planning rearrangments.");
+	SMPL_INFO("First-order scene! Planning rearrangments.\n");
 	for (auto i = conflicts->begin(); i != conflicts->end(); ++i)
 	{
 		m_robot->InitArmPlanner();
