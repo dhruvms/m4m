@@ -97,7 +97,7 @@ void Planner::Plan()
 	double start_time = GetTime();
 	while (!whcastar())
 	{
-		// SMPL_WARN("Some agent search failed. Must solve again!");
+		SMPL_WARN("Re-run WHCA*!");
 		m_t = 0;
 		m_phase = 0;
 
@@ -390,6 +390,7 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 				getline(SCENE, line);
 				m_num_agents = std::stoi(line);
 				m_agents.clear();
+				m_agent_map.clear();
 				obstacles.clear();
 
 				for (int i = 0; i < m_num_agents; ++i)
@@ -430,6 +431,7 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 					if (o.movable) {
 						Agent r(o);
 						m_agents.push_back(std::move(r));
+						m_agent_map[o.id] = m_agents.size() - 1;
 					}
 					else {
 						obstacles.push_back(o);

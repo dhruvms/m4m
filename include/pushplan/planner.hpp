@@ -37,6 +37,7 @@ private:
 
 	int m_num_agents, m_ooi_idx, m_t, m_phase, m_scene_id;
 	std::vector<Agent> m_agents;
+	std::unordered_map<int, size_t> m_agent_map;
 	Agent m_ooi, m_ee;
 	Coord m_ooi_g;
 	State m_ooi_gf;
