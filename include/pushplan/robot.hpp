@@ -13,6 +13,7 @@
 #include <sbpl_kdl_robot_model/kdl_robot_model.h>
 #include <moveit_msgs/RobotState.h>
 #include <moveit_msgs/RobotTrajectory.h>
+#include <moveit_msgs/Constraints.h>
 #include <ros/ros.h>
 
 #include <string>
@@ -39,6 +40,10 @@ public:
 
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
 	void Step(int k) override;
+
+	bool InitArmPlanner();
+	void SetPushGoal(const std::vector<double>& push);
+	bool PlanApproach();
 
 	void AnimateSolution();
 
@@ -90,8 +95,12 @@ private:
 	std::vector<std::unique_ptr<smpl::collision::CollisionObject>> m_collision_objects;
 	double m_df_res;
 
+	PlannerConfig m_planning_config;
 	smpl::PlanningParams m_planning_params;
 	std::unique_ptr<smpl::PlannerInterface> m_planner;
+	bool m_planner_init;
+	std::vector<double> m_goal_vec;
+	moveit_msgs::Constraints m_goal;
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();
@@ -147,8 +156,9 @@ private:
 	-> std::vector<smpl::visual::Marker>;
 
 	bool initPlanner();
-	bool readPlannerConfig(const ros::NodeHandle &nh)
+	bool readPlannerConfig(const ros::NodeHandle &nh);
 	bool createPlanner();
+	void fillGoalConstraint();
 };
 
 } // namespace clutter

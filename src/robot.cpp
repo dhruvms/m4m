@@ -14,6 +14,9 @@
 #include <smpl_urdf_robot_model/urdf_robot_model.h>
 #include <smpl/distance_map/euclid_distance_map.h>
 #include <eigen_conversions/eigen_msg.h>
+#include <leatherman/print.h>
+#include <moveit_msgs/PlanningScene.h>
+#include <moveit_msgs/GetMotionPlan.h>
 
 #include <thread>
 
@@ -161,6 +164,8 @@ bool Robot::Setup()
 	if (!m_wastar) {
 		m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
 	}
+
+	m_planner_init = false;
 
 	return true;
 }
@@ -382,6 +387,85 @@ void Robot::Step(int k)
 			m_retrieved = 1;
 		}
 	}
+}
+
+bool Robot::InitArmPlanner()
+{
+	if (!m_planner_init) {
+		return initPlanner();
+	}
+	else {
+		return createPlanner();
+	}
+}
+
+void Robot::SetPushGoal(const std::vector<double>& push)
+{
+	m_goal_vec.clear();
+	m_goal_vec.resize(6, 0.0);
+
+	m_goal_vec[0] = push[0]; // x
+	m_goal_vec[1] = push[1]; // y
+	m_goal_vec[5] = push[5]; // yaw
+	m_goal_vec[2] = m_table_z + 0.05; // z
+	m_goal_vec[3] = 0.0; // roll
+	m_goal_vec[4] = 0.0; // pitch
+
+	fillGoalConstraint();
+}
+
+bool Robot::PlanApproach()
+{
+	moveit_msgs::MotionPlanRequest req;
+	moveit_msgs::MotionPlanResponse res;
+
+	m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
+	req.goal_constraints.resize(1);
+	req.goal_constraints[0] = m_goal;
+	req.max_acceleration_scaling_factor = 1.0;
+	req.max_velocity_scaling_factor = 1.0;
+	req.num_planning_attempts = 1;
+	// req.path_constraints;
+	req.planner_id = "arastar.bfs.manip";
+	req.start_state = m_start_state;
+	// req.trajectory_constraints;
+	// req.workspace_parameters;
+
+	// completely unnecessary variable
+	moveit_msgs::PlanningScene planning_scene;
+	planning_scene.robot_state = m_start_state;
+
+	if (!m_planner->solve(planning_scene, req, res)) {
+		ROS_ERROR("Failed to plan.");
+		return false;
+	}
+
+	std::vector<smpl::visual::Marker> ma;
+
+	auto cinc = 1.0f / float(res.trajectory.joint_trajectory.points.size());
+	for (size_t i = 0; i < res.trajectory.joint_trajectory.points.size(); ++i) {
+		auto markers = m_cc_i->getCollisionModelVisualization(res.trajectory.joint_trajectory.points[i].positions);
+
+		for (auto& marker : markers) {
+			auto r = 0.1f;
+			auto g = cinc * (float)(res.trajectory.joint_trajectory.points.size() - (i + 1));
+			auto b = cinc * (float)i;
+			marker.color = smpl::visual::Color{ r, g, b, 1.0f };
+		}
+
+		for (auto& m : markers) {
+			ma.push_back(std::move(m));
+		}
+	}
+
+	for (size_t i = 0; i < ma.size(); ++i) {
+		auto& marker = ma[i];
+		marker.ns = "trajectory";
+		marker.id = i;
+	}
+
+	SV_SHOW_INFO_NAMED("trajectory", ma);
+	return true;
 }
 
 void Robot::AnimateSolution()
@@ -1507,6 +1591,8 @@ bool Robot::initPlanner()
 		ROS_ERROR("Failed to create planner.");
 		return false;
 	}
+
+	m_planner_init = true;
 }
 
 bool Robot::readPlannerConfig(const ros::NodeHandle &nh)
@@ -1574,6 +1660,36 @@ bool Robot::createPlanner()
 	}
 
 	return true;
+}
+
+void Robot::fillGoalConstraint()
+{
+	m_goal.position_constraints.resize(1);
+	m_goal.orientation_constraints.resize(1);
+	m_goal.position_constraints[0].header.frame_id = m_planning_frame;
+
+	m_goal.position_constraints[0].constraint_region.primitives.resize(1);
+	m_goal.position_constraints[0].constraint_region.primitive_poses.resize(1);
+	m_goal.position_constraints[0].constraint_region.primitives[0].type = shape_msgs::SolidPrimitive::BOX;
+	m_goal.position_constraints[0].constraint_region.primitive_poses[0].position.x = m_goal_vec[0];
+	m_goal.position_constraints[0].constraint_region.primitive_poses[0].position.y = m_goal_vec[1];
+	m_goal.position_constraints[0].constraint_region.primitive_poses[0].position.z = m_goal_vec[2];
+
+	Eigen::Quaterniond q;
+	smpl::angles::from_euler_zyx(m_goal_vec[5], m_goal_vec[4], m_goal_vec[3], q);
+	tf::quaternionEigenToMsg(q, m_goal.orientation_constraints[0].orientation);
+
+	geometry_msgs::Pose p;
+	p.position = m_goal.position_constraints[0].constraint_region.primitive_poses[0].position;
+	p.orientation = m_goal.orientation_constraints[0].orientation;
+	leatherman::printPoseMsg(p, "Goal");
+
+	/// set tolerances
+	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions.resize(3, 0.015);
+	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions[2] = 0.05;
+	m_goal.orientation_constraints[0].absolute_x_axis_tolerance = 0.261799; // 15 degrees
+	m_goal.orientation_constraints[0].absolute_y_axis_tolerance = 0.261799; // 15 degrees
+	m_goal.orientation_constraints[0].absolute_z_axis_tolerance = 0.05;
 }
 
 } // namespace clutter
