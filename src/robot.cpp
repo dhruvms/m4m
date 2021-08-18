@@ -1472,4 +1472,108 @@ auto Robot::makePathVisualization() const
 	return ma;
 }
 
+bool Robot::initPlanner()
+{
+	if (!readPlannerConfig(ros::NodeHandle("~planning"))) {
+		ROS_ERROR("Failed to read planner config");
+		return false;
+	}
+
+	m_planning_params.addParam("discretization", m_planning_config.discretization);
+	m_planning_params.addParam("mprim_filename", m_planning_config.mprim_filename);
+	m_planning_params.addParam("use_xyz_snap_mprim", m_planning_config.use_xyz_snap_mprim);
+	m_planning_params.addParam("use_rpy_snap_mprim", m_planning_config.use_rpy_snap_mprim);
+	m_planning_params.addParam("use_xyzrpy_snap_mprim", m_planning_config.use_xyzrpy_snap_mprim);
+	m_planning_params.addParam("use_short_dist_mprims", m_planning_config.use_short_dist_mprims);
+	m_planning_params.addParam("xyz_snap_dist_thresh", m_planning_config.xyz_snap_dist_thresh);
+	m_planning_params.addParam("rpy_snap_dist_thresh", m_planning_config.rpy_snap_dist_thresh);
+	m_planning_params.addParam("xyzrpy_snap_dist_thresh", m_planning_config.xyzrpy_snap_dist_thresh);
+	m_planning_params.addParam("short_dist_mprims_thresh", m_planning_config.short_dist_mprims_thresh);
+	// m_planning_params.addParam("epsilon", 200.0); Epsilon used for ARAStar
+	m_planning_params.addParam("return_first_solution", false);
+	m_planning_params.addParam("epsilon", 100.0);
+	m_planning_params.addParam("search_mode", false);
+	m_planning_params.addParam("allow_partial_solutions", false);
+	m_planning_params.addParam("target_epsilon", 1.0);
+	m_planning_params.addParam("delta_epsilon", 1.0);
+	m_planning_params.addParam("improve_solution", false);
+	m_planning_params.addParam("bound_expansions", true);
+	m_planning_params.addParam("repair_time", 1.0);
+	m_planning_params.addParam("bfs_inflation_radius", 0.02);
+	m_planning_params.addParam("bfs_cost_per_cell", 100);
+
+	if (!createPlanner())
+	{
+		ROS_ERROR("Failed to create planner.");
+		return false;
+	}
+}
+
+bool Robot::readPlannerConfig(const ros::NodeHandle &nh)
+{
+	if (!nh.getParam("discretization", m_planning_config.discretization)) {
+		ROS_ERROR("Failed to read 'discretization' from the param server");
+		return false;
+	}
+
+	if (!nh.getParam("mprim_filename", m_planning_config.mprim_filename)) {
+		ROS_ERROR("Failed to read param 'mprim_filename' from the param server");
+		return false;
+	}
+
+	if (!nh.getParam("use_xyz_snap_mprim", m_planning_config.use_xyz_snap_mprim)) {
+		ROS_ERROR("Failed to read param 'use_xyz_snap_mprim' from the param server");
+		return false;
+	}
+
+	if (!nh.getParam("use_rpy_snap_mprim", m_planning_config.use_rpy_snap_mprim)) {
+		ROS_ERROR("Failed to read param 'use_rpy_snap_mprim' from the param server");
+		return false;
+	}
+
+	if (!nh.getParam("use_xyzrpy_snap_mprim", m_planning_config.use_xyzrpy_snap_mprim)) {
+		ROS_ERROR("Failed to read param 'use_xyzrpy_snap_mprim' from the param server");
+		return false;
+	}
+
+	if (!nh.getParam("use_short_dist_mprims", m_planning_config.use_short_dist_mprims)) {
+		ROS_ERROR("Failed to read param 'use_short_dist_mprims' from the param server");
+		return false;
+	}
+
+	if (!nh.getParam("xyz_snap_dist_thresh", m_planning_config.xyz_snap_dist_thresh)) {
+		ROS_ERROR("Failed to read param 'xyz_snap_dist_thresh' from the param server");
+		return false;
+	}
+
+	if (!nh.getParam("rpy_snap_dist_thresh", m_planning_config.rpy_snap_dist_thresh)) {
+		ROS_ERROR("Failed to read param 'rpy_snap_dist_thresh' from the param server");
+		return false;
+	}
+
+	if (!nh.getParam("xyzrpy_snap_dist_thresh", m_planning_config.xyzrpy_snap_dist_thresh)) {
+		ROS_ERROR("Failed to read param 'xyzrpy_snap_dist_thresh' from the param server");
+		return false;
+	}
+
+	if (!nh.getParam("short_dist_mprims_thresh", m_planning_config.short_dist_mprims_thresh)) {
+		ROS_ERROR("Failed to read param 'short_dist_mprims_thresh' from the param server");
+		return false;
+	}
+
+	return true;
+}
+
+bool Robot::createPlanner()
+{
+	m_planner = std::make_unique<smpl::PlannerInterface>(
+										m_rm.get(), m_cc_i.get(), m_grid_i.get());
+	if (!m_planner->init(m_planning_params)) {
+		ROS_ERROR("Failed to initialize Planner Interface");
+		return false;
+	}
+
+	return true;
+}
+
 } // namespace clutter

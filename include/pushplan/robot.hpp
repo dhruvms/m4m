@@ -4,6 +4,8 @@
 #include <pushplan/types.hpp>
 #include <pushplan/movable.hpp>
 
+#include <smpl/ros/planner_interface.h>
+#include <smpl/planning_params.h>
 #include <smpl/debug/marker.h>
 #include <smpl/distance_map/distance_map_interface.h>
 #include <smpl/occupancy_grid.h>
@@ -88,6 +90,9 @@ private:
 	std::vector<std::unique_ptr<smpl::collision::CollisionObject>> m_collision_objects;
 	double m_df_res;
 
+	smpl::PlanningParams m_planning_params;
+	std::unique_ptr<smpl::PlannerInterface> m_planner;
+
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();
 
@@ -140,6 +145,10 @@ private:
 
 	auto makePathVisualization() const
 	-> std::vector<smpl::visual::Marker>;
+
+	bool initPlanner();
+	bool readPlannerConfig(const ros::NodeHandle &nh)
+	bool createPlanner();
 };
 
 } // namespace clutter
