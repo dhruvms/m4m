@@ -26,7 +26,7 @@ public:
 	Robot() : m_ph("~"), m_rng(m_dev()) {};
 
 	bool Setup() override;
-	bool AddObstacles(const std::vector<Object>& obstacles);
+	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
 	bool Init() override;
 	bool RandomiseStart();
 
@@ -124,7 +124,7 @@ private:
 	bool getCollisionObjectMsg(
 		const Object& object,
 		moveit_msgs::CollisionObject& obj_msg,
-		bool remove=false);
+		bool remove);
 	bool processCollisionObjectMsg(
 		const moveit_msgs::CollisionObject& object, bool movable=false);
 

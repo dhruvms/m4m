@@ -77,7 +77,7 @@ m_ph("~")
 		a.Setup();
 	}
 
-	if (!m_robot->AddObstacles(all_obstacles)) {
+	if (!m_robot->ProcessObstacles(all_obstacles)) {
 		SMPL_ERROR("Robot collision space setup failed!");
 	}
 	all_obstacles.clear();

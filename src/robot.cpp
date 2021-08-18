@@ -165,12 +165,12 @@ bool Robot::Setup()
 	return true;
 }
 
-bool Robot::AddObstacles(const std::vector<Object>& obstacles)
+bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 {
 	for (const auto& obs: obstacles)
 	{
 		moveit_msgs::CollisionObject obj_msg;
-		if (!getCollisionObjectMsg(obs, obj_msg)) {
+		if (!getCollisionObjectMsg(obs, obj_msg, remove)) {
 			return false;
 		}
 		if (!processCollisionObjectMsg(obj_msg)) {
