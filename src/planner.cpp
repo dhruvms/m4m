@@ -122,6 +122,71 @@ void Planner::Plan()
 	m_robot->ProfileTraj(m_exec);
 }
 
+bool Planner::Rearrange()
+{
+	int ooi_id = m_ooi.GetObject()->back().id;
+	auto conflicts = m_cc->GetConflicts();
+	bool first_order = true;
+	for (const auto& c: *conflicts)
+	{
+		if (c.first < 100 && c.second < 100) // two movable objects conflict
+		{
+			if (c.first == ooi_id || c.second == ooi_id) { // one is OOI, ok
+				continue;
+			}
+
+			// must be higher order interaction between agents
+			first_order = false;
+			break;
+		}
+	}
+
+	if (!first_order) {
+		SMPL_ERROR("Scene has higher order interactions!");
+		return false;
+	}
+
+	SMPL_INFO("First-order scene! Planning rearrangments.");
+	for (auto i = conflicts->begin(); i != conflicts->end(); ++i)
+	{
+		m_robot->InitArmPlanner();
+
+		std::vector<Object> new_obstacles;
+		int oid = std::min(i->first, i->second); // max will be robot object
+		SMPL_INFO("Rearranging object %d", oid);
+
+		for (auto j = conflicts->begin(); j != conflicts->end(); ++j)
+		{
+			int obsid = std::min(j->first, j->second);
+			if (j == i || oid == obsid) {
+				continue;
+			}
+
+			SMPL_INFO("Adding object %d as obstacle", obsid);
+			new_obstacles.push_back(m_agents.at(m_agent_map[obsid]).GetObject()->back());
+		}
+		// add new obstacles
+		m_robot->ProcessObstacles(new_obstacles);
+
+		// get push location
+		std::vector<double> push;
+		m_agents.at(m_agent_map[oid]).GetSE2Push(push);
+		SMPL_INFO("Object %d push is (%f, %f, %f)", oid, push[0], push[1], push[2]);
+
+		// set push location goal for robot
+		m_robot->SetPushGoal(push);
+
+		// plan to push location
+		SMPL_INFO("Planning!");
+		m_robot->PlanApproach();
+
+		getchar();
+
+		// remove new obstacles
+		m_robot->ProcessObstacles(new_obstacles, true);
+	}
+}
+
 bool Planner::whcastar()
 {
 	// ProfilerStart("/home/dhruv/test3.out");

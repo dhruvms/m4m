@@ -89,7 +89,7 @@ void Agent::GetSE2Push(std::vector<double>& push)
 	if (m_objs.back().shape == 0)
 	{
 		// get my object rectangle
-		std::vector<State>& rect;
+		std::vector<State> rect;
 		State o = {m_objs.back().o_x, m_objs.back().o_y};
 		GetRectObjAtPt(o, m_objs.back(), rect);
 

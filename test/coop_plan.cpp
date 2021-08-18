@@ -44,6 +44,7 @@ int main(int argc, char** argv)
 
 	Planner p(planfile, scene_id);
 	p.Plan();
+	p.Rearrange();
 
 	ros::spin();
 

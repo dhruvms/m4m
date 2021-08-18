@@ -87,6 +87,9 @@ public:
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
 
 	void PrintConflicts() { std::cout << m_conflicts << std::endl; }
+	auto GetConflicts() const -> const std::unordered_set<std::pair<int, int>, std::PairHash>* {
+		return &m_conflicts;
+	};
 
 private:
 	Planner* m_planner = nullptr;

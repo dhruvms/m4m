@@ -23,6 +23,7 @@ public:
 	Planner(const std::string& scene_file, int scene_id);
 
 	void Plan();
+	bool Rearrange();
 
 	const std::vector<Object>* GetObject(const LatticeState& s, int priority);
 
