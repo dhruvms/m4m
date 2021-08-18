@@ -9,7 +9,7 @@ namespace clutter
 {
 
 extern bool FRIDGE;
-extern double MAX_PLANNING_TIME;
+extern double WHCA_PLANNING_TIME;
 extern int WINDOW;
 extern double GOAL_THRESH;
 extern double RES;

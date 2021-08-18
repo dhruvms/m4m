@@ -1,7 +1,7 @@
 #include <pushplan/constants.hpp>
 
 bool clutter::FRIDGE;
-double clutter::MAX_PLANNING_TIME;
+double clutter::WHCA_PLANNING_TIME;
 int clutter::WINDOW;
 double clutter::GOAL_THRESH;
 double clutter::RES;

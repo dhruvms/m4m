@@ -1,6 +1,9 @@
 <launch>
     <arg name="debug" default="false"/>
 
+    <env name="ROSCONSOLE_CONFIG_FILE" value="$(find pushplan)/config/ros.console"/>
+    <env name="SMPL_CONSOLE_CONFIG_FILE" value="$(find pushplan)/config/smpl.console"/>
+
     <param name="robot_description" command="$(find xacro)/xacro.py '$(find pushplan)/config/urdf/pr2_description/robots/pr2.urdf.xacro'"/>
 
     <param name="fridge" type="bool" value="true"/>
@@ -41,8 +44,8 @@
         <param name="object_filename" value="$(find pushplan)/config/env/tabletop.env"/>
 
         <!-- 3. Scene -->
-        <param name="scene_id" type="string" value="300072" />
-        <param name="allowed_planning_time" value="5.0"/>
+        <param name="scene_id" type="string" value="100011" />
+        <param name="allowed_planning_time" value="10.0"/>
     </node>
 
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"/>

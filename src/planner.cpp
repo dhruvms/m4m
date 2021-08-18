@@ -156,8 +156,8 @@ bool Planner::whcastar()
 		writePlanState(iter);
 
 		iter_time = GetTime() - start_time;
-		if (iter_time > MAX_PLANNING_TIME) {
-			SMPL_WARN("Timeout!");
+		if (iter_time > WHCA_PLANNING_TIME) {
+			SMPL_WARN("WHCA* Phase 1 Timeout!");
 			return false;
 		}
 	}
@@ -195,7 +195,8 @@ bool Planner::whcastar()
 		writePlanState(iter);
 
 		iter_time = GetTime() - start_time;
-		if (iter_time > MAX_PLANNING_TIME) {
+		if (iter_time > WHCA_PLANNING_TIME) {
+			SMPL_WARN("WHCA* Phase 2 Timeout!");
 			return false;
 		}
 	}
@@ -591,7 +592,7 @@ void Planner::writePlanState(int iter)
 void Planner::setupGlobals()
 {
 	m_ph.getParam("/fridge", FRIDGE);
-	m_ph.getParam("allowed_planning_time", MAX_PLANNING_TIME);
+	m_ph.getParam("whca/planning_time", WHCA_PLANNING_TIME);
 	m_ph.getParam("whca/window", WINDOW);
 	m_ph.getParam("whca/goal_thresh", GOAL_THRESH);
 	m_ph.getParam("whca/res", RES);

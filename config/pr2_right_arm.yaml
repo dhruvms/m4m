@@ -12,9 +12,9 @@ planning:
   use_xyzrpy_snap_mprim: true
   use_short_dist_mprims: true
   xyz_snap_dist_thresh: 0.2
-  rpy_snap_dist_thresh: 0.2
-  xyzrpy_snap_dist_thresh: 0.2
-  short_dist_mprims_thresh: 0.1
+  rpy_snap_dist_thresh: 0.0
+  xyzrpy_snap_dist_thresh: 0.0
+  short_dist_mprims_thresh: 0.4
 
 occupancy_grid:
   size_x: 3.0
