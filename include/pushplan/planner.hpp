@@ -44,6 +44,7 @@ private:
 	State m_ooi_gf;
 
 	Trajectory m_exec;
+	std::vector<trajectory_msgs::JointTrajectory> m_rearrangements;
 
 	std::vector<size_t> m_priorities;
 

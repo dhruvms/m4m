@@ -450,8 +450,8 @@ bool Robot::PlanApproach()
 	m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
 	req.goal_constraints.resize(1);
 	req.goal_constraints[0] = m_goal;
-	req.max_acceleration_scaling_factor = 1.0;
-	req.max_velocity_scaling_factor = 1.0;
+	req.max_acceleration_scaling_factor = 0.01;
+	req.max_velocity_scaling_factor = 0.01;
 	req.num_planning_attempts = 1;
 	// req.path_constraints;
 	req.planner_id = "arastar.bfs.manip";
@@ -468,31 +468,7 @@ bool Robot::PlanApproach()
 		return false;
 	}
 
-	std::vector<smpl::visual::Marker> ma;
-
-	auto cinc = 1.0f / float(res.trajectory.joint_trajectory.points.size());
-	for (size_t i = 0; i < res.trajectory.joint_trajectory.points.size(); ++i) {
-		auto markers = m_cc_i->getCollisionModelVisualization(res.trajectory.joint_trajectory.points[i].positions);
-
-		for (auto& marker : markers) {
-			auto r = 0.1f;
-			auto g = cinc * (float)(res.trajectory.joint_trajectory.points.size() - (i + 1));
-			auto b = cinc * (float)i;
-			marker.color = smpl::visual::Color{ r, g, b, 1.0f };
-		}
-
-		for (auto& m : markers) {
-			ma.push_back(std::move(m));
-		}
-	}
-
-	for (size_t i = 0; i < ma.size(); ++i) {
-		auto& marker = ma[i];
-		marker.ns = "trajectory";
-		marker.id = i;
-	}
-
-	SV_SHOW_INFO_NAMED("trajectory", ma);
+	m_traj = res.trajectory.joint_trajectory;
 	return true;
 }
 

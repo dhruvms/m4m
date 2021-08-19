@@ -179,9 +179,9 @@ bool Planner::Rearrange()
 
 		// plan to push location
 		SMPL_INFO("Planning!");
-		m_robot->PlanApproach();
-
-		getchar();
+		if (m_robot->PlanApproach()) {
+			m_rearrangements.push_back(m_robot->GetLastPlan());
+		}
 
 		// remove new obstacles
 		m_robot->ProcessObstacles(new_obstacles, true);
@@ -315,6 +315,10 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 	{
 		ROS_ERROR("Failed to set object colours in scene!");
 		return false;
+	}
+
+	for (const auto& traj: m_rearrangements) {
+		m_sim->ExecTraj(traj);
 	}
 
 	moveit_msgs::RobotTrajectory to_exec;

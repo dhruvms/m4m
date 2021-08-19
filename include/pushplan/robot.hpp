@@ -45,6 +45,7 @@ public:
 	bool InitArmPlanner();
 	void SetPushGoal(const std::vector<double>& push);
 	bool PlanApproach();
+	trajectory_msgs::JointTrajectory GetLastPlan() { return m_traj; };
 
 	void AnimateSolution();
 

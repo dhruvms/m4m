@@ -397,7 +397,7 @@ class BulletSim:
 		for jidx, jval in zip(arm_joints, curr_pose):
 			sim.resetJointState(robot_id, jidx, jval)
 		for gjidx in gripper_joints:
-			sim.resetJointState(robot_id, gjidx, 0.0)
+			sim.resetJointState(robot_id, gjidx, 0.3)
 		sim.stepSimulation()
 
 		for point in req.traj.points[1:]:
