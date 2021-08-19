@@ -147,6 +147,7 @@ bool Planner::Rearrange()
 	}
 
 	SMPL_INFO("First-order scene! Planning rearrangments.\n");
+	// m_robot->UpdateKDLRobot(1);
 	for (auto i = conflicts->begin(); i != conflicts->end(); ++i)
 	{
 		m_robot->InitArmPlanner();

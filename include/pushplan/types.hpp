@@ -75,6 +75,7 @@ struct RobotModelConfig
 	std::vector<std::string> planning_joints;
 	std::string kinematics_frame;
 	std::string chain_tip_link;
+	std::string planning_link;
 };
 
 struct PlannerConfig

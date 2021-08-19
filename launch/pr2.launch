@@ -26,7 +26,8 @@
                 torso_lift_link
             chain_tip_link:
                 r_gripper_finger_dummy_planning_link
-                <!-- r_gripper_palm_link -->
+            planning_link:
+                r_gripper_palm_link
         </rosparam>
 
         <!-- collision checking -->

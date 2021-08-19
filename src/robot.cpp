@@ -61,7 +61,8 @@ bool Robot::Setup()
 	}
 
 	if (!setupRobotModel() || !m_rm)
-	{		ROS_ERROR("Failed to set up Robot Model");
+	{
+		ROS_ERROR("Failed to set up Robot Model");
 		return false;
 	}
 
@@ -387,6 +388,33 @@ void Robot::Step(int k)
 			m_retrieved = 1;
 		}
 	}
+}
+
+bool Robot::UpdateKDLRobot(int mode)
+{
+	if (mode == 0) {
+		m_robot_config.chain_tip_link = m_chain_tip_link;
+	}
+	else if (mode == 1) {
+		m_robot_config.chain_tip_link = m_planning_link;
+	}
+
+	if (!setupRobotModel() || !m_rm)
+	{
+		ROS_ERROR("Failed to set up Robot Model");
+		return false;
+	}
+
+	if(!setReferenceStartState())
+	{
+		ROS_ERROR("Failed to set start state!");
+		return false;
+	}
+
+	smpl::RobotState dummy;
+	dummy.insert(dummy.begin(),
+		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
+	m_rm->computeFK(dummy); // for reasons unknown
 }
 
 bool Robot::InitArmPlanner()
@@ -888,6 +916,9 @@ bool Robot::readRobotModelConfig(const ros::NodeHandle &nh)
 	// only required for generic kdl robot model?
 	nh.getParam("kinematics_frame", m_robot_config.kinematics_frame);
 	nh.getParam("chain_tip_link", m_robot_config.chain_tip_link);
+	nh.getParam("planning_link", m_robot_config.planning_link);
+	m_chain_tip_link = m_robot_config.chain_tip_link;
+	m_planning_link = m_robot_config.planning_link;
 	return true;
 }
 
@@ -1689,7 +1720,7 @@ void Robot::fillGoalConstraint()
 	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions[2] = 0.05;
 	m_goal.orientation_constraints[0].absolute_x_axis_tolerance = 0.261799; // 15 degrees
 	m_goal.orientation_constraints[0].absolute_y_axis_tolerance = 0.261799; // 15 degrees
-	m_goal.orientation_constraints[0].absolute_z_axis_tolerance = 0.05;
+	m_goal.orientation_constraints[0].absolute_z_axis_tolerance = M_PI;
 }
 
 } // namespace clutter

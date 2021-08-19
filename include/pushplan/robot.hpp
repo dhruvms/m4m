@@ -41,6 +41,7 @@ public:
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
 	void Step(int k) override;
 
+	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner();
 	void SetPushGoal(const std::vector<double>& push);
 	bool PlanApproach();
@@ -101,6 +102,8 @@ private:
 	bool m_planner_init;
 	std::vector<double> m_goal_vec;
 	moveit_msgs::Constraints m_goal;
+	std::string m_chain_tip_link, m_planning_link;
+	trajectory_msgs::JointTrajectory m_traj;
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();
