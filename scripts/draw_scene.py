@@ -158,6 +158,9 @@ def main():
 			if '.txt' not in filename:
 				continue
 
+			if int(filename.split('.')[0]) % 10 != 0:
+				continue
+
 			filepath = os.path.join(dirpath, filename)
 			objs, trajs = ParseFile(filepath)
 			DrawScene(filepath, objs, trajs)
