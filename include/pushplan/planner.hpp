@@ -23,7 +23,6 @@ public:
 	Planner(const std::string& scene_file, int scene_id);
 
 	void Plan();
-	bool Rearrange();
 
 	const std::vector<Object>* GetObject(const LatticeState& s, int priority);
 
@@ -49,12 +48,13 @@ private:
 	std::vector<size_t> m_priorities;
 
 	ros::NodeHandle m_ph, m_nh;
-	ros::ServiceServer m_simsrv, m_animsrv;
+	ros::ServiceServer m_simulate, m_animate, m_rearrange;
 
 	bool whcastar();
 
 	bool runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 	bool animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
+	bool rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 
 	void reinit();
 	void prioritize();
