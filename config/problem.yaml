@@ -28,7 +28,7 @@ robot:
   qw: 1.0
   semi_minor: 0.04
   robot_obj_mass: 0.5
-  speed: 0.1
+  speed: 1.0
 
 whca:
   window: 2

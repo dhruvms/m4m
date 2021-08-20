@@ -435,23 +435,22 @@ void Robot::SetPushGoal(const std::vector<double>& push)
 	m_goal_vec[0] = push[0]; // x
 	m_goal_vec[1] = push[1]; // y
 	m_goal_vec[5] = push[2]; // yaw
-	m_goal_vec[2] = m_table_z + 0.05; // z
+	m_goal_vec[2] = m_table_z + 0.075; // z
 	m_goal_vec[3] = 0.0; // roll
 	m_goal_vec[4] = 0.0; // pitch
 
 	fillGoalConstraint();
 }
 
-bool Robot::PlanApproach()
+bool Robot::PlanPush(const Trajectory* object)
 {
 	moveit_msgs::MotionPlanRequest req;
 	moveit_msgs::MotionPlanResponse res;
 
 	m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
-	req.goal_constraints.resize(1);
-	req.goal_constraints[0] = m_goal;
-	req.max_acceleration_scaling_factor = 0.01;
-	req.max_velocity_scaling_factor = 0.01;
+	createMultiPoseGoalConstraint(req);
+	req.max_acceleration_scaling_factor = 1.0;
+	req.max_velocity_scaling_factor = 1.0;
 	req.num_planning_attempts = 1;
 	// req.path_constraints;
 	req.planner_id = "arastar.bfs.manip";
@@ -469,6 +468,47 @@ bool Robot::PlanApproach()
 	}
 
 	m_traj = res.trajectory.joint_trajectory;
+	res.trajectory.joint_trajectory.points.clear();
+
+	createPlanner();
+
+	trajectory_msgs::JointTrajectoryPoint start = m_traj.points.back();
+	auto push_pose = m_rm->computeFK(start.positions);
+	push_pose.translation().x() = object->back().state.at(0);
+	push_pose.translation().y() = object->back().state.at(1);
+	push_pose.translation().z() = m_table_z + 0.05;
+	createPoseGoalConstraint(push_pose, req);
+	std::string ns_pose = "push_pose";
+	SV_SHOW_INFO_NAMED(ns_pose.c_str(), smpl::visual::MakePoseMarkers(
+			push_pose, m_planning_frame, ns_pose.c_str()));
+
+	moveit_msgs::RobotState push_start = m_start_state;
+	push_start.joint_state.position.erase(
+		push_start.joint_state.position.begin() + 1,
+		push_start.joint_state.position.begin() + 1 + start.positions.size());
+	push_start.joint_state.position.insert(
+		push_start.joint_state.position.begin() + 1,
+		start.positions.begin(), start.positions.end());
+
+	if(!setReferenceStartState())
+	{
+		ROS_ERROR("Failed to set reinit-ed start state!");
+		return false;
+	}
+	req.start_state = push_start;
+
+	if (!m_planner->solve(planning_scene, req, res)) {
+		ROS_ERROR("Failed to plan.");
+		return false;
+	}
+
+	auto last_time = m_traj.points.back().time_from_start;
+	for (auto& p: res.trajectory.joint_trajectory.points)
+	{
+		p.time_from_start += last_time;
+		m_traj.points.push_back(p);
+	}
+
 	return true;
 }
 
@@ -663,12 +703,6 @@ int Robot::generateSuccessor(
 		return -1;
 	}
 	if (!m_cc_i->isStateValid(child.state)) {
-		// std::string ns_vis = "collides";
-		// auto markers = m_cc_i->getCollisionModelVisualization(child.state);
-		// for (auto& marker : markers) {
-		// 	marker.ns = ns_vis;
-		// }
-		// SV_SHOW_INFO_NAMED(ns_vis.c_str(), markers);
 		return -1;
 	}
 	Eigen::Affine3d ee_pose = m_rm->computeFK(child.state);
@@ -1686,17 +1720,51 @@ void Robot::fillGoalConstraint()
 	smpl::angles::from_euler_zyx(m_goal_vec[5], m_goal_vec[4], m_goal_vec[3], q);
 	tf::quaternionEigenToMsg(q, m_goal.orientation_constraints[0].orientation);
 
-	geometry_msgs::Pose p;
-	p.position = m_goal.position_constraints[0].constraint_region.primitive_poses[0].position;
-	p.orientation = m_goal.orientation_constraints[0].orientation;
-	leatherman::printPoseMsg(p, "Goal");
-
-	/// set tolerances
+	// set tolerances
 	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions.resize(3, 0.015);
-	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions[2] = 0.05;
-	m_goal.orientation_constraints[0].absolute_x_axis_tolerance = 0.261799; // 15 degrees
-	m_goal.orientation_constraints[0].absolute_y_axis_tolerance = 0.261799; // 15 degrees
+	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions[2] = 0.025;
+	m_goal.orientation_constraints[0].absolute_x_axis_tolerance = M_PI;
+	m_goal.orientation_constraints[0].absolute_y_axis_tolerance = M_PI;
 	m_goal.orientation_constraints[0].absolute_z_axis_tolerance = M_PI;
+}
+
+void Robot::createMultiPoseGoalConstraint(moveit_msgs::MotionPlanRequest& req)
+{
+	req.goal_constraints.clear();
+	req.goal_constraints.resize(3);
+	req.goal_constraints[0] = m_goal;
+
+	Eigen::Quaterniond q;
+	req.goal_constraints[1] = m_goal;
+	smpl::angles::from_euler_zyx(m_goal_vec[5] + M_PI_2, m_goal_vec[4], m_goal_vec[3], q);
+	tf::quaternionEigenToMsg(q, req.goal_constraints[1].orientation_constraints[0].orientation);
+
+	req.goal_constraints[2] = m_goal;
+	smpl::angles::from_euler_zyx(m_goal_vec[5] - M_PI_2, m_goal_vec[4], m_goal_vec[3], q);
+	tf::quaternionEigenToMsg(q, req.goal_constraints[2].orientation_constraints[0].orientation);
+}
+
+void Robot::createPoseGoalConstraint(
+	const Eigen::Affine3d& pose, moveit_msgs::MotionPlanRequest& req)
+{
+	m_goal_vec.clear();
+	m_goal_vec.resize(6, 0.0);
+
+	m_goal_vec[0] = pose.translation().x(); // x
+	m_goal_vec[1] = pose.translation().y(); // y
+	m_goal_vec[2] = pose.translation().z(); // z
+	smpl::angles::get_euler_zyx(pose.rotation(), m_goal_vec[5], m_goal_vec[4], m_goal_vec[3]);
+
+	fillGoalConstraint();
+	// set tight tolerances
+	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions.resize(3, 0.01);
+	m_goal.orientation_constraints[0].absolute_x_axis_tolerance = 0.0174533; // 1 degree
+	m_goal.orientation_constraints[0].absolute_y_axis_tolerance = 0.0174533; // 1 degree
+	m_goal.orientation_constraints[0].absolute_z_axis_tolerance = 0.0174533; // 1 degree
+
+	req.goal_constraints.clear();
+	req.goal_constraints.resize(1);
+	req.goal_constraints[0] = m_goal;
 }
 
 } // namespace clutter

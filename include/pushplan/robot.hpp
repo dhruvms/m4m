@@ -44,7 +44,7 @@ public:
 	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner();
 	void SetPushGoal(const std::vector<double>& push);
-	bool PlanApproach();
+	bool PlanPush(const Trajectory* object);
 	trajectory_msgs::JointTrajectory GetLastPlan() { return m_traj; };
 
 	void AnimateSolution();
@@ -163,6 +163,10 @@ private:
 	bool readPlannerConfig(const ros::NodeHandle &nh);
 	bool createPlanner();
 	void fillGoalConstraint();
+	void createMultiPoseGoalConstraint(moveit_msgs::MotionPlanRequest& req);
+	void createPoseGoalConstraint(
+		const Eigen::Affine3d& pose,
+		moveit_msgs::MotionPlanRequest& req);
 };
 
 } // namespace clutter

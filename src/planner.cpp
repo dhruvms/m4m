@@ -179,7 +179,8 @@ bool Planner::Rearrange()
 
 		// plan to push location
 		SMPL_INFO("Planning!");
-		if (m_robot->PlanApproach()) {
+		if (m_robot->PlanPush(m_agents.at(m_agent_map[oid]).GetMoveTraj())) {
+			SMPL_INFO("Found push!");
 			m_rearrangements.push_back(m_robot->GetLastPlan());
 		}
 
