@@ -233,7 +233,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 	// }
 
 	// SMPL_INFO("First-order scene! Planning rearrangments.\n");
-	// m_robot->UpdateKDLRobot(1);
+	m_robot->UpdateKDLRobot(1);
 	for (auto i = conflicts->begin(); i != conflicts->end(); ++i)
 	{
 		m_robot->InitArmPlanner();

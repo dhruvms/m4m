@@ -467,6 +467,8 @@ bool Robot::PlanPush(const Trajectory* object)
 		return false;
 	}
 
+	UpdateKDLRobot(0);
+
 	smpl::RobotState push_end;
 	trajectory_msgs::JointTrajectoryPoint push, seed = res.trajectory.joint_trajectory.points.back();
 
@@ -480,7 +482,7 @@ bool Robot::PlanPush(const Trajectory* object)
 		pitch += (m_distD(m_rng) * deg20) - deg10;
 		roll += (m_distD(m_rng) * deg20) - deg10;
 
-		push_pose = Eigen::Translation3d(object->back().state.at(0), object->back().state.at(1), m_table_z + 0.05) *
+		push_pose = Eigen::Translation3d(object->back().state.at(0), object->back().state.at(1), push_pose.translation().z()) *
 					Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
 					Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
 					Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
