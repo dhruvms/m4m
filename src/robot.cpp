@@ -467,49 +467,32 @@ bool Robot::PlanPush(const Trajectory* object)
 		return false;
 	}
 
-	m_traj = res.trajectory.joint_trajectory;
-	res.trajectory.joint_trajectory.points.clear();
+	smpl::RobotState push_end;
+	trajectory_msgs::JointTrajectoryPoint push, seed = res.trajectory.joint_trajectory.points.back();
 
-	createPlanner();
-
-	trajectory_msgs::JointTrajectoryPoint start = m_traj.points.back();
-	auto push_pose = m_rm->computeFK(start.positions);
+	auto push_pose = m_rm->computeFK(seed.positions);
 	push_pose.translation().x() = object->back().state.at(0);
 	push_pose.translation().y() = object->back().state.at(1);
 	push_pose.translation().z() = m_table_z + 0.05;
-	createPoseGoalConstraint(push_pose, req);
 	std::string ns_pose = "push_pose";
 	SV_SHOW_INFO_NAMED(ns_pose.c_str(), smpl::visual::MakePoseMarkers(
 			push_pose, m_planning_frame, ns_pose.c_str()));
 
-	moveit_msgs::RobotState push_start = m_start_state;
-	push_start.joint_state.position.erase(
-		push_start.joint_state.position.begin() + 1,
-		push_start.joint_state.position.begin() + 1 + start.positions.size());
-	push_start.joint_state.position.insert(
-		push_start.joint_state.position.begin() + 1,
-		start.positions.begin(), start.positions.end());
-
-	if(!setReferenceStartState())
+	if (m_rm->computeIKSearch(push_pose, seed.positions, push_end))
 	{
-		ROS_ERROR("Failed to set reinit-ed start state!");
-		return false;
-	}
-	req.start_state = push_start;
+		if (m_rm->checkJointLimits(push_end) && m_cc_i->isStateValid(push_end))
+		{
+			double push_time = profileAction(seed.positions, push_end);
+			push.positions = push_end;
+			push.time_from_start = seed.time_from_start + ros::Duration(push_time);
+			res.trajectory.joint_trajectory.points.push_back(push);
 
-	if (!m_planner->solve(planning_scene, req, res)) {
-		ROS_ERROR("Failed to plan.");
-		return false;
-	}
-
-	auto last_time = m_traj.points.back().time_from_start;
-	for (auto& p: res.trajectory.joint_trajectory.points)
-	{
-		p.time_from_start += last_time;
-		m_traj.points.push_back(p);
+			m_traj = res.trajectory.joint_trajectory;
+			return true;
+		}
 	}
 
-	return true;
+	return false;
 }
 
 void Robot::AnimateSolution()
