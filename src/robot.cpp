@@ -470,29 +470,42 @@ bool Robot::PlanPush(const Trajectory* object)
 	smpl::RobotState push_end;
 	trajectory_msgs::JointTrajectoryPoint push, seed = res.trajectory.joint_trajectory.points.back();
 
-	auto push_pose = m_rm->computeFK(seed.positions);
-	push_pose.translation().x() = object->back().state.at(0);
-	push_pose.translation().y() = object->back().state.at(1);
-	push_pose.translation().z() = m_table_z + 0.05;
-	std::string ns_pose = "push_pose";
-	SV_SHOW_INFO_NAMED(ns_pose.c_str(), smpl::visual::MakePoseMarkers(
-			push_pose, m_planning_frame, ns_pose.c_str()));
-
-	if (m_rm->computeIKSearch(push_pose, seed.positions, push_end))
+	double deg10 = 0.174533, deg20 = deg10 * 2;
+	do
 	{
-		if (m_rm->checkJointLimits(push_end) && m_cc_i->isStateValid(push_end))
-		{
-			double push_time = profileAction(seed.positions, push_end);
-			push.positions = push_end;
-			push.time_from_start = seed.time_from_start + ros::Duration(push_time);
-			res.trajectory.joint_trajectory.points.push_back(push);
+		auto push_pose = m_rm->computeFK(seed.positions);
+		double yaw, pitch, roll;
+		smpl::angles::get_euler_zyx(push_pose.rotation(), yaw, pitch, roll);
+		yaw += (m_distD(m_rng) * deg20) - deg10;
+		pitch += (m_distD(m_rng) * deg20) - deg10;
+		roll += (m_distD(m_rng) * deg20) - deg10;
 
-			m_traj = res.trajectory.joint_trajectory;
-			return true;
+		push_pose = Eigen::Translation3d(object->back().state.at(0), object->back().state.at(1), m_table_z + 0.05) *
+					Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
+					Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
+					Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
+
+		std::string ns_pose = "push_pose";
+		SV_SHOW_INFO_NAMED(ns_pose.c_str(), smpl::visual::MakePoseMarkers(
+				push_pose, m_planning_frame, ns_pose.c_str()));
+
+		if (m_rm->computeIKSearch(push_pose, seed.positions, push_end))
+		{
+			if (m_rm->checkJointLimits(push_end) && m_cc_i->isStateValid(push_end))
+			{
+				double push_time = profileAction(seed.positions, push_end);
+				push.positions = push_end;
+				push.time_from_start = seed.time_from_start + ros::Duration(push_time);
+				res.trajectory.joint_trajectory.points.push_back(push);
+
+				m_traj = res.trajectory.joint_trajectory;
+				break;
+			}
 		}
 	}
+	while (true);
 
-	return false;
+	return true;
 }
 
 void Robot::AnimateSolution()

@@ -45,7 +45,7 @@
         <param name="object_filename" value="$(find pushplan)/config/env/tabletop.env"/>
 
         <!-- 3. Scene -->
-        <param name="scene_id" type="string" value="100011" />
+        <param name="scene_id" type="string" value="200000" />
         <param name="allowed_planning_time" value="10.0"/>
     </node>
 
