@@ -506,8 +506,8 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 						m_agent_map[o.id] = m_agents.size() - 1;
 					}
 					else {
-						o.x_size += RES;
-						o.y_size += RES;
+						// o.x_size += RES;
+						// o.y_size += RES;
 						obstacles.push_back(o);
 					}
 				}
@@ -570,8 +570,8 @@ void Planner::writePlanState(int iter)
 				<< obs.o_roll << ','
 				<< obs.o_pitch << ','
 				<< obs.o_yaw << ','
-				<< obs.x_size - RES << ','
-				<< obs.y_size - RES << ','
+				<< obs.x_size << ','
+				<< obs.y_size << ','
 				<< obs.z_size << ','
 				<< obs.mass << ','
 				<< obs.mu << ','
