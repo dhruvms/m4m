@@ -395,8 +395,8 @@ bool Robot::UpdateKDLRobot(int mode)
 	if (mode == 0) {
 		m_robot_config.chain_tip_link = m_chain_tip_link;
 	}
-	else if (mode == 1) {
-		m_robot_config.chain_tip_link = m_planning_link;
+	else {
+		m_robot_config.chain_tip_link = m_robot_config.push_links.at(mode - 1);
 	}
 
 	if (!setupRobotModel() || !m_rm)
@@ -921,12 +921,28 @@ bool Robot::readRobotModelConfig(const ros::NodeHandle &nh)
 		m_robot_config.planning_joints.push_back(jname);
 	}
 
+	std::string push_link_list;
+	if (!nh.getParam("push_links", push_link_list)) {
+		ROS_ERROR("Failed to read 'push_links' from the param server");
+		return false;
+	}
+
+	joint_name_stream.str("");
+	joint_name_stream.clear();
+	joint_name_stream.str(push_link_list);
+	while (joint_name_stream.good() && !joint_name_stream.eof()) {
+		std::string jname;
+		joint_name_stream >> jname;
+		if (jname.empty()) {
+			continue;
+		}
+		m_robot_config.push_links.push_back(jname);
+	}
+
 	// only required for generic kdl robot model?
 	nh.getParam("kinematics_frame", m_robot_config.kinematics_frame);
 	nh.getParam("chain_tip_link", m_robot_config.chain_tip_link);
-	nh.getParam("planning_link", m_robot_config.planning_link);
 	m_chain_tip_link = m_robot_config.chain_tip_link;
-	m_planning_link = m_robot_config.planning_link;
 	return true;
 }
 
