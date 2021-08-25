@@ -82,8 +82,8 @@ void Agent::GetSE2Push(std::vector<double>& push)
 	double move_dir = std::atan2(
 					m_move.back().state.at(1) - m_move.front().state.at(1),
 					m_move.back().state.at(0) - m_move.front().state.at(0));
-	push.at(0) = m_o_x + std::cos(move_dir + M_PI) * (m_objs.back().x_size + 0.02);
-	push.at(1) = m_o_y + std::sin(move_dir + M_PI) * (m_objs.back().x_size + 0.02);
+	push.at(0) = m_o_x + std::cos(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
+	push.at(1) = m_o_y + std::sin(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
 	push.at(2) = move_dir;
 
 	if (m_objs.back().shape == 0)
