@@ -3,6 +3,7 @@
 
 #include <pushplan/types.hpp>
 #include <pushplan/movable.hpp>
+#include <pushplan/bullet_sim.hpp>
 
 #include <smpl/ros/planner_interface.h>
 #include <smpl/planning_params.h>
@@ -44,8 +45,11 @@ public:
 	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner();
 	void SetPushGoal(const std::vector<double>& push);
-	bool PlanPush(const Trajectory* object);
+	bool PlanPush(int oid, const Trajectory* object);
 	trajectory_msgs::JointTrajectory GetLastPlan() { return m_traj; };
+	void SetSim(const std::shared_ptr<BulletSim>& sim) {
+		m_sim = sim;
+	}
 
 	void AnimateSolution();
 
@@ -103,8 +107,13 @@ private:
 	bool m_planner_init;
 	std::vector<double> m_goal_vec;
 	moveit_msgs::Constraints m_goal;
-	std::string m_chain_tip_link, m_planning_link;
+	std::string m_chain_tip_link;
 	trajectory_msgs::JointTrajectory m_traj;
+	std::shared_ptr<BulletSim> m_sim;
+	std::vector<smpl::RobotState> m_push_starts, m_push_ends;
+	int m_pushes_per_object;
+
+	void samplePush(const Trajectory* object);
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();

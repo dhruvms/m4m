@@ -167,6 +167,7 @@ bool Robot::Setup()
 	}
 
 	m_planner_init = false;
+	m_pushes_per_object = -1;
 
 	return true;
 }
@@ -442,8 +443,50 @@ void Robot::SetPushGoal(const std::vector<double>& push)
 	fillGoalConstraint();
 }
 
-bool Robot::PlanPush(const Trajectory* object)
+bool Robot::PlanPush(int oid, const Trajectory* object)
 {
+	if (m_pushes_per_object == -1) {
+		m_ph.getParam("robot/pushes", m_pushes_per_object);
+	}
+
+	m_push_starts.clear();
+	m_push_ends.clear();
+	for (int i = 0; i < m_pushes_per_object; ++i) {
+		samplePush(object);
+	}
+
+	trajectory_msgs::JointTrajectory starts, ends;
+	auto& variable_names = m_rm->getPlanningJoints();
+	for (auto& var_name : variable_names) {
+		starts.joint_names.push_back(var_name);
+		ends.joint_names.push_back(var_name);
+	}
+	for (int i = 0; i < m_pushes_per_object; ++i) {
+		double push_time = profileAction(m_push_starts.at(i), m_push_ends.at(i));
+
+		trajectory_msgs::JointTrajectoryPoint p;
+		p.positions = m_push_starts.at(i);
+		p.time_from_start = ros::Duration(0.0);
+		starts.points.push_back(p);
+
+		p.positions = m_push_ends.at(i);
+		p.time_from_start = ros::Duration(push_time);
+		ends.points.push_back(p);
+	}
+
+	starts.header.stamp = ros::Time::now();
+	ends.header.stamp = ros::Time::now();
+	int pidx;
+	m_sim->SimPushes(starts, ends, oid, object->back().state.at(0), object->back().state.at(1), pidx);
+
+	if (pidx == -1) {
+		SMPL_WARN("Failed to find a good push for the object!");
+		return false;
+	}
+
+	UpdateKDLRobot(0);
+	InitArmPlanner();
+
 	moveit_msgs::MotionPlanRequest req;
 	moveit_msgs::MotionPlanResponse res;
 
@@ -618,6 +661,81 @@ Coord Robot::GetEECoord()
 	Coord ee_coord;
 	ContToDisc(ee, ee_coord);
 	return ee_coord;
+}
+
+void Robot::samplePush(const Trajectory* object)
+{
+	double deg10 = 0.174533, deg20 = deg10 * 2;
+
+	// sample push_end via IK
+	smpl::RobotState seed, push_end, push_start;
+	Eigen::Affine3d push_pose;
+	do
+	{
+		// sample robot link
+		int link = std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
+		UpdateKDLRobot(link);
+
+		// sample push dist fraction
+		double push_frac = m_distD(m_rng);
+
+		// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise (from -10 to 10 degrees)
+		double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distD(m_rng) * deg20) - deg10;
+
+		// roll and pitch are noise (from -10 to 10 degrees)
+		double roll = (m_distD(m_rng) * deg20) - deg10;
+		double pitch = (m_distD(m_rng) * deg20) - deg10;
+
+		// z is between 2.5 to 7.5cm above table height
+		double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.025;
+
+		// (x, y) are linearly interpolated between object start and end
+		double x = object->front().state.at(0) * (1 - push_frac) + object->back().state.at(0) * push_frac;
+		double y = object->front().state.at(1) * (1 - push_frac) + object->back().state.at(1) * push_frac;
+
+		push_pose = Eigen::Translation3d(x, y, z) *
+					Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
+					Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
+					Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
+
+		// run IK for push end pose with random seed
+		getRandomState(seed);
+		if (m_rm->computeIKSearch(push_pose, seed, push_end))
+		{
+			if (m_rm->checkJointLimits(push_end) && m_cc_i->isStateValid(push_end))
+			{
+				push_pose = m_rm->computeFK(push_end);
+				push_pose.translation().x() = m_goal_vec[0];
+				push_pose.translation().y() = m_goal_vec[1];
+
+				// run IK for push start pose by translating push end back in x, y
+				if (m_rm->computeIKSearch(push_pose, push_end, push_start))
+				{
+					if (m_rm->checkJointLimits(push_start) && m_cc_i->isStateValid(push_start)) {
+						break;
+					}
+				}
+			}
+		}
+	}
+	while (true);
+
+	// auto* vis_name = "push_start";
+	// auto markers = m_cc_i->getCollisionModelVisualization(push_start);
+	// for (auto& marker : markers) {
+	// 	marker.ns = vis_name;
+	// }
+	// SV_SHOW_INFO_NAMED(vis_name, markers);
+
+	// vis_name = "push_end";
+	// markers = m_cc_i->getCollisionModelVisualization(push_end);
+	// for (auto& marker : markers) {
+	// 	marker.ns = vis_name;
+	// }
+	// SV_SHOW_INFO_NAMED(vis_name, markers);
+
+	m_push_starts.push_back(push_start);
+	m_push_ends.push_back(push_end);
 }
 
 void Robot::getRandomState(smpl::RobotState& s)
