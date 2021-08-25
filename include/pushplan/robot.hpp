@@ -176,6 +176,9 @@ private:
 	void createPoseGoalConstraint(
 		const Eigen::Affine3d& pose,
 		moveit_msgs::MotionPlanRequest& req);
+	void createJointSpaceGoal(
+		const smpl::RobotState& pose,
+		moveit_msgs::MotionPlanRequest& req);
 };
 
 } // namespace clutter
