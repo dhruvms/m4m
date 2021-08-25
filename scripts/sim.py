@@ -530,6 +530,68 @@ class BulletSim:
 							}
 		return body_id
 
+	def getObjects(self, sim_id):
+		objects = []
+		for obj_id in self.sim_datas[sim_id]['objs']:
+			xyz, quat = self.sims[sim_id].getBasePositionAndOrientation(obj_id)
+			rpy = self.sims[sim_id].getEulerFromQuaternion(quat)
+			objects.append([obj_id, xyz, rpy])
+		return objects
+
+	def checkInteractions(self, sim_id, objects):
+		robot_id = self.sim_datas[sim_id]['robot_id']
+		table_id = self.sim_datas[sim_id]['table_id']
+
+		interactions = []
+		for obj1 in objects:
+			obj1_id = obj1[0]
+			if(obj1_id in table_id): # check id
+				continue
+			# (robot, obj1) contacts
+			contacts = self.sims[sim_id].getContactPoints(obj1_id, robot_id)
+
+			if(not self.sim_datas[sim_id]['objs'][obj1_id]['movable']):
+				for obj2 in objects:
+					obj2_id = obj2[0]
+					if(obj2_id in table_id or obj2_id == obj1_id):
+						continue
+					# (obj1, obj2) contacts
+					contacts += self.sims[sim_id].getContactPoints(obj1_id, obj2_id)
+
+			if any(pt[8] < CONTACT_THRESH for pt in contacts):
+				interactions.append(obj1_id)
+
+		return interactions
+
+	def checkPoseConstraints(self, sim_id):
+		sim_data = self.sim_datas[sim_id]
+		for obj_id in sim_data['objs']:
+			start_rpy = sim_data['objs'][obj_id]['rpy']
+			curr_xyz, curr_rpy = self.sims[sim_id].getBasePositionAndOrientation(obj_id)
+			if(shortest_angle_dist(curr_rpy[0], start_rpy[0]) > FALL_POS_THRESH or
+				shortest_angle_dist(curr_rpy[1], start_rpy[1]) > FALL_POS_THRESH or
+				curr_xyz[2] < 0.5): # off the table/refrigerator
+				return True
+		return False
+
+	def checkTableCollision(self, sim_id):
+		robot_id = self.sim_datas[sim_id]['robot_id']
+		table_id = self.sim_datas[sim_id]['table_id']
+
+		contact_data = []
+		for i in table_id:
+			contacts = self.sims[sim_id].getContactPoints(i)
+			contact_data += [(pt[2], pt[8]) for pt in contacts]
+
+		return (any(x[0] == robot_id and x[1] < CONTACT_THRESH for x in contact_data))
+
+	def checkVelConstraints(self, sim_id):
+		for obj_id in self.sim_datas[sim_id]['objs']:
+			vel_xyz, vel_rpy = self.sims[sim_id].getBaseVelocity(obj_id)
+			if(abs(vel_rpy[0]) > FALL_VEL_THRESH or abs(vel_rpy[1]) > FALL_VEL_THRESH):
+				return True
+		return False
+
 	def setupSim(self, gui, shadows):
 		connection = p.GUI if gui else p.DIRECT
 		sim = bc.BulletClient(connection_mode=connection)
