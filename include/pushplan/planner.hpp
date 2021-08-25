@@ -33,7 +33,7 @@ private:
 	std::string m_scene_file;
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<Robot> m_robot;
-	std::unique_ptr<BulletSim> m_sim;
+	std::shared_ptr<BulletSim> m_sim;
 
 	int m_num_agents, m_ooi_idx, m_t, m_phase, m_scene_id;
 	std::vector<Agent> m_agents;
@@ -52,6 +52,7 @@ private:
 
 	bool whcastar();
 
+	bool setupSim();
 	bool runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 	bool animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 	bool rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
