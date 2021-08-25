@@ -32,3 +32,14 @@ the positive X-axis goes right, positive Y-axis goes up.
 - For any agent, even if `start == goal`, we still run the search till depth
 `w`, i.e. the `is_goal` check should return true if a state at depth `w+1` is
 being expanded.
+
+#### TODOs
+- [] Add grasping to robot trajectory
+	- [x] C++ can send out trajectory with grasp spliced in
+		- [] Splice grasp based on closest point in trajectory
+	- [] Execute grasp in PyBullet
+- [] Plan between pushes instead of resetting to home state
+- [] Implement the iterative algorithm above
+- [] Save statistics
+- [x] PyBullet PR2 gains
+	- Any `velocityGains` greater than 2.0 blow up
