@@ -21,6 +21,7 @@ from pushplan.srv import CheckScene, CheckSceneResponse
 from pushplan.srv import ResetScene, ResetSceneResponse, ResetSceneRequest
 from pushplan.srv import SetColours, SetColoursResponse
 from pushplan.srv import ExecTraj, ExecTrajResponse
+from pushplan.srv import SimPushes, SimPushesResponse
 
 from utils import *
 
@@ -75,6 +76,8 @@ class BulletSim:
 										ResetSimulation, self.ResetSimulation)
 		self.exec_traj = rospy.Service('exec_traj',
 												ExecTraj, self.ExecTrajDefault)
+		self.sim_pushes = rospy.Service('sim_pushes',
+												SimPushes, self.SimPushesDefault)
 
 		self.ResetSimulation(-1)
 
@@ -426,6 +429,101 @@ class BulletSim:
 			sim.stepSimulation()
 
 		return ExecTrajResponse(True)
+
+	def SimPushesDefault(self, req):
+		sim_id = 0
+		sim = self.sims[sim_id]
+		sim_data = self.sim_datas[sim_id]
+		robot_id = sim_data['robot_id']
+
+		num_pushes = len(req.starts.points)
+		best_idx = -1
+		best_dist = float('inf')
+		goal_pos = np.asarray([req.gx, req.gy])
+
+		gripper_joints = joints_from_names(robot_id, PR2_GROUPS['right_gripper'], sim=sim)
+		arm_joints = joints_from_names(robot_id, PR2_GROUPS['right_arm'], sim=sim)
+		# arm_joints = joints_from_names(robot_id, req.traj.joint_names, sim=sim)
+		for pidx in range(num_pushes):
+
+			curr_timestep = 0
+			start_point = req.starts.points[pidx]
+			start_pose = np.asarray(start_point.positions)
+			end_point = req.ends.points[pidx]
+			end_pose = np.asarray(end_point.positions)
+
+			self.disableCollisionsWithObjects(sim_id)
+			self.ResetScene(ResetSceneRequest(-1, True), sim_id)
+			for jidx, jval in zip(arm_joints, start_pose):
+				sim.resetJointState(robot_id, jidx, jval)
+			for gjidx in gripper_joints:
+				sim.resetJointState(robot_id, gjidx, 0.3)
+			sim.stepSimulation()
+			self.enableCollisionsWithObjects(sim_id)
+
+			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 10
+			duration = time_diff * 240
+			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
+
+			sim.setJointMotorControlArray(
+					robot_id, arm_joints,
+					controlMode=sim.VELOCITY_CONTROL,
+					targetVelocities=target_vel)
+
+			objs_curr = self.getObjects(sim_id)
+			action_interactions = []
+			violation_flag = False
+			for i in range(int(duration)):
+				sim.stepSimulation()
+
+				action_interactions += self.checkInteractions(sim_id, objs_curr)
+				action_interactions = list(np.unique(np.array(action_interactions)))
+				action_interactions[:] = [idx for idx in action_interactions if idx != req.oid]
+
+				topple = self.checkPoseConstraints(sim_id)
+				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
+				table = self.checkTableCollision(sim_id)
+				velocity = self.checkVelConstraints(sim_id)
+
+				violation_flag = topple or immovable or table or velocity
+				if (violation_flag):
+					break
+
+			if (violation_flag):
+				continue # to next push
+
+			# # To simulate the scene after execution of the trajectory
+			# sim.setJointMotorControlArray(
+			# 		robot_id, arm_joints,
+			# 		controlMode=sim.VELOCITY_CONTROL,
+			# 		targetVelocities=len(arm_joints)*[0.0])
+			# for i in range(1000):
+			# 	sim.stepSimulation()
+
+			# 	action_interactions += self.checkInteractions(sim_id, objs_curr)
+			# 	action_interactions = list(np.unique(np.array(action_interactions)))
+			# 	action_interactions[:] = [idx for idx in action_interactions if idx != req.oid]
+
+			# 	topple = self.checkPoseConstraints(sim_id)
+			# 	immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
+			# 	table = self.checkTableCollision(sim_id)
+			# 	velocity = self.checkVelConstraints(sim_id)
+
+			# 	violation_flag = topple or immovable or table or velocity
+			# 	if (violation_flag):
+			# 		break
+
+			# if (violation_flag):
+			# 	continue # to next push
+			else:
+				oid_xyz, oid_rpy = self.sims[sim_id].getBasePositionAndOrientation(req.oid)
+				dist = np.linalg.norm(goal_pos - np.asarray(oid_xyz[:2]))
+				if (dist < best_dist):
+					best_dist = dist
+					best_idx = pidx
+
+		res = best_idx != -1
+		return SimPushesResponse(res, best_idx)
 
 
 	def disableCollisionsWithObjects(self, sim_id):

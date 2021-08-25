@@ -10,6 +10,7 @@
 #include "pushplan/ResetScene.h"
 #include "pushplan/SetColours.h"
 #include "pushplan/ExecTraj.h"
+#include "pushplan/SimPushes.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -206,6 +207,30 @@ bool BulletSim::ExecTraj(const trajectory_msgs::JointTrajectory& traj)
 		return false;
 	}
 
+
+	return true;
+}
+
+bool BulletSim::SimPushes(
+	const trajectory_msgs::JointTrajectory& starts,
+	const trajectory_msgs::JointTrajectory& ends,
+	int oid, float gx, float gy,
+	int& pidx)
+{
+	pushplan::SimPushes srv;
+	srv.request.starts = starts;
+	srv.request.ends = ends;
+	srv.request.oid = oid;
+	srv.request.gx = gx;
+	srv.request.gy = gy;
+
+	if (!m_services.at(m_servicemap["sim_pushes"]).call(srv))
+	{
+		ROS_ERROR("Failed to execute trajector in sim.");
+		return false;
+	}
+
+	pidx = srv.response.idx;
 
 	return true;
 }
@@ -947,6 +972,10 @@ void BulletSim::setupServices()
 	m_servicemap["exec_traj"] = m_services.size();
 	m_services.push_back(
 			m_nh.serviceClient<pushplan::ExecTraj>("/exec_traj"));
+
+	m_servicemap["sim_pushes"] = m_services.size();
+	m_services.push_back(
+			m_nh.serviceClient<pushplan::SimPushes>("/sim_pushes"));
 }
 
 bool BulletSim::removeObject(const int& id)

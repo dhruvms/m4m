@@ -12,6 +12,7 @@ MOVEABLE_COLOUR = [0.133, 0.698, 0.133]
 
 FALL_POS_THRESH = 0.436332 # float('inf')
 FALL_VEL_THRESH = 2.0 # float('inf')
+CONTACT_THRESH = 1e-3
 
 YCB_OBJECTS = {
 	2: '002_master_chef_can',

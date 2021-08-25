@@ -40,6 +40,7 @@ add_service_files(
 	SetRobotState.srv
 	SetColours.srv
 	ExecTraj.srv
+	SimPushes.srv
 )
 
 generate_messages(

@@ -1,0 +1,8 @@
+trajectory_msgs/JointTrajectory starts
+trajectory_msgs/JointTrajectory ends
+int64 oid
+float64 gx
+float64 gy
+---
+bool res
+int64 idx
