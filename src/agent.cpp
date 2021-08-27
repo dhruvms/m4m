@@ -15,6 +15,12 @@ bool Agent::Setup()
 	m_o_y = m_objs.back().o_y;
 }
 
+void Agent::ResetObject()
+{
+	m_objs.back().o_x = m_o_x;
+	m_objs.back().o_y = m_o_y;
+}
+
 bool Agent::Init()
 {
 	m_solve.clear();
@@ -94,6 +100,8 @@ void Agent::GetSE2Push(std::vector<double>& push)
 		GetRectObjAtPt(o, m_objs.back(), rect);
 
 		// find rectangle side away from push direction
+		push.at(0) = m_o_x + std::cos(move_dir + M_PI) * 0.01;
+		push.at(1) = m_o_y + std::sin(move_dir + M_PI) * 0.01;
 		State p = {push.at(0), push.at(1)};
 		std::vector<double> dists = {
 			PtDistFromLine(p, rect.at(0), rect.at(1)),

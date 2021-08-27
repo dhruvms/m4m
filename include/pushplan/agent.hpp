@@ -21,6 +21,7 @@ public:
 	}
 
 	bool Setup() override;
+	void ResetObject();
 	bool Init() override;
 
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
