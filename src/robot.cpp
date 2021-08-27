@@ -550,9 +550,10 @@ bool Robot::PlanPush(int oid, const Trajectory* o_traj, const Object& o)
 
 	m_push_starts.clear();
 	m_push_ends.clear();
+	std::vector<Object> obs = {o};
 	double start_time = GetTime();
 	for (int i = 0; i < m_pushes_per_object; ++i) {
-		samplePush(o_traj);
+		samplePush(o_traj, obs);
 	}
 	double time_spent = GetTime() - start_time;
 
@@ -589,10 +590,7 @@ bool Robot::PlanPush(int oid, const Trajectory* o_traj, const Object& o)
 	}
 
 	UpdateKDLRobot(0);
-
-	std::vector<Object> obs = {o};
 	ProcessObstacles(obs);
-
 	InitArmPlanner();
 
 	moveit_msgs::MotionPlanRequest req;
@@ -740,7 +738,7 @@ Coord Robot::GetEECoord()
 	return ee_coord;
 }
 
-void Robot::samplePush(const Trajectory* object)
+void Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 {
 	double deg10 = 0.174533, deg20 = deg10 * 2;
 
@@ -784,12 +782,15 @@ void Robot::samplePush(const Trajectory* object)
 			push_pose.translation().x() = m_goal_vec[0] + ((m_distD(m_rng) * 0.1) - 0.05);
 			push_pose.translation().y() = m_goal_vec[1] + ((m_distD(m_rng) * 0.1) - 0.05);
 
+			ProcessObstacles(obs);
 			if (getStateNearPose(push_pose, dummy, push_start)) {
 				break;
 			}
+			ProcessObstacles(obs, true);
 		}
 	}
 	while (true);
+	ProcessObstacles(obs, true);
 
 	// auto* vis_name = "push_start";
 	// auto markers = m_cc_i->getCollisionModelVisualization(push_start);

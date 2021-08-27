@@ -132,7 +132,7 @@ private:
 	std::vector<smpl::RobotState> m_push_starts, m_push_ends;
 	int m_pushes_per_object;
 
-	void samplePush(const Trajectory* object);
+	void samplePush(const Trajectory* object, const std::vector<Object>& obs);
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();
