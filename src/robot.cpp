@@ -136,6 +136,7 @@ bool Robot::Setup()
 	m_coord_deltas = std::move(deltas);
 
 	// setup planar approx
+	m_grasp_at = -1;
 	m_mass = R_MASS;
 	m_b = SEMI_MINOR;
 	m_shoulder = "r_shoulder_pan_link";
@@ -186,7 +187,6 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 	}
 
 	SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
-	SV_SHOW_INFO(m_cc_i->getOccupiedVoxelsVisualization());
 	return true;
 }
 
@@ -244,6 +244,105 @@ void Robot::ProfileTraj(Trajectory& traj)
 		prev_time = wp_time;
 	}
 	traj.back().state.push_back(prev_time);
+}
+
+bool Robot::InsertGrasp(
+	const std::vector<double>& pregrasp_goal,
+	const Object& ooi,
+	Trajectory& traj_in)
+{
+	SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+
+	int grasp_clip;
+	double grasp_lift;
+	m_ph.getParam("robot/grasp_clip", grasp_clip);
+	m_ph.getParam("robot/grasp_lift", grasp_lift);
+
+	smpl::RobotState ee_state = traj_in.at(m_grasp_at).state;
+	smpl::RobotState pregrasp_state, grasp_state, postgrasp_state;
+
+	Eigen::Affine3d ee_pose = m_rm->computeFK(ee_state), traj_pose;
+	ee_pose = Eigen::Translation3d(pregrasp_goal[0], pregrasp_goal[1], ee_pose.translation().z()) *
+					Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
+					Eigen::AngleAxisd(pregrasp_goal[4], Eigen::Vector3d::UnitY()) *
+					Eigen::AngleAxisd(pregrasp_goal[3], Eigen::Vector3d::UnitX());
+
+
+	bool success = false;
+	// compute pregrasp state
+	UpdateKDLRobot(0);
+	if (getStateNearPose(ee_pose, ee_state, pregrasp_state))
+	{
+		SMPL_INFO("Found pregrasp state!");
+		ee_pose = m_rm->computeFK(pregrasp_state);
+		ee_pose.translation().x() = ooi.o_x;
+		ee_pose.translation().y() = ooi.o_y;
+
+		// compute grasp state
+		if (getStateNearPose(ee_pose, pregrasp_state, grasp_state))
+		{
+			SMPL_INFO("Found grasp state!!");
+			ee_pose = m_rm->computeFK(grasp_state);
+			ee_pose.translation().z() += grasp_lift;
+
+			// compute postgrasp state
+			if (getStateNearPose(ee_pose, grasp_state, postgrasp_state))
+			{
+				SMPL_INFO("Found postgrasp state!!!");
+				success = true;
+			}
+		}
+	}
+
+	if (!success) {
+		return false;
+	}
+
+	LatticeState pregrasp, grasp, postgrasp;
+	pregrasp.state = pregrasp_state;
+	grasp.state = grasp_state;
+	postgrasp.state = postgrasp_state;
+
+	pregrasp.coord = Coord(m_rm->jointVariableCount());
+	grasp.coord = Coord(m_rm->jointVariableCount());
+	postgrasp.coord = Coord(m_rm->jointVariableCount());
+	stateToCoord(pregrasp.state, pregrasp.coord);
+	stateToCoord(grasp.state, grasp.coord);
+	stateToCoord(postgrasp.state, postgrasp.coord);
+
+	double min_dist = std::numeric_limits<double>::max();
+	int start_idx = -1, end_idx = -1;
+	ee_pose = m_rm->computeFK(pregrasp_state);
+	State ee = {ee_pose.translation().x(), ee_pose.translation().y(), ee_pose.translation().z()}, traj;
+	for (int sidx = 0; sidx < traj_in.size(); sidx++)
+	{
+		traj_pose = m_rm->computeFK(traj_in.at(sidx).state);
+		traj = {traj_pose.translation().x(), traj_pose.translation().y(), traj_pose.translation().z()};
+		double dist = EuclideanDist(ee, traj);
+
+		if (dist < min_dist)
+		{
+			min_dist = dist;
+			start_idx = sidx;
+		}
+		else if (dist == min_dist) {
+			end_idx = sidx;
+		}
+	}
+	start_idx = std::max(0, start_idx - grasp_clip);
+
+	pregrasp.t = start_idx + 1;
+	grasp.t = pregrasp.t + 1;
+	postgrasp.t = grasp.t + 1;
+
+	traj_in.insert(traj_in.begin() + end_idx + 1, {pregrasp, grasp, postgrasp});
+	traj_in.erase(traj_in.begin() + start_idx, traj_in.begin() + end_idx);
+
+	m_grasp_at = pregrasp.t;
+
+	SMPL_INFO("Successfully spliced in grasping sequence!");
+
+	return true;
 }
 
 void Robot::ConvertTraj(
@@ -443,7 +542,7 @@ void Robot::SetPushGoal(const std::vector<double>& push)
 	fillGoalConstraint();
 }
 
-bool Robot::PlanPush(int oid, const Trajectory* object)
+bool Robot::PlanPush(int oid, const Trajectory* o_traj, const Object& o)
 {
 	if (m_pushes_per_object == -1) {
 		m_ph.getParam("robot/pushes", m_pushes_per_object);
@@ -451,9 +550,11 @@ bool Robot::PlanPush(int oid, const Trajectory* object)
 
 	m_push_starts.clear();
 	m_push_ends.clear();
+	double start_time = GetTime();
 	for (int i = 0; i < m_pushes_per_object; ++i) {
-		samplePush(object);
+		samplePush(o_traj);
 	}
+	double time_spent = GetTime() - start_time;
 
 	trajectory_msgs::JointTrajectory starts, ends;
 	auto& variable_names = m_rm->getPlanningJoints();
@@ -477,14 +578,21 @@ bool Robot::PlanPush(int oid, const Trajectory* object)
 	starts.header.stamp = ros::Time::now();
 	ends.header.stamp = ros::Time::now();
 	int pidx;
-	m_sim->SimPushes(starts, ends, oid, object->back().state.at(0), object->back().state.at(1), pidx);
+	SMPL_INFO("Simulate pushes! Sampling took %f seconds.", time_spent);
+	start_time = GetTime();
+	m_sim->SimPushes(starts, ends, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx);
+	time_spent = GetTime() - start_time;
 
 	if (pidx == -1) {
-		SMPL_WARN("Failed to find a good push for the object!");
+		SMPL_WARN("Failed to find a good push for the object! Simulating took %f seconds.", time_spent);
 		return false;
 	}
 
 	UpdateKDLRobot(0);
+
+	std::vector<Object> obs = {o};
+	ProcessObstacles(obs);
+
 	InitArmPlanner();
 
 	moveit_msgs::MotionPlanRequest req;
@@ -505,10 +613,14 @@ bool Robot::PlanPush(int oid, const Trajectory* object)
 	moveit_msgs::PlanningScene planning_scene;
 	planning_scene.robot_state = m_start_state;
 
-	if (!m_planner->solve(planning_scene, req, res)) {
+	SMPL_INFO("Found push! Plan to push start! Simulating took %f seconds.", time_spent);
+	if (!m_planner->solve(planning_scene, req, res))
+	{
 		ROS_ERROR("Failed to plan.");
+		ProcessObstacles(obs, true);
 		return false;
 	}
+	ProcessObstacles(obs, true);
 
 	trajectory_msgs::JointTrajectoryPoint push_end = ends.points.at(pidx);
 	push_end.time_from_start += res.trajectory.joint_trajectory.points.back().time_from_start;
@@ -633,7 +745,7 @@ void Robot::samplePush(const Trajectory* object)
 	double deg10 = 0.174533, deg20 = deg10 * 2;
 
 	// sample push_end via IK
-	smpl::RobotState seed, push_end, push_start;
+	smpl::RobotState dummy, push_end, push_start;
 	Eigen::Affine3d push_pose;
 	do
 	{
@@ -657,6 +769,8 @@ void Robot::samplePush(const Trajectory* object)
 		// (x, y) are linearly interpolated between object start and end
 		double x = object->front().state.at(0) * (1 - push_frac) + object->back().state.at(0) * push_frac;
 		double y = object->front().state.at(1) * (1 - push_frac) + object->back().state.at(1) * push_frac;
+		x += (m_distD(m_rng) * 0.05) - 0.025;
+		y += (m_distD(m_rng) * 0.05) - 0.025;
 
 		push_pose = Eigen::Translation3d(x, y, z) *
 					Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
@@ -664,22 +778,14 @@ void Robot::samplePush(const Trajectory* object)
 					Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
 
 		// run IK for push end pose with random seed
-		getRandomState(seed);
-		if (m_rm->computeIKSearch(push_pose, seed, push_end))
+		if (getStateNearPose(push_pose, dummy, push_end))
 		{
-			if (m_rm->checkJointLimits(push_end) && m_cc_i->isStateValid(push_end))
-			{
-				push_pose = m_rm->computeFK(push_end);
-				push_pose.translation().x() = m_goal_vec[0];
-				push_pose.translation().y() = m_goal_vec[1];
+			push_pose = m_rm->computeFK(push_end);
+			push_pose.translation().x() = m_goal_vec[0] + ((m_distD(m_rng) * 0.1) - 0.05);
+			push_pose.translation().y() = m_goal_vec[1] + ((m_distD(m_rng) * 0.1) - 0.05);
 
-				// run IK for push start pose by translating push end back in x, y
-				if (m_rm->computeIKSearch(push_pose, push_end, push_start))
-				{
-					if (m_rm->checkJointLimits(push_start) && m_cc_i->isStateValid(push_start)) {
-						break;
-					}
-				}
+			if (getStateNearPose(push_pose, dummy, push_start)) {
+				break;
 			}
 		}
 	}
@@ -1878,6 +1984,40 @@ void Robot::createJointSpaceGoal(
 		req.goal_constraints[0].joint_constraints[jidx].tolerance_below = 0.0174533; // 1 degree
 		req.goal_constraints[0].joint_constraints[jidx].weight = 1.0;
 	}
+}
+
+bool Robot::getStateNearPose(
+	const Eigen::Affine3d& pose,
+	const smpl::RobotState& seed_state,
+	smpl::RobotState& state,
+	const std::string& ns)
+{
+	state.clear();
+	smpl::RobotState seed;
+
+	if (!seed_state.empty()) {
+		seed = seed_state;
+	}
+	else {
+		getRandomState(seed);
+	}
+
+	int tries = 0;
+	do
+	{
+		if (m_rm->computeIKSearch(pose, seed, state))
+		{
+			if (m_rm->checkJointLimits(state) && m_cc_i->isStateValid(state)) {
+				break;
+			}
+		}
+		getRandomState(seed);
+		state.clear();
+		++tries;
+	}
+	while (tries < 2);
+
+	return tries < 2;
 }
 
 } // namespace clutter

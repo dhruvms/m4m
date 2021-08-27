@@ -5,6 +5,7 @@
 #include <pushplan/movable.hpp>
 #include <pushplan/bullet_sim.hpp>
 
+#include <smpl/console/console.h>
 #include <smpl/ros/planner_interface.h>
 #include <smpl/planning_params.h>
 #include <smpl/debug/marker.h>
@@ -35,18 +36,26 @@ public:
 	bool RandomiseStart();
 
 	void ProfileTraj(Trajectory& traj);
+	bool InsertGrasp(
+		const std::vector<double>& pregrasp_goal,
+		const Object& ooi,
+		Trajectory& traj_in);
 	void ConvertTraj(
 		const Trajectory& traj_in,
 		moveit_msgs::RobotTrajectory& traj_out);
 
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
 	void Step(int k) override;
+	void SetGraspT() { m_grasp_at = m_t; };
 
 	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner();
 	void SetPushGoal(const std::vector<double>& push);
-	bool PlanPush(int oid, const Trajectory* object);
-	trajectory_msgs::JointTrajectory GetLastPlan() { return m_traj; };
+	bool PlanPush(int oid, const Trajectory* o_traj, const Object& o);
+	trajectory_msgs::JointTrajectory GetLastPlan() {
+		SMPL_INFO("rearrangmenet traj size = %d", m_traj.points.size());
+		return m_traj;
+	};
 	void SetSim(const std::shared_ptr<BulletSim>& sim) {
 		m_sim = sim;
 	}
@@ -67,6 +76,15 @@ public:
 	Coord GetEECoord();
 	const moveit_msgs::RobotState* GetStartState() { return &m_start_state; };
 
+	void PrintFK(const trajectory_msgs::JointTrajectory& traj)
+	{
+		for (const auto& p: traj.points)
+		{
+			auto pose = m_rm->computeFK(p.positions);
+			SMPL_INFO("ee (x, y, z) = (%f, %f, %f)", pose.translation().x(), pose.translation().y(), pose.translation().z());
+		}
+	}
+
 private:
 	ros::NodeHandle m_nh, m_ph;
 	std::string m_robot_description, m_planning_frame;
@@ -83,6 +101,7 @@ private:
 	std::vector<int> m_coord_vals;
 	std::vector<double> m_coord_deltas;
 
+	int m_grasp_at;
 	double m_mass, m_b, m_table_z;
 	std::string m_shoulder, m_elbow, m_wrist, m_tip;
 	const smpl::urdf::Link* m_link_s = nullptr;
@@ -179,6 +198,11 @@ private:
 	void createJointSpaceGoal(
 		const smpl::RobotState& pose,
 		moveit_msgs::MotionPlanRequest& req);
+	bool getStateNearPose(
+		const Eigen::Affine3d& pose,
+		const smpl::RobotState& seed_state,
+		smpl::RobotState& state,
+		const std::string& ns="");
 };
 
 } // namespace clutter
