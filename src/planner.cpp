@@ -128,7 +128,6 @@ void Planner::Plan()
 
 	auto robot_traj = m_robot->GetMoveTraj();
 	m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
-	m_robot->ProfileTraj(m_exec);
 }
 
 bool Planner::whcastar()
@@ -177,6 +176,7 @@ bool Planner::whcastar()
 	// ProfilerStop();
 
 	m_phase = 1;
+	m_robot->SetGraspT();
 
 	start_time = GetTime();
 	reinit();
@@ -224,6 +224,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		std::vector<Object> new_obstacles;
 		int oid = std::min(i->first, i->second); // max will be robot object
 		SMPL_INFO("Rearranging object %d", oid);
+		m_agents.at(m_agent_map[oid]).ResetObject();
 
 		for (auto j = conflicts->begin(); j != conflicts->end(); ++j)
 		{
@@ -233,6 +234,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 			}
 
 			SMPL_INFO("Adding object %d as obstacle", obsid);
+			m_agents.at(m_agent_map[obsid]).ResetObject();
 			new_obstacles.push_back(m_agents.at(m_agent_map[obsid]).GetObject()->back());
 		}
 		// add new obstacles
@@ -250,7 +252,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		// m_robot->PlanPush creates the planner internally, because it might
 		// change KDL chain during the process
 		SMPL_INFO("Planning!");
-		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj())) {
+		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back())) {
 			SMPL_INFO("Found push!");
 			m_rearrangements.push_back(m_robot->GetLastPlan());
 		}
@@ -309,6 +311,9 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 	}
 
 	moveit_msgs::RobotTrajectory to_exec;
+	m_ooi.ResetObject(); // put OOI object in original position
+	m_robot->InsertGrasp(m_goal, m_ooi.GetObject()->back(), m_exec);
+	m_robot->ProfileTraj(m_exec);
 	m_robot->ConvertTraj(m_exec, to_exec);
 	if (!m_sim->ExecTraj(to_exec.joint_trajectory))
 	{
@@ -512,8 +517,27 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 						break;
 					}
 				}
+			}
 
-				break; // do not care about reading anything that follows
+			else if (line.compare("G") == 0)
+			{
+				getline(SCENE, line);
+
+				std::stringstream ss(line);
+				std::string split;
+				while (ss.good())
+				{
+					getline(ss, split, ',');
+					m_goal.push_back(std::stod(split));
+				}
+
+				std::swap(m_goal[3], m_goal[5]);
+				if (std::fabs(m_goal[3]) >= 1e-4)
+				{
+					m_goal[3] = 0.0;
+					m_goal[4] = 0.0;
+					m_goal[5] = smpl::angles::normalize_angle(m_goal[5] + M_PI);
+				}
 			}
 		}
 	}

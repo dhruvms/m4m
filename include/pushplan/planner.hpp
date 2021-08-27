@@ -41,6 +41,7 @@ private:
 	Agent m_ooi, m_ee;
 	Coord m_ooi_g;
 	State m_ooi_gf;
+	std::vector<double> m_goal;
 
 	Trajectory m_exec;
 	std::vector<trajectory_msgs::JointTrajectory> m_rearrangements;
