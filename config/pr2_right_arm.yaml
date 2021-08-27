@@ -14,7 +14,7 @@ planning:
   xyz_snap_dist_thresh: 0.2
   rpy_snap_dist_thresh: 0.0
   xyzrpy_snap_dist_thresh: 0.0
-  short_dist_mprims_thresh: 0.4
+  short_dist_mprims_thresh: 0.1
 
 occupancy_grid:
   size_x: 3.0

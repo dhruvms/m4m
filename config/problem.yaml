@@ -29,7 +29,9 @@ robot:
   semi_minor: 0.04
   robot_obj_mass: 0.5
   speed: 1.0
-  pushes: 4
+  pushes: 10
+  grasp_clip: 5
+  grasp_lift: 0.02
 
 whca:
   window: 2
