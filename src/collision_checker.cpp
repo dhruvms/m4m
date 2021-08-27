@@ -183,41 +183,12 @@ bool CollisionChecker::OOICollision(const Object& o)
 
 	auto ooi = m_planner->GetObject(*(m_planner->GetOOIState()), 0)->back();
 	State ooi_loc = {ooi.o_x, ooi.o_y};
-	if (ooi.shape == 0)
-	{
-		GetRectObjAtPt(ooi_loc, ooi, ooi_rect);
-		rect_ooi = true;
-	}
 
-	if (rect_o)
-	{
-		if (rect_ooi)
-		{
-			if (rectRectCollision(o_rect, ooi_rect)) {
-				return true;
-			}
-		}
-		else
-		{
-			if (rectCircCollision(o_rect, ooi, ooi_loc)) {
-				return true;
-			}
-		}
+	if (rect_o)	{
+		return PointInRectangle(ooi_loc, o_rect);
 	}
-	else
-	{
-		if (rect_ooi)
-		{
-			if (rectCircCollision(ooi_rect, o, o_loc)) {
-				return true;
-			}
-		}
-		else
-		{
-			if (circCircCollision(o, o_loc, ooi, ooi_loc)) {
-				return true;
-			}
-		}
+	else {
+		return EuclideanDist(o_loc, ooi_loc) < o.x_size;
 	}
 
 	return false;
