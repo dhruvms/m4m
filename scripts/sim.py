@@ -390,6 +390,7 @@ class BulletSim:
 		gripper_joints = joints_from_names(robot_id, PR2_GROUPS['right_gripper'], sim=sim)
 		# arm_joints = joints_from_names(robot_id, PR2_GROUPS['right_arm'], sim=sim)
 		arm_joints = joints_from_names(robot_id, req.traj.joint_names, sim=sim)
+		# ee_link = link_from_name(sim_data['robot_id'], 'r_gripper_finger_dummy_planning_link')
 
 		# # ONLY FOR INITIAL TESTING
 		# self.disableCollisionsWithObjects(sim_id)
@@ -415,7 +416,8 @@ class BulletSim:
 			sim.setJointMotorControlArray(
 					robot_id, arm_joints,
 					controlMode=sim.VELOCITY_CONTROL,
-					targetVelocities=target_vel)
+					targetVelocities=target_vel,
+					velocityGains=[2.0]*len(arm_joints))
 
 			for i in range(int(duration)):
 				sim.stepSimulation()
@@ -427,6 +429,8 @@ class BulletSim:
 				targetVelocities=len(arm_joints)*[0.0])
 		for i in range(1000):
 			sim.stepSimulation()
+
+		# ee_dummy_state = get_link_state(sim_data['robot_id'], ee_link).linkWorldPosition
 
 		return ExecTrajResponse(True)
 
@@ -461,14 +465,15 @@ class BulletSim:
 			sim.stepSimulation()
 			self.enableCollisionsWithObjects(sim_id)
 
-			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 10
+			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 100
 			duration = time_diff * 240
 			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
 
 			sim.setJointMotorControlArray(
 					robot_id, arm_joints,
 					controlMode=sim.VELOCITY_CONTROL,
-					targetVelocities=target_vel)
+					targetVelocities=target_vel,
+					velocityGains=[2.0]*len(arm_joints))
 
 			objs_curr = self.getObjects(sim_id)
 			action_interactions = []
