@@ -36,6 +36,7 @@ class BulletSim:
 		self.table_rgba = list(np.random.rand(3)) + [1]
 		self.table_specular = list(np.random.rand(3))
 
+		self.grasp_constraint = None
 		self.camera_set = False
 
 		if gui:
@@ -404,10 +405,35 @@ class BulletSim:
 			sim.resetJointState(robot_id, gjidx, 0.3)
 		sim.stepSimulation()
 
+		grasp_at = req.grasp_at
 		for point in req.traj.points[1:]:
+			if (grasp_at >= 0) and (point == req.traj.points[grasp_at]):
+				self.grasp(sim_id, True) # open gripper
+
+			if (grasp_at >= 0) and (point == req.traj.points[grasp_at+1]):
+				self.grasp(sim_id, False) # close gripper
+
+				if self.grasp_constraint is None:
+					obj_transform = sim.getBasePositionAndOrientation(req.ooi)
+					robot_link = link_from_name(sim_data['robot_id'], 'r_gripper_finger_dummy_planning_link', sim=sim)
+
+					ee_state = get_link_state(sim_data['robot_id'], robot_link, sim=sim)
+					ee_transform = sim.invertTransform(ee_state.linkWorldPosition, ee_state.linkWorldOrientation)
+
+					grasp_pose = sim.multiplyTransforms(ee_transform[0], ee_transform[1], *obj_transform)
+					grasp_point, grasp_quat = grasp_pose
+
+					self.grasp_constraint = sim.createConstraint(
+									sim_data['robot_id'], robot_link, req.ooi, BASE_LINK,  # Both seem to work
+									sim.JOINT_FIXED, jointAxis=[0., 0., 0.],
+									parentFramePosition=grasp_point,
+									childFramePosition=[0., 0., 0.],
+									parentFrameOrientation=grasp_quat,
+									childFrameOrientation=sim.getQuaternionFromEuler([0., 0., 0.]))
+
 			prev_timestep = curr_timestep
 			curr_timestep = point.time_from_start.to_sec()
-			time_diff = (curr_timestep - prev_timestep) * 100
+			time_diff = (curr_timestep - prev_timestep) * 10
 			duration = time_diff * 240
 			prev_pose = curr_pose
 			curr_pose = np.asarray(point.positions)
@@ -465,7 +491,7 @@ class BulletSim:
 			sim.stepSimulation()
 			self.enableCollisionsWithObjects(sim_id)
 
-			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 100
+			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 10
 			duration = time_diff * 240
 			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
 
@@ -694,6 +720,50 @@ class BulletSim:
 			if(abs(vel_rpy[0]) > FALL_VEL_THRESH or abs(vel_rpy[1]) > FALL_VEL_THRESH):
 				return True
 		return False
+
+	def holdPosition(self, sim_id):
+		sim = self.sims[sim_id]
+		sim_data = self.sim_datas[sim_id]
+
+		robot_id = sim_data['robot_id']
+		joint_idxs = sim_data['joint_idxs']
+		joints_state = sim.getJointStates(robot_id, joint_idxs)
+
+		joints_pos = []
+		for joint_state in joints_state:
+			joints_pos.append(joint_state[0])
+		sim.setJointMotorControlArray(robot_id, joint_idxs,
+								controlMode=sim.POSITION_CONTROL,
+								targetPositions=joints_pos)
+
+	def grasp(self, sim_id, open_g):
+		robot_id = self.sim_datas[sim_id]['robot_id']
+		sim = self.sims[sim_id]
+
+		gripper_joints = joints_from_names(robot_id, PR2_GROUPS['right_gripper'], sim=sim)
+		arm_joints = joints_from_names(robot_id, PR2_GROUPS['right_arm'], sim=sim)
+
+		self.holdPosition(sim_id)
+
+		target_vel = 0.2 * np.ones(len(gripper_joints))
+		if not open_g:
+			target_vel = -1*target_vel
+
+		sim.setJointMotorControlArray(
+				robot_id, gripper_joints,
+				controlMode=sim.VELOCITY_CONTROL,
+				targetVelocities=target_vel)
+		for i in range(240):
+			sim.stepSimulation()
+
+		if open_g:
+			sim.setJointMotorControlArray(
+					robot_id, gripper_joints,
+					controlMode=sim.VELOCITY_CONTROL,
+					targetVelocities=target_vel*0)
+
+			# for i in range(240):
+			# 	sim.stepSimulation()
 
 	def setupSim(self, gui, shadows):
 		connection = p.GUI if gui else p.DIRECT
