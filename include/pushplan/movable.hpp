@@ -45,6 +45,7 @@ public:
 	}
 	const std::vector<Object>* GetObject() const { return &m_objs; };
 	virtual const std::vector<Object>* GetObject(const LatticeState& s) = 0;
+	int GetID() { return m_objs.back().id; };
 
 protected:
 	std::vector<Object> m_objs;

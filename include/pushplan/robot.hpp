@@ -47,6 +47,7 @@ public:
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
 	void Step(int k) override;
 	void SetGraspT() { m_grasp_at = m_t; };
+	int GraspAt() { return m_grasp_at; };
 
 	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner();

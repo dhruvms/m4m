@@ -196,10 +196,14 @@ bool BulletSim::SetColours()
 	return true;
 }
 
-bool BulletSim::ExecTraj(const trajectory_msgs::JointTrajectory& traj)
+bool BulletSim::ExecTraj(
+	const trajectory_msgs::JointTrajectory& traj,
+	int grasp_at, int ooi)
 {
 	pushplan::ExecTraj srv;
 	srv.request.traj = traj;
+	srv.request.grasp_at = grasp_at;
+	srv.request.ooi = ooi;
 
 	if (!m_services.at(m_servicemap["exec_traj"]).call(srv))
 	{

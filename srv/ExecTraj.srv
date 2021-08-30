@@ -1,3 +1,5 @@
 trajectory_msgs/JointTrajectory traj
+int64 grasp_at
+int64 ooi
 ---
 bool res

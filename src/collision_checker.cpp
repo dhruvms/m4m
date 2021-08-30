@@ -108,8 +108,8 @@ bool CollisionChecker::IsStateValid(
 					Object o2 = ao;
 					if (p == 0)
 					{
-						o2.x_size += RES;
-						o2.y_size += RES;
+						o2.x_size += RES * 2;
+						o2.y_size += RES * 2;
 					}
 
 					rect_o2 = false;

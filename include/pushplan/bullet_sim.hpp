@@ -27,7 +27,9 @@ public:
 	bool CheckScene(const int& arm, int& count);
 	bool ResetScene();
 	bool SetColours();
-	bool ExecTraj(const trajectory_msgs::JointTrajectory& traj);
+	bool ExecTraj(
+		const trajectory_msgs::JointTrajectory& traj,
+		int grasp_at=-1, int ooi=-1);
 	bool SimPushes(
 		const trajectory_msgs::JointTrajectory& starts,
 		const trajectory_msgs::JointTrajectory& ends,
