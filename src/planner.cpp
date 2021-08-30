@@ -104,8 +104,22 @@ void Planner::Plan()
 	int runs = 1;
 
 	double start_time = GetTime();
-	while (!whcastar())
+	do
 	{
+		if (whcastar())
+		{
+			m_exec.clear();
+
+			auto robot_traj = m_robot->GetMoveTraj();
+			m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
+			m_ooi.ResetObject(); // put OOI object in original position
+			if (m_robot->InsertGrasp(m_goal, m_ooi.GetObject()->back(), m_exec))
+			{
+				m_robot->ProfileTraj(m_exec);
+				break;
+			}
+		}
+
 		SMPL_WARN("Re-run WHCA*!");
 		m_t = 0;
 		m_phase = 0;
@@ -121,13 +135,11 @@ void Planner::Plan()
 
 		++runs;
 	}
+	while (true);
 	double time_taken = GetTime() - start_time;
 	SMPL_INFO("Planning took %f seconds. (%d runs)", time_taken, runs);
 
 	m_cc->PrintConflicts();
-
-	auto robot_traj = m_robot->GetMoveTraj();
-	m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
 }
 
 bool Planner::whcastar()
@@ -311,11 +323,8 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 	}
 
 	moveit_msgs::RobotTrajectory to_exec;
-	m_ooi.ResetObject(); // put OOI object in original position
-	m_robot->InsertGrasp(m_goal, m_ooi.GetObject()->back(), m_exec);
-	m_robot->ProfileTraj(m_exec);
 	m_robot->ConvertTraj(m_exec, to_exec);
-	if (!m_sim->ExecTraj(to_exec.joint_trajectory))
+	if (!m_sim->ExecTraj(to_exec.joint_trajectory, m_robot->GraspAt(), m_ooi.GetID()))
 	{
 		ROS_ERROR("Failed to exec traj!");
 		return false;

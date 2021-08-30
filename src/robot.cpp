@@ -338,7 +338,7 @@ bool Robot::InsertGrasp(
 	traj_in.insert(traj_in.begin() + end_idx + 1, {pregrasp, grasp, postgrasp});
 	traj_in.erase(traj_in.begin() + start_idx, traj_in.begin() + end_idx);
 
-	m_grasp_at = pregrasp.t;
+	m_grasp_at = grasp.t;
 
 	SMPL_INFO("Successfully spliced in grasping sequence!");
 
@@ -510,6 +510,11 @@ bool Robot::UpdateKDLRobot(int mode)
 		ROS_ERROR("Failed to set start state!");
 		return false;
 	}
+
+	m_link_s = smpl::urdf::GetLink(&m_rm->m_robot_model, m_shoulder.c_str());
+	m_link_e = smpl::urdf::GetLink(&m_rm->m_robot_model, m_elbow.c_str());
+	m_link_w = smpl::urdf::GetLink(&m_rm->m_robot_model, m_wrist.c_str());
+	m_link_t = smpl::urdf::GetLink(&m_rm->m_robot_model, m_tip.c_str());
 
 	smpl::RobotState dummy;
 	dummy.insert(dummy.begin(),
@@ -783,7 +788,7 @@ void Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 			push_pose.translation().y() = m_goal_vec[1] + ((m_distD(m_rng) * 0.1) - 0.05);
 
 			ProcessObstacles(obs);
-			if (getStateNearPose(push_pose, dummy, push_start)) {
+			if (getStateNearPose(push_pose, push_end, push_start)) {
 				break;
 			}
 			ProcessObstacles(obs, true);
