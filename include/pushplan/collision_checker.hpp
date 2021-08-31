@@ -106,6 +106,10 @@ private:
 	std::uniform_real_distribution<double> m_distD;
 
 	bool immovableCollision(const Object& o, const int& priority);
+	bool checkCollisionObjSet(
+		const Object& o1, const State& o1_loc, int a1_p,
+		bool rect_o1, const std::vector<State>& o1_rect,
+		const std::vector<Object>* a2_objs, int a2_p);
 
 	bool rectRectCollision(
 		const std::vector<State>& r1, const std::vector<State>& r2);

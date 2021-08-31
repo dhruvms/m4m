@@ -83,9 +83,9 @@ bool CollisionChecker::ImmovableCollision(const std::vector<Object>& objs, const
 bool CollisionChecker::IsStateValid(
 	const LatticeState& s, const Object& o1, const int& priority)
 {
-	State o1_loc = {s.state.at(0), s.state.at(1)}, o2_loc;
-	std::vector<State> o1_rect, o2_rect;
-	bool rect_o1 = false, rect_o2;
+	State o1_loc = {s.state.at(0), s.state.at(1)};
+	std::vector<State> o1_rect;
+	bool rect_o1 = false;
 
 	// preprocess rectangle once only
 	if (o1.shape == 0)
@@ -100,70 +100,24 @@ bool CollisionChecker::IsStateValid(
 		{
 			if (s.t == s2.t)
 			{
-				auto a2_objs = m_planner->GetObject(s2, p);
 				// (o2.o_x, o2.o_y) are consistent with
 				// s2.state
-				for (const auto& ao: *a2_objs)
-				{
-					Object o2 = ao;
-					if (p == 0)
-					{
-						o2.x_size += RES * 2;
-						o2.y_size += RES * 2;
-					}
-
-					rect_o2 = false;
-					o2_loc = {o2.o_x, o2.o_y};
-					if (o2.shape == 0)
-					{
-						GetRectObjAtPt(o2_loc, o2, o2_rect);
-						rect_o2 = true;
-					}
-
-					if (rect_o1)
-					{
-						if (rect_o2)
-						{
-							if (rectRectCollision(o1_rect, o2_rect))
-							{
-								updateConflicts(o1, priority, o2, p);
-								return false;
-							}
-						}
-						else
-						{
-							if (rectCircCollision(o1_rect, o2, o2_loc))
-							{
-								updateConflicts(o1, priority, o2, p);
-								return false;
-							}
-						}
-					}
-					else
-					{
-						if (rect_o2)
-						{
-							if (rectCircCollision(o2_rect, o1, o1_loc))
-							{
-								updateConflicts(o1, priority, o2, p);
-								return false;
-							}
-						}
-						else
-						{
-							if (circCircCollision(o1, o1_loc, o2, o2_loc))
-							{
-								updateConflicts(o1, priority, o2, p);
-								return false;
-							}
-						}
-					}
+				auto a2_objs = m_planner->GetObject(s2, p);
+				if (!checkCollisionObjSet(o1, o1_loc, priority, rect_o1, o1_rect, a2_objs, p)) {
+					return false;
 				}
-				// SMPL_WARN("collision! objects ids %d and %d (movable) collide at time %d", o1.id, m_planner->GetObject(p)->id, s.t);
-				// std::cout << o1.id << ',' << other_obj->id << ',' << s.t << std::endl;
 			}
 		}
 	}
+
+	// if (priority > 1)
+	// {
+	// 	auto r_grasp_objs = m_planner->GetGraspObjs();
+	// 	if (!checkCollisionObjSet(o1, o1_loc, priority, rect_o1, o1_rect, r_grasp_objs, 1)) {
+	// 		return false;
+	// 	}
+	// }
+
 	return true;
 }
 
@@ -314,6 +268,77 @@ bool CollisionChecker::immovableCollision(const Object& o, const int& priority)
 	}
 
 	return false;
+}
+
+bool CollisionChecker::checkCollisionObjSet(
+	const Object& o1, const State& o1_loc, int a1_p,
+	bool rect_o1, const std::vector<State>& o1_rect,
+	const std::vector<Object>* a2_objs, int a2_p)
+{
+	State o2_loc;
+	bool rect_o2;
+	std::vector<State> o2_rect;
+
+	for (const auto& ao: *a2_objs)
+	{
+		Object o2 = ao;
+		if (a2_p == 0)
+		{
+			o2.x_size += RES * 2;
+			o2.y_size += RES * 2;
+		}
+
+		rect_o2 = false;
+		o2_loc = {o2.o_x, o2.o_y};
+		if (o2.shape == 0)
+		{
+			GetRectObjAtPt(o2_loc, o2, o2_rect);
+			rect_o2 = true;
+		}
+
+		if (rect_o1)
+		{
+			if (rect_o2)
+			{
+				if (rectRectCollision(o1_rect, o2_rect))
+				{
+					updateConflicts(o1, a1_p, o2, a2_p);
+					return false;
+				}
+			}
+			else
+			{
+				if (rectCircCollision(o1_rect, o2, o2_loc))
+				{
+					updateConflicts(o1, a1_p, o2, a2_p);
+					return false;
+				}
+			}
+		}
+		else
+		{
+			if (rect_o2)
+			{
+				if (rectCircCollision(o2_rect, o1, o1_loc))
+				{
+					updateConflicts(o1, a1_p, o2, a2_p);
+					return false;
+				}
+			}
+			else
+			{
+				if (circCircCollision(o1, o1_loc, o2, o2_loc))
+				{
+					updateConflicts(o1, a1_p, o2, a2_p);
+					return false;
+				}
+			}
+		}
+	}
+	// SMPL_WARN("collision! objects ids %d and %d (movable) collide at time %d", o1.id, m_planner->GetObject(p)->id, s.t);
+	// std::cout << o1.id << ',' << other_obj->id << ',' << s.t << std::endl;
+
+	return true;
 }
 
 bool CollisionChecker::rectRectCollision(
