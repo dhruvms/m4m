@@ -36,10 +36,10 @@ public:
 	bool RandomiseStart();
 
 	void ProfileTraj(Trajectory& traj);
-	bool InsertGrasp(
+	bool ComputeGrasps(
 		const std::vector<double>& pregrasp_goal,
-		const Object& ooi,
-		Trajectory& traj_in);
+		const Object& ooi);
+	bool InsertGrasp(Trajectory& traj_in);
 	void ConvertTraj(
 		const Trajectory& traj_in,
 		moveit_msgs::RobotTrajectory& traj_out);
@@ -72,6 +72,9 @@ public:
 	unsigned int GetGoalHeuristic(const LatticeState& s) override;
 
 	const std::vector<Object>* GetObject(const LatticeState& s) override;
+	const std::vector<Object>* GetGraspObjs() {
+		return &m_grasp_objs;
+	};
 	using Movable::GetObject;
 
 	Coord GetEECoord();
@@ -109,6 +112,8 @@ private:
 	const smpl::urdf::Link* m_link_e = nullptr;
 	const smpl::urdf::Link* m_link_w = nullptr;
 	const smpl::urdf::Link* m_link_t = nullptr;
+	smpl::RobotState m_pregrasp_state, m_grasp_state, m_postgrasp_state;
+	std::vector<Object> m_grasp_objs;
 
 	std::random_device m_dev;
 	std::mt19937 m_rng;
@@ -203,6 +208,7 @@ private:
 		const Eigen::Affine3d& pose,
 		const smpl::RobotState& seed_state,
 		smpl::RobotState& state,
+		int N=2,
 		const std::string& ns="");
 };
 

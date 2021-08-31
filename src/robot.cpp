@@ -246,62 +246,79 @@ void Robot::ProfileTraj(Trajectory& traj)
 	traj.back().state.push_back(prev_time);
 }
 
-bool Robot::InsertGrasp(
+bool Robot::ComputeGrasps(
 	const std::vector<double>& pregrasp_goal,
-	const Object& ooi,
-	Trajectory& traj_in)
+	const Object& ooi)
 {
-	SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	m_pregrasp_state.clear();
+	m_grasp_state.clear();
+	m_postgrasp_state.clear();
 
-	int grasp_clip;
+	int grasp_tries;
 	double grasp_lift;
-	m_ph.getParam("robot/grasp_clip", grasp_clip);
 	m_ph.getParam("robot/grasp_lift", grasp_lift);
-
-	smpl::RobotState ee_state = traj_in.at(m_grasp_at).state;
-	smpl::RobotState pregrasp_state, grasp_state, postgrasp_state;
-
-	Eigen::Affine3d ee_pose = m_rm->computeFK(ee_state), traj_pose;
-	ee_pose = Eigen::Translation3d(pregrasp_goal[0], pregrasp_goal[1], ee_pose.translation().z()) *
-					Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
-					Eigen::AngleAxisd(pregrasp_goal[4], Eigen::Vector3d::UnitY()) *
-					Eigen::AngleAxisd(pregrasp_goal[3], Eigen::Vector3d::UnitX());
-
+	m_ph.getParam("robot/grasp_tries", grasp_tries);
 
 	bool success = false;
-	// compute pregrasp state
+	int tries = 0;
 	UpdateKDLRobot(0);
-	if (getStateNearPose(ee_pose, ee_state, pregrasp_state))
+
+	smpl::RobotState ee_state;
+	Eigen::Affine3d ee_pose;
+	do
 	{
-		SMPL_INFO("Found pregrasp state!");
-		ee_pose = m_rm->computeFK(pregrasp_state);
-		ee_pose.translation().x() = ooi.o_x;
-		ee_pose.translation().y() = ooi.o_y;
-
-		// compute grasp state
-		if (getStateNearPose(ee_pose, pregrasp_state, grasp_state))
-		{
-			SMPL_INFO("Found grasp state!!");
-			ee_pose = m_rm->computeFK(grasp_state);
-			ee_pose.translation().z() += grasp_lift;
-
-			// compute postgrasp state
-			if (getStateNearPose(ee_pose, grasp_state, postgrasp_state))
-			{
-				SMPL_INFO("Found postgrasp state!!!");
-				success = true;
-			}
-		}
+		double z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
+		ee_pose = Eigen::Translation3d(ooi.o_x, ooi.o_y, z) *
+						Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(pregrasp_goal[4], Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(pregrasp_goal[3], Eigen::Vector3d::UnitX());
 	}
+	while (!getStateNearPose(ee_pose, ee_state, m_grasp_state, 5) && ++tries < grasp_tries);
 
-	if (!success) {
+	if (tries == grasp_tries) {
 		return false;
 	}
 
+	SMPL_INFO("Found grasp state!!");
+
+	// compute pregrasp state
+	ee_pose = m_rm->computeFK(m_grasp_state);
+	ee_pose.translation().x() = pregrasp_goal[0];
+	ee_pose.translation().y() = pregrasp_goal[1];
+	if (getStateNearPose(ee_pose, m_grasp_state, m_pregrasp_state, 1))
+	{
+		SMPL_INFO("Found pregrasp state!");
+		ee_pose = m_rm->computeFK(m_grasp_state);
+		ee_pose.translation().z() += grasp_lift;
+
+		// compute postgrasp state
+		if (getStateNearPose(ee_pose, m_grasp_state, m_postgrasp_state))
+		{
+			SMPL_INFO("Found postgrasp state!!!");
+			success = true;
+		}
+	}
+
+	m_grasp_objs.clear();
+	reinitObjects(m_pregrasp_state);
+	m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
+	reinitObjects(m_grasp_state);
+	m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
+	reinitObjects(m_postgrasp_state);
+	m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
+
+	return success;
+}
+
+bool Robot::InsertGrasp(Trajectory& traj_in)
+{
+	int grasp_clip;
+	m_ph.getParam("robot/grasp_clip", grasp_clip);
+
 	LatticeState pregrasp, grasp, postgrasp;
-	pregrasp.state = pregrasp_state;
-	grasp.state = grasp_state;
-	postgrasp.state = postgrasp_state;
+	pregrasp.state = m_pregrasp_state;
+	grasp.state = m_grasp_state;
+	postgrasp.state = m_postgrasp_state;
 
 	pregrasp.coord = Coord(m_rm->jointVariableCount());
 	grasp.coord = Coord(m_rm->jointVariableCount());
@@ -312,7 +329,9 @@ bool Robot::InsertGrasp(
 
 	double min_dist = std::numeric_limits<double>::max();
 	int start_idx = -1, end_idx = -1;
-	ee_pose = m_rm->computeFK(pregrasp_state);
+
+	Eigen::Affine3d ee_pose, traj_pose;
+	ee_pose = m_rm->computeFK(m_pregrasp_state);
 	State ee = {ee_pose.translation().x(), ee_pose.translation().y(), ee_pose.translation().z()}, traj;
 	for (int sidx = 0; sidx < traj_in.size(); sidx++)
 	{
@@ -557,8 +576,13 @@ bool Robot::PlanPush(int oid, const Trajectory* o_traj, const Object& o)
 	m_push_ends.clear();
 	std::vector<Object> obs = {o};
 	double start_time = GetTime();
-	for (int i = 0; i < m_pushes_per_object; ++i) {
+	// for (int i = 0; i < m_pushes_per_object; ++i) {
+	int i = 0;
+	while ((GetTime() - start_time) < 60 && i < m_pushes_per_object)
+	{
 		samplePush(o_traj, obs);
+		++i;
+		SMPL_INFO("Found push %d", i);
 	}
 	double time_spent = GetTime() - start_time;
 
@@ -1996,6 +2020,7 @@ bool Robot::getStateNearPose(
 	const Eigen::Affine3d& pose,
 	const smpl::RobotState& seed_state,
 	smpl::RobotState& state,
+	int N,
 	const std::string& ns)
 {
 	state.clear();
@@ -2011,6 +2036,18 @@ bool Robot::getStateNearPose(
 	int tries = 0;
 	do
 	{
+		// if (!ns.empty())
+		// {
+		// 	auto markers = m_cc_i->getCollisionModelVisualization(seed);
+		// 	for (auto& marker : markers) {
+		// 		marker.ns = ns + "_seed";
+		// 	}
+		// 	SV_SHOW_INFO_NAMED(ns + "_seed", markers);
+
+		// 	SV_SHOW_INFO_NAMED(ns + "_pose", smpl::visual::MakePoseMarkers(
+		// 		pose, m_grid_i->getReferenceFrame(), ns + "_pose"));
+		// }
+
 		if (m_rm->computeIKSearch(pose, seed, state))
 		{
 			if (m_rm->checkJointLimits(state) && m_cc_i->isStateValid(state)) {
@@ -2021,9 +2058,9 @@ bool Robot::getStateNearPose(
 		state.clear();
 		++tries;
 	}
-	while (tries < 2);
+	while (tries < N);
 
-	return tries < 2;
+	return tries < N;
 }
 
 } // namespace clutter
