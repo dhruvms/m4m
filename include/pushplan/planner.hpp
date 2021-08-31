@@ -25,6 +25,9 @@ public:
 	void Plan();
 
 	const std::vector<Object>* GetObject(const LatticeState& s, int priority);
+	const std::vector<Object>* GetGraspObjs() {
+		return m_robot->GetGraspObjs();
+	}
 
 	const std::vector<Object>* GetOOIObject() { return m_ooi.GetObject(); };
 	const LatticeState* GetOOIState() { return m_ooi.GetCurrentState(); };

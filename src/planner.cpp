@@ -82,6 +82,19 @@ m_ph("~")
 	}
 	all_obstacles.clear();
 
+	int t = 0, grasp_tries;
+	m_ph.getParam("robot/grasp_tries", grasp_tries);
+	for (; t < grasp_tries; ++t)
+	{
+		if (m_robot->ComputeGrasps(m_goal, m_ooi.GetObject()->back())) {
+			break;
+		}
+	}
+	if (t == grasp_tries) {
+		SMPL_ERROR("Robot failed to compute grasp states! Entering infinite loop, please kill!");
+		while (true) {};
+	}
+
 	while (!setupProblem()) {
 		continue;
 	}
@@ -112,12 +125,9 @@ void Planner::Plan()
 
 			auto robot_traj = m_robot->GetMoveTraj();
 			m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
-			m_ooi.ResetObject(); // put OOI object in original position
-			if (m_robot->InsertGrasp(m_goal, m_ooi.GetObject()->back(), m_exec))
-			{
-				m_robot->ProfileTraj(m_exec);
-				break;
-			}
+			m_robot->InsertGrasp(m_exec);
+			m_robot->ProfileTraj(m_exec);
+			break;
 		}
 
 		SMPL_WARN("Re-run WHCA*!");
