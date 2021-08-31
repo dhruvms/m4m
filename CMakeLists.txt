@@ -28,6 +28,12 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(smpl REQUIRED)
 
+add_message_files(
+   FILES
+   ObjectPose.msg
+   ObjectsPoses.msg
+)
+
 add_service_files(
 	FILES
 	AddObject.srv
@@ -52,6 +58,7 @@ generate_messages(
 
 catkin_package(
 	CATKIN_DEPENDS
+	std_msgs
 	message_runtime
 )
 
