@@ -22,6 +22,9 @@ public:
 
 	bool Setup() override;
 	void ResetObject();
+	bool SetObjectPose(
+		const std::vector<double>& xyz,
+		const std::vector<double>& rpy);
 	bool Init() override;
 
 	bool AtGoal(const LatticeState& s, bool verbose=false) override;
@@ -41,7 +44,7 @@ public:
 	using Movable::GetObject;
 
 private:
-	double m_o_x, m_o_y;
+	Object m_orig_o;
 
 	int generateSuccessor(
 		const LatticeState* parent,

@@ -66,6 +66,7 @@ private:
 	void step_agents(int k=1);
 
 	bool setupProblem(bool random=false);
+	void updateAgentPositions(const pushplan::ObjectsPoses& objects);
 	int cleanupLogs();
 
 	void parse_scene(std::vector<Object>& obstacles);

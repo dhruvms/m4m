@@ -11,14 +11,26 @@ namespace clutter
 
 bool Agent::Setup()
 {
-	m_o_x = m_objs.back().o_x;
-	m_o_y = m_objs.back().o_y;
+	m_orig_o = m_objs.back();
 }
 
 void Agent::ResetObject()
 {
-	m_objs.back().o_x = m_o_x;
-	m_objs.back().o_y = m_o_y;
+	m_objs.back().o_x = m_orig_o.o_x;
+	m_objs.back().o_y = m_orig_o.o_y;
+}
+
+bool Agent::SetObjectPose(
+	const std::vector<double>& xyz,
+	const std::vector<double>& rpy)
+{
+	m_objs.back().o_x = xyz.at(0);
+	m_objs.back().o_y = xyz.at(1);
+	m_objs.back().o_z = xyz.at(2);
+
+	m_objs.back().o_roll = rpy.at(0);
+	m_objs.back().o_pitch = rpy.at(1);
+	m_objs.back().o_yaw = rpy.at(2);
 }
 
 bool Agent::Init()
@@ -30,8 +42,8 @@ bool Agent::Init()
 	m_t = 0;
 	m_retrieved = 0;
 
-	m_objs.back().o_x = m_o_x;
-	m_objs.back().o_y = m_o_y;
+	m_objs.back().o_x = m_orig_o.o_x;
+	m_objs.back().o_y = m_orig_o.o_y;
 
 	m_init.t = m_t;
 	m_init.state.clear();
@@ -88,15 +100,15 @@ void Agent::GetSE2Push(std::vector<double>& push)
 	double move_dir = std::atan2(
 					m_move.back().state.at(1) - m_move.front().state.at(1),
 					m_move.back().state.at(0) - m_move.front().state.at(0));
-	push.at(0) = m_o_x + std::cos(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
-	push.at(1) = m_o_y + std::sin(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
+	push.at(0) = m_orig_o.o_x + std::cos(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
+	push.at(1) = m_orig_o.o_y + std::sin(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
 	push.at(2) = move_dir;
 
 	if (m_objs.back().shape == 0)
 	{
 		// get my object rectangle
 		std::vector<State> rect;
-		State o = {m_o_x, m_o_y};
+		State o = {m_orig_o.o_x, m_orig_o.o_y};
 		GetRectObjAtPt(o, m_objs.back(), rect);
 
 		// find rectangle side away from push direction

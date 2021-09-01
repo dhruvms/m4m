@@ -241,14 +241,18 @@ bool Planner::whcastar()
 
 bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
 {
+	for (auto& a: m_agents) {
+		a.ResetObject();
+	}
+
 	auto conflicts = m_cc->GetConflicts();
 	for (auto i = conflicts->begin(); i != conflicts->end(); ++i)
 	{
-		std::vector<Object> new_obstacles;
 		int oid = std::min(i->first, i->second); // max will be robot object
 		SMPL_INFO("Rearranging object %d", oid);
-		m_agents.at(m_agent_map[oid]).ResetObject();
+		// m_agents.at(m_agent_map[oid]).ResetObject();
 
+		std::vector<Object> new_obstacles;
 		for (auto j = conflicts->begin(); j != conflicts->end(); ++j)
 		{
 			int obsid = std::min(j->first, j->second);
@@ -257,7 +261,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 			}
 
 			SMPL_INFO("Adding object %d as obstacle", obsid);
-			m_agents.at(m_agent_map[obsid]).ResetObject();
+			// m_agents.at(m_agent_map[obsid]).ResetObject();
 			new_obstacles.push_back(m_agents.at(m_agent_map[obsid]).GetObject()->back());
 		}
 		// add new obstacles
@@ -279,6 +283,9 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back(), objects)) {
 			SMPL_INFO("Found push!");
 			m_rearrangements.push_back(m_robot->GetLastPlan());
+
+			// update positions of moved objects
+			updateAgentPositions(objects);
 		}
 
 		// remove new obstacles
@@ -427,6 +434,13 @@ void Planner::step_agents(int k)
 		a.Step(k);
 	}
 	m_t += k;
+}
+
+void Planner::updateAgentPositions(const pushplan::ObjectsPoses& objects)
+{
+	for (const auto& o: objects.poses) {
+		m_agents.at(m_agent_map[o.id]).SetObjectPose(o.xyz, o.rpy);
+	}
 }
 
 bool Planner::setupProblem(bool random)
