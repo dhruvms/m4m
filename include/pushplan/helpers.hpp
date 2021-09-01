@@ -50,6 +50,9 @@ double dot(const State& a, const State& b)
 	for (size_t i = 0; i < a.size(); ++i) {
 		val += a.at(i) * b.at(i);
 	}
+	if (std::abs(val) < 1e-6) {
+		val = 0.0;
+	}
 	return val;
 }
 

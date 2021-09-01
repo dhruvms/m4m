@@ -28,7 +28,7 @@ bool PointInRectangle(
 	BCBP = dot(BC, BP);
 	BCBC = dot(BC, BC);
 
-	return ((0 <= ABAP) && (ABAP <= ABAB) && (0 <= BCBP) && (BCBP <= BCBC));
+	return ((-1e-6 <= ABAP) && (ABAP <= ABAB + 1e-6) && (-1e-6 <= BCBP) && (BCBP <= BCBC + 1e-6));
 }
 
 inline
