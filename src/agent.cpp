@@ -112,26 +112,29 @@ void Agent::GetSE2Push(std::vector<double>& push)
 		GetRectObjAtPt(o, m_objs.back(), rect);
 
 		// find rectangle side away from push direction
-		push.at(0) = m_o_x + std::cos(move_dir + M_PI) * 0.01;
-		push.at(1) = m_o_y + std::sin(move_dir + M_PI) * 0.01;
-		State p = {push.at(0), push.at(1)};
-		std::vector<double> dists = {
-			PtDistFromLine(p, rect.at(0), rect.at(1)),
-			PtDistFromLine(p, rect.at(1), rect.at(2)),
-			PtDistFromLine(p, rect.at(2), rect.at(3)),
-			PtDistFromLine(p, rect.at(3), rect.at(0))
-		};
-		int side = std::distance(dists.begin(), std::min_element(dists.begin(), dists.end()));
+		push.at(0) = m_orig_o.o_x + std::cos(move_dir + M_PI) * 0.5;
+		push.at(1) = m_orig_o.o_y + std::sin(move_dir + M_PI) * 0.5;
+		State p = {push.at(0), push.at(1)}, intersection;
+		double op = EuclideanDist(o, p);
+		int side = 0;
+		for (; side <= 3; ++side)
+		{
+			LineLineIntersect(o, p, rect.at(side), rect.at((side + 1) % 4), intersection);
+			if (PointInRectangle(intersection, rect))
+			{
+				if (EuclideanDist(intersection, o) + EuclideanDist(intersection, p) <= op + 1e-6) {
+					break;
+				}
+			}
+		}
 
 		// compute push point on side
-		State push_pt;
-		LineLineIntersect(o, p, rect.at(side), rect.at((side + 1) % 4), push_pt);
-		push_pt.at(0) += std::cos(move_dir + M_PI) * 0.02;
-		push_pt.at(1) += std::sin(move_dir + M_PI) * 0.02;
+		intersection.at(0) += std::cos(move_dir + M_PI) * 0.02;
+		intersection.at(1) += std::sin(move_dir + M_PI) * 0.02;
 
 		// update push
-		push.at(0) = push_pt.at(0);
-		push.at(1) = push_pt.at(1);
+		push.at(0) = intersection.at(0);
+		push.at(1) = intersection.at(1);
 	}
 }
 
