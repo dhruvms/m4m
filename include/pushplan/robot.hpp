@@ -121,6 +121,7 @@ private:
 	std::random_device m_dev;
 	std::mt19937 m_rng;
 	std::uniform_real_distribution<double> m_distD;
+	std::normal_distribution<> m_distG;
 
 	std::shared_ptr<smpl::DistanceMapInterface> m_df_i;
 	std::unique_ptr<smpl::OccupancyGrid> m_grid_i;

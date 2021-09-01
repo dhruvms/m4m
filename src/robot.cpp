@@ -145,6 +145,7 @@ bool Robot::Setup()
 	m_tip = "r_gripper_finger_dummy_planning_link"; // TODO: check
 	m_table_z = m_cc->GetTableHeight();
 	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
+	m_distG = std::normal_distribution<>(0.0, 1.0);
 
 	m_link_s = smpl::urdf::GetLink(&m_rm->m_robot_model, m_shoulder.c_str());
 	m_link_e = smpl::urdf::GetLink(&m_rm->m_robot_model, m_elbow.c_str());
@@ -292,7 +293,7 @@ bool Robot::ComputeGrasps(
 		ee_pose.translation().z() += grasp_lift;
 
 		// compute postgrasp state
-		if (getStateNearPose(ee_pose, m_grasp_state, m_postgrasp_state))
+		if (getStateNearPose(ee_pose, m_grasp_state, m_postgrasp_state, 1))
 		{
 			SMPL_INFO("Found postgrasp state!!!");
 			success = true;
@@ -576,13 +577,8 @@ bool Robot::PlanPush(int oid, const Trajectory* o_traj, const Object& o, pushpla
 	m_push_ends.clear();
 	std::vector<Object> obs = {o};
 	double start_time = GetTime();
-	// for (int i = 0; i < m_pushes_per_object; ++i) {
-	int i = 0;
-	while ((GetTime() - start_time) < 60 && i < m_pushes_per_object)
-	{
+	for (int i = 0; i < m_pushes_per_object; ++i) {
 		samplePush(o_traj, obs);
-		++i;
-		SMPL_INFO("Found push %d", i);
 	}
 	double time_spent = GetTime() - start_time;
 
@@ -769,11 +765,12 @@ Coord Robot::GetEECoord()
 
 void Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 {
-	double deg10 = 0.174533, deg20 = deg10 * 2;
+	double deg5 = 0.0872665;
 
 	// sample push_end via IK
 	smpl::RobotState dummy, push_end, push_start;
 	Eigen::Affine3d push_pose;
+
 	do
 	{
 		// sample robot link
@@ -781,14 +778,14 @@ void Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 		UpdateKDLRobot(link);
 
 		// sample push dist fraction
-		double push_frac = m_distD(m_rng);
+		double push_frac = (m_distD(m_rng) * 0.5) + 0.5;
 
 		// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise (from -10 to 10 degrees)
-		double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distD(m_rng) * deg20) - deg10;
+		double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * deg5);
 
 		// roll and pitch are noise (from -10 to 10 degrees)
-		double roll = (m_distD(m_rng) * deg20) - deg10;
-		double pitch = (m_distD(m_rng) * deg20) - deg10;
+		double roll = (m_distG(m_rng) * deg5);
+		double pitch = (m_distG(m_rng) * deg5);
 
 		// z is between 2.5 to 7.5cm above table height
 		double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.025;
@@ -796,23 +793,46 @@ void Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 		// (x, y) are linearly interpolated between object start and end
 		double x = object->front().state.at(0) * (1 - push_frac) + object->back().state.at(0) * push_frac;
 		double y = object->front().state.at(1) * (1 - push_frac) + object->back().state.at(1) * push_frac;
-		x += (m_distD(m_rng) * 0.05) - 0.025;
-		y += (m_distD(m_rng) * 0.05) - 0.025;
+		x += (m_distG(m_rng) * 0.025);
+		y += (m_distG(m_rng) * 0.025);
 
 		push_pose = Eigen::Translation3d(x, y, z) *
 					Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
 					Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
 					Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
 
+		// auto* vis_name = "push_end_pose";
+		// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+		// 	push_pose, m_grid_i->getReferenceFrame(), vis_name));
+
 		// run IK for push end pose with random seed
-		if (getStateNearPose(push_pose, dummy, push_end))
+		if (getStateNearPose(push_pose, dummy, push_end, 1))
 		{
+			// vis_name = "push_end";
+			// auto markers = m_cc_i->getCollisionModelVisualization(push_end);
+			// for (auto& marker : markers) {
+			// 	marker.ns = vis_name;
+			// }
+			// SV_SHOW_INFO_NAMED(vis_name, markers);
+
 			push_pose = m_rm->computeFK(push_end);
-			push_pose.translation().x() = m_goal_vec[0] + ((m_distD(m_rng) * 0.1) - 0.05);
-			push_pose.translation().y() = m_goal_vec[1] + ((m_distD(m_rng) * 0.1) - 0.05);
+			push_pose.translation().x() = m_goal_vec[0] + (m_distG(m_rng) * 0.025);
+			push_pose.translation().y() = m_goal_vec[1] + (m_distG(m_rng) * 0.025);
+
+			// vis_name = "push_start_pose";
+			// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+			// 	push_pose, m_grid_i->getReferenceFrame(), vis_name));
 
 			ProcessObstacles(obs);
-			if (getStateNearPose(push_pose, push_end, push_start)) {
+			if (getStateNearPose(push_pose, push_end, push_start, 1))
+			{
+				// vis_name = "push_start";
+				// markers = m_cc_i->getCollisionModelVisualization(push_start);
+				// for (auto& marker : markers) {
+				// 	marker.ns = vis_name;
+				// }
+				// SV_SHOW_INFO_NAMED(vis_name, markers);
+
 				break;
 			}
 			ProcessObstacles(obs, true);
@@ -859,7 +879,7 @@ void Robot::getRandomState(smpl::RobotState& s)
 
 bool Robot::reinitStartState()
 {
-	double x, y, deg5 = 5.0 * (M_PI/180.0);
+	double x, y, deg5 = 0.0872665;
 	double xmin = m_cc->OutsideXMin(), xmax = m_cc->OutsideXMax() - 0.05;
 	double ymin = m_cc->OutsideYMin(), ymax = m_cc->OutsideYMax();
 
