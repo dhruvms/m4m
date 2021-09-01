@@ -6,3 +6,4 @@ float64 gy
 ---
 bool res
 int64 idx
+ObjectsPoses objects

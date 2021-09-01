@@ -1,6 +1,8 @@
 #ifndef BULLET_SIM_HPP
 #define BULLET_SIM_HPP
 
+#include <pushplan/ObjectsPoses.h>
+
 #include <sensor_msgs/JointState.h>
 #include <trajectory_msgs/JointTrajectory.h>
 #include <ros/ros.h>
@@ -34,7 +36,7 @@ public:
 		const trajectory_msgs::JointTrajectory& starts,
 		const trajectory_msgs::JointTrajectory& ends,
 		int oid, float gx, float gy,
-		int& pidx);
+		int& pidx, pushplan::ObjectsPoses& objects);
 
 private:
 	int m_num_immov, m_num_mov, m_robot_id, m_tables;

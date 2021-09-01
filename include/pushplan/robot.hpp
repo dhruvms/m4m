@@ -4,6 +4,7 @@
 #include <pushplan/types.hpp>
 #include <pushplan/movable.hpp>
 #include <pushplan/bullet_sim.hpp>
+#include <pushplan/ObjectsPoses.h>
 
 #include <smpl/console/console.h>
 #include <smpl/ros/planner_interface.h>
@@ -52,7 +53,9 @@ public:
 	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner();
 	void SetPushGoal(const std::vector<double>& push);
-	bool PlanPush(int oid, const Trajectory* o_traj, const Object& o);
+	bool PlanPush(
+		int oid, const Trajectory* o_traj, const Object& o,
+		pushplan::ObjectsPoses& objects);
 	trajectory_msgs::JointTrajectory GetLastPlan() {
 		SMPL_INFO("rearrangmenet traj size = %d", m_traj.points.size());
 		return m_traj;

@@ -2,6 +2,7 @@
 #include <pushplan/agent.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/geometry.hpp>
+#include <pushplan/ObjectsPoses.h>
 
 #include <smpl/console/console.h>
 #include <moveit_msgs/RobotTrajectory.h>
@@ -274,7 +275,8 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		// m_robot->PlanPush creates the planner internally, because it might
 		// change KDL chain during the process
 		SMPL_INFO("Planning!");
-		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back())) {
+		pushplan::ObjectsPoses objects;
+		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back(), objects)) {
 			SMPL_INFO("Found push!");
 			m_rearrangements.push_back(m_robot->GetLastPlan());
 		}

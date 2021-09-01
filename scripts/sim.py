@@ -22,6 +22,7 @@ from pushplan.srv import ResetScene, ResetSceneResponse, ResetSceneRequest
 from pushplan.srv import SetColours, SetColoursResponse
 from pushplan.srv import ExecTraj, ExecTrajResponse
 from pushplan.srv import SimPushes, SimPushesResponse
+from pushplan.msg import ObjectPose, ObjectsPoses
 
 from utils import *
 
@@ -433,7 +434,7 @@ class BulletSim:
 
 			prev_timestep = curr_timestep
 			curr_timestep = point.time_from_start.to_sec()
-			time_diff = (curr_timestep - prev_timestep) * 10
+			time_diff = (curr_timestep - prev_timestep) * 100
 			duration = time_diff * 240
 			prev_pose = curr_pose
 			curr_pose = np.asarray(point.positions)
@@ -469,13 +470,13 @@ class BulletSim:
 		num_pushes = len(req.starts.points)
 		best_idx = -1
 		best_dist = float('inf')
+		best_objs = self.getObjects(sim_id)
 		goal_pos = np.asarray([req.gx, req.gy])
 
 		gripper_joints = joints_from_names(robot_id, PR2_GROUPS['right_gripper'], sim=sim)
 		arm_joints = joints_from_names(robot_id, PR2_GROUPS['right_arm'], sim=sim)
 		# arm_joints = joints_from_names(robot_id, req.traj.joint_names, sim=sim)
 		for pidx in range(num_pushes):
-
 			curr_timestep = 0
 			start_point = req.starts.points[pidx]
 			start_pose = np.asarray(start_point.positions)
@@ -491,7 +492,7 @@ class BulletSim:
 			sim.stepSimulation()
 			self.enableCollisionsWithObjects(sim_id)
 
-			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 10
+			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 100
 			duration = time_diff * 240
 			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
 
@@ -552,10 +553,16 @@ class BulletSim:
 				if (dist < best_dist):
 					best_dist = dist
 					best_idx = pidx
+					best_objs = self.getObjects(sim_id)
 
 		res = best_idx != -1
-		return SimPushesResponse(res, best_idx)
 
+		output = SimPushesResponse()
+		output.res = res
+		output.idx = best_idx
+		output.objects = ObjectsPoses()
+		output.objects.poses = best_objs
+		return output
 
 	def disableCollisionsWithObjects(self, sim_id):
 		sim = self.sims[sim_id]
@@ -659,21 +666,13 @@ class BulletSim:
 							}
 		return body_id
 
-	def getObjects(self, sim_id):
-		objects = []
-		for obj_id in self.sim_datas[sim_id]['objs']:
-			xyz, quat = self.sims[sim_id].getBasePositionAndOrientation(obj_id)
-			rpy = self.sims[sim_id].getEulerFromQuaternion(quat)
-			objects.append([obj_id, xyz, rpy])
-		return objects
-
 	def checkInteractions(self, sim_id, objects):
 		robot_id = self.sim_datas[sim_id]['robot_id']
 		table_id = self.sim_datas[sim_id]['table_id']
 
 		interactions = []
 		for obj1 in objects:
-			obj1_id = obj1[0]
+			obj1_id = obj1.id
 			if(obj1_id in table_id): # check id
 				continue
 			# (robot, obj1) contacts
@@ -681,7 +680,7 @@ class BulletSim:
 
 			if(not self.sim_datas[sim_id]['objs'][obj1_id]['movable']):
 				for obj2 in objects:
-					obj2_id = obj2[0]
+					obj2_id = obj2.id
 					if(obj2_id in table_id or obj2_id == obj1_id):
 						continue
 					# (obj1, obj2) contacts
@@ -764,6 +763,26 @@ class BulletSim:
 
 			# for i in range(240):
 			# 	sim.stepSimulation()
+
+	def getObjects(self, sim_id):
+		sim = self.sims[sim_id]
+		sim_data = self.sim_datas[sim_id]
+		table_id = sim_data['table_id']
+
+		objects = []
+		for obj_id in sim_data['objs']:
+			if (obj_id in table_id or not sim_data['objs'][obj_id]['movable']):
+				continue
+
+			xyz, quat = sim.getBasePositionAndOrientation(obj_id)
+			rpy = sim.getEulerFromQuaternion(quat)
+			obj_pose = ObjectPose()
+			obj_pose.id = obj_id
+			obj_pose.xyz = xyz
+			obj_pose.rpy = rpy
+			objects.append(obj_pose)
+
+		return objects
 
 	def setupSim(self, gui, shadows):
 		connection = p.GUI if gui else p.DIRECT

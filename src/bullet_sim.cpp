@@ -1,16 +1,16 @@
 #include <pushplan/bullet_sim.hpp>
 #include <pushplan/constants.hpp>
-#include "pushplan/ResetSimulation.h"
-#include "pushplan/AddObject.h"
-#include "pushplan/AddYCBObject.h"
-#include "pushplan/AddRobot.h"
-#include "pushplan/SetRobotState.h"
-#include "pushplan/ResetArm.h"
-#include "pushplan/CheckScene.h"
-#include "pushplan/ResetScene.h"
-#include "pushplan/SetColours.h"
-#include "pushplan/ExecTraj.h"
-#include "pushplan/SimPushes.h"
+#include <pushplan/ResetSimulation.h>
+#include <pushplan/AddObject.h>
+#include <pushplan/AddYCBObject.h>
+#include <pushplan/AddRobot.h>
+#include <pushplan/SetRobotState.h>
+#include <pushplan/ResetArm.h>
+#include <pushplan/CheckScene.h>
+#include <pushplan/ResetScene.h>
+#include <pushplan/SetColours.h>
+#include <pushplan/ExecTraj.h>
+#include <pushplan/SimPushes.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -219,7 +219,7 @@ bool BulletSim::SimPushes(
 	const trajectory_msgs::JointTrajectory& starts,
 	const trajectory_msgs::JointTrajectory& ends,
 	int oid, float gx, float gy,
-	int& pidx)
+	int& pidx, pushplan::ObjectsPoses& objects)
 {
 	pushplan::SimPushes srv;
 	srv.request.starts = starts;
@@ -235,6 +235,7 @@ bool BulletSim::SimPushes(
 	}
 
 	pidx = srv.response.idx;
+	objects = srv.response.objects;
 
 	return true;
 }
