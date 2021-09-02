@@ -29,7 +29,7 @@ robot:
   semi_minor: 0.04
   robot_obj_mass: 0.5
   speed: 1.0
-  pushes: 4
+  pushes: 8
   grasp_tries: 10
   grasp_lift: 0.02
   grasp_clip: 5
