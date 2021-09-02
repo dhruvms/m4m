@@ -433,7 +433,28 @@ bool CollisionChecker::updateConflicts(
 		return false;
 	}
 
-	m_conflicts.insert(std::make_pair(o1.id, o2.id));
+	double y = 0.0;
+	if (o1.id < 100 && o2.id < 100) {
+		y = std::min(o1.o_y, o2.o_y);
+	}
+	else if (o1.id < 100) {
+		y = o1.o_y;
+	}
+	else {
+		y = o2.o_y;
+	}
+
+	auto key = std::make_pair(o1.id, o2.id);
+	auto search = m_conflicts.find(key);
+    if (search != m_conflicts.end())
+    {
+        if (search->second > y) {
+        	m_conflicts[key] = y;
+        }
+    }
+    else {
+        m_conflicts.emplace(key, y);
+    }
 }
 
 } // namespace clutter

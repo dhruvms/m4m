@@ -8,7 +8,6 @@
 #include <vector>
 #include <random>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <iostream>
 
@@ -36,11 +35,11 @@ bool operator==(const pair<int, int>& a, const pair<int, int>& b)
 }
 
 inline
-ostream& operator<<(ostream& os, unordered_set<pair<int, int>, PairHash> const& s)
+ostream& operator<<(ostream& os, unordered_map<pair<int, int>, double, PairHash> const& s)
 {
 	os << "[" << s.size() << "] { ";
-	for (pair<int, int> i : s)
-		os << "(" << i.first << ", " << i.second << ") ";
+	for (pair<pair<int, int>, double> i : s)
+		os << "(" << i.first.first << ", " << i.first.second << ", " << i.second << ") ";
 	return os << "}\n";
 }
 
@@ -87,8 +86,8 @@ public:
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
 
 	void PrintConflicts() { std::cout << m_conflicts << std::endl; }
-	auto GetConflicts() const -> const std::unordered_set<std::pair<int, int>, std::PairHash>* {
-		return &m_conflicts;
+	auto GetConflicts() const -> std::unordered_map<std::pair<int, int>, double, std::PairHash> {
+		return m_conflicts;
 	};
 
 private:
@@ -99,7 +98,7 @@ private:
 	size_t m_base_loc;
 	std::vector<State> m_base;
 	std::vector<Trajectory> m_trajs;
-	std::unordered_set<std::pair<int, int>, std::PairHash> m_conflicts;
+	std::unordered_map<std::pair<int, int>, double, std::PairHash> m_conflicts;
 
 	std::random_device m_dev;
 	std::mt19937 m_rng;
