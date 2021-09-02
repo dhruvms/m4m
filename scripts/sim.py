@@ -80,6 +80,8 @@ class BulletSim:
 												ExecTraj, self.ExecTrajDefault)
 		self.sim_pushes = rospy.Service('sim_pushes',
 												SimPushes, self.SimPushesDefault)
+		self.remove_constraint = rospy.Service('remove_constraint',
+										ResetSimulation, self.RemoveConstraint)
 
 		self.ResetSimulation(-1)
 
@@ -484,12 +486,17 @@ class BulletSim:
 			end_pose = np.asarray(end_point.positions)
 
 			self.disableCollisionsWithObjects(sim_id)
+
 			self.ResetScene(ResetSceneRequest(-1, True), sim_id)
+			if (len(req.objects.poses) != 0):
+				self.resetObjects(sim_id, req.objects.poses)
+
 			for jidx, jval in zip(arm_joints, start_pose):
 				sim.resetJointState(robot_id, jidx, jval)
 			for gjidx in gripper_joints:
 				sim.resetJointState(robot_id, gjidx, 0.3)
 			sim.stepSimulation()
+
 			self.enableCollisionsWithObjects(sim_id)
 
 			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 100
@@ -563,6 +570,15 @@ class BulletSim:
 		output.objects = ObjectsPoses()
 		output.objects.poses = best_objs
 		return output
+
+	def RemoveConstraint(self, req):
+		assert(req.req)
+		if self.grasp_constraint is not None:
+			self.sims[0].removeConstraint(self.grasp_constraint)
+			self.grasp_constraint = None
+			self.ResetScene(ResetSceneRequest(-1, True), None)
+
+		return ResetSimulationResponse(True)
 
 	def disableCollisionsWithObjects(self, sim_id):
 		sim = self.sims[sim_id]
@@ -771,7 +787,7 @@ class BulletSim:
 
 		objects = []
 		for obj_id in sim_data['objs']:
-			if (obj_id in table_id or not sim_data['objs'][obj_id]['movable']):
+			if (obj_id in table_id):
 				continue
 
 			xyz, quat = sim.getBasePositionAndOrientation(obj_id)
@@ -783,6 +799,16 @@ class BulletSim:
 			objects.append(obj_pose)
 
 		return objects
+
+	def resetObjects(self, sim_id, objects):
+		sim = self.sims[sim_id]
+
+		self.disableCollisionsWithObjects(sim_id)
+		for object in objects:
+			sim.resetBasePositionAndOrientation(object.id,
+										posObj=object.xyz,
+										ornObj=sim.getQuaternionFromEuler(object.rpy))
+		self.enableCollisionsWithObjects(sim_id)
 
 	def setupSim(self, gui, shadows):
 		connection = p.GUI if gui else p.DIRECT

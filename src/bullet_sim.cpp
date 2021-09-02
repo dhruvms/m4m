@@ -219,7 +219,8 @@ bool BulletSim::SimPushes(
 	const trajectory_msgs::JointTrajectory& starts,
 	const trajectory_msgs::JointTrajectory& ends,
 	int oid, float gx, float gy,
-	int& pidx, pushplan::ObjectsPoses& objects)
+	int& pidx, const pushplan::ObjectsPoses& rearranged,
+	pushplan::ObjectsPoses& result)
 {
 	pushplan::SimPushes srv;
 	srv.request.starts = starts;
@@ -227,6 +228,7 @@ bool BulletSim::SimPushes(
 	srv.request.oid = oid;
 	srv.request.gx = gx;
 	srv.request.gy = gy;
+	srv.request.objects = rearranged;
 
 	if (!m_services.at(m_servicemap["sim_pushes"]).call(srv))
 	{
@@ -235,9 +237,17 @@ bool BulletSim::SimPushes(
 	}
 
 	pidx = srv.response.idx;
-	objects = srv.response.objects;
+	result = srv.response.objects;
 
 	return true;
+}
+
+bool BulletSim::RemoveConstraint()
+{
+	pushplan::ResetSimulation srv;
+	srv.request.req = true;
+
+	return m_services.at(m_servicemap["remove_constraint"]).call(srv);
 }
 
 bool BulletSim::setupObjects(bool ycb)
@@ -981,6 +991,10 @@ void BulletSim::setupServices()
 	m_servicemap["sim_pushes"] = m_services.size();
 	m_services.push_back(
 			m_nh.serviceClient<pushplan::SimPushes>("/sim_pushes"));
+
+	m_servicemap["remove_constraint"] = m_services.size();
+	m_services.push_back(
+			m_nh.serviceClient<pushplan::ResetSimulation>("/remove_constraint"));
 }
 
 bool BulletSim::removeObject(const int& id)

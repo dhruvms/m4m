@@ -36,7 +36,9 @@ public:
 		const trajectory_msgs::JointTrajectory& starts,
 		const trajectory_msgs::JointTrajectory& ends,
 		int oid, float gx, float gy,
-		int& pidx, pushplan::ObjectsPoses& objects);
+		int& pidx, const pushplan::ObjectsPoses& rearranged,
+		pushplan::ObjectsPoses& result);
+	bool RemoveConstraint();
 
 private:
 	int m_num_immov, m_num_mov, m_robot_id, m_tables;

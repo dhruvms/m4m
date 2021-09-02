@@ -3,6 +3,7 @@ trajectory_msgs/JointTrajectory ends
 int64 oid
 float64 gx
 float64 gy
+ObjectsPoses objects
 ---
 bool res
 int64 idx
