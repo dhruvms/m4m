@@ -246,16 +246,30 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 	}
 
 	auto conflicts = m_cc->GetConflicts();
-	for (auto i = conflicts->begin(); i != conflicts->end(); ++i)
+	std::vector<int> rearranged_ids;
+	pushplan::ObjectsPoses rearranged;
+	while (!conflicts.empty())
 	{
-		int oid = std::min(i->first, i->second); // max will be robot object
+		auto i = conflicts.begin();
+		for (auto iter = conflicts.begin(); iter != conflicts.end(); ++iter)
+		{
+			if (iter == i) {
+				continue;
+			}
+
+			if (iter->second < i->second) {
+				i = iter;
+			}
+		}
+
+		int oid = std::min(i->first.first, i->first.second); // max will be robot object
 		SMPL_INFO("Rearranging object %d", oid);
 		// m_agents.at(m_agent_map[oid]).ResetObject();
 
 		std::vector<Object> new_obstacles;
-		for (auto j = conflicts->begin(); j != conflicts->end(); ++j)
+		for (auto j = conflicts.begin(); j != conflicts.end(); ++j)
 		{
-			int obsid = std::min(j->first, j->second);
+			int obsid = std::min(j->first.first, j->first.second);
 			if (j == i || oid == obsid) {
 				continue;
 			}
@@ -263,6 +277,9 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 			SMPL_INFO("Adding object %d as obstacle", obsid);
 			// m_agents.at(m_agent_map[obsid]).ResetObject();
 			new_obstacles.push_back(m_agents.at(m_agent_map[obsid]).GetObject()->back());
+		}
+		for (const auto& id: rearranged_ids) {
+			new_obstacles.push_back(m_agents.at(m_agent_map[id]).GetObject()->back());
 		}
 		// add new obstacles
 		m_robot->ProcessObstacles(new_obstacles);
@@ -279,17 +296,20 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		// m_robot->PlanPush creates the planner internally, because it might
 		// change KDL chain during the process
 		SMPL_INFO("Planning!");
-		pushplan::ObjectsPoses objects;
-		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back(), objects)) {
+		pushplan::ObjectsPoses result;
+		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back(), rearranged, result)) {
 			SMPL_INFO("Found push!");
 			m_rearrangements.push_back(m_robot->GetLastPlan());
 
 			// update positions of moved objects
-			updateAgentPositions(objects);
+			updateAgentPositions(result, rearranged);
 		}
 
 		// remove new obstacles
 		m_robot->ProcessObstacles(new_obstacles, true);
+
+		conflicts.erase(i);
+		rearranged_ids.push_back(oid);
 	}
 }
 
@@ -348,6 +368,8 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 		ROS_ERROR("Failed to exec traj!");
 		return false;
 	}
+
+	m_sim->RemoveConstraint();
 
 	return true;
 }
@@ -436,10 +458,17 @@ void Planner::step_agents(int k)
 	m_t += k;
 }
 
-void Planner::updateAgentPositions(const pushplan::ObjectsPoses& objects)
+void Planner::updateAgentPositions(
+	const pushplan::ObjectsPoses& result,
+	pushplan::ObjectsPoses& rearranged)
 {
-	for (const auto& o: objects.poses) {
-		m_agents.at(m_agent_map[o.id]).SetObjectPose(o.xyz, o.rpy);
+	for (const auto& o: result.poses)
+	{
+		auto search = m_agent_map.find(o.id);
+		if (search != m_agent_map.end()) {
+			m_agents.at(m_agent_map[o.id]).SetObjectPose(o.xyz, o.rpy);
+			rearranged.poses.push_back(o);
+		}
 	}
 }
 

@@ -55,7 +55,8 @@ public:
 	void SetPushGoal(const std::vector<double>& push);
 	bool PlanPush(
 		int oid, const Trajectory* o_traj, const Object& o,
-		pushplan::ObjectsPoses& objects);
+		const pushplan::ObjectsPoses& rearranged,
+		pushplan::ObjectsPoses& result);
 	trajectory_msgs::JointTrajectory GetLastPlan() {
 		SMPL_INFO("rearrangmenet traj size = %d", m_traj.points.size());
 		return m_traj;

@@ -567,7 +567,9 @@ void Robot::SetPushGoal(const std::vector<double>& push)
 	fillGoalConstraint();
 }
 
-bool Robot::PlanPush(int oid, const Trajectory* o_traj, const Object& o, pushplan::ObjectsPoses& objects)
+bool Robot::PlanPush(
+	int oid, const Trajectory* o_traj, const Object& o,
+	const pushplan::ObjectsPoses& rearranged, pushplan::ObjectsPoses& result)
 {
 	if (m_pushes_per_object == -1) {
 		m_ph.getParam("robot/pushes", m_pushes_per_object);
@@ -606,7 +608,7 @@ bool Robot::PlanPush(int oid, const Trajectory* o_traj, const Object& o, pushpla
 	int pidx;
 	SMPL_INFO("Simulate pushes! Sampling took %f seconds.", time_spent);
 	start_time = GetTime();
-	m_sim->SimPushes(starts, ends, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx, objects);
+	m_sim->SimPushes(starts, ends, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx, rearranged, result);
 	time_spent = GetTime() - start_time;
 
 	if (pidx == -1) {
