@@ -40,7 +40,6 @@ bool Agent::Init()
 	m_move.clear();
 
 	m_t = 0;
-	m_retrieved = 0;
 
 	m_objs.back().o_x = m_orig_o.o_x;
 	m_objs.back().o_y = m_orig_o.o_y;

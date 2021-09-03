@@ -126,7 +126,6 @@ void Planner::Plan()
 
 			auto robot_traj = m_robot->GetMoveTraj();
 			m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
-			m_robot->InsertGrasp(m_exec);
 			m_robot->ProfileTraj(m_exec);
 			break;
 		}
@@ -162,13 +161,15 @@ bool Planner::whcastar()
 	int iter = 0;
 	writePlanState(iter);
 
+	if (!m_robot->Plan()) {
+		return false;
+	}
+	// m_robot->AnimateSolution();
+
 	reinit();
-	while (!m_robot->AtGoal(*(m_robot->GetCurrentState()), false)) // robot (current) state includes joint config to avoid IK
+	while (!m_robot->AtGrasp())
 	{
 		if (!m_ooi.Search(0)) {
-			return false;
-		}
-		if (!m_robot->Search(1)) {
 			return false;
 		}
 		int robin = 2;
@@ -199,16 +200,12 @@ bool Planner::whcastar()
 	// ProfilerStop();
 
 	m_phase = 1;
-	m_robot->SetGraspT();
 
 	start_time = GetTime();
 	reinit();
-	while (!m_robot->AtGoal(*(m_robot->GetCurrentState()), false))
+	while (!m_robot->AtEnd())
 	{
 		if (!m_ooi.Search(0)) {
-			return false;
-		}
-		if (!m_robot->Search(1)) {
 			return false;
 		}
 		int robin = 2;
@@ -391,29 +388,24 @@ void Planner::reinit()
 {
 	// reset searches
 	m_ooi.reset(m_phase);
-	m_robot->reset(m_phase);
 	for (auto& a: m_agents) {
 		a.reset(m_phase);
 	}
 
 	// Set agent starts - always the current state
 	m_ooi.SetStartState(*(m_ooi.GetCurrentState()));
-	m_robot->SetStartState(*(m_robot->GetCurrentState()));
 	for (auto& a: m_agents) {
 		a.SetStartState(*(a.GetCurrentState()));
 	}
 
 	// Set agent goals
-	if (m_phase == 0)
-	{
+	if (m_phase == 0) {
 		m_ooi.SetGoalState(m_ooi.GetCurrentState()->coord);
-		m_robot->SetGoalState(m_ooi.GetCurrentState()->coord);
 	}
-	else if (m_phase == 1)
-	{
+	else if (m_phase == 1) {
 		m_ooi.SetGoalState(m_robot->GetEECoord()); // EE position
-		m_robot->SetGoalState(m_ooi_g);
 	}
+
 	for (auto& a: m_agents) {
 		a.SetGoalState(a.GetCurrentState()->coord);
 	}
