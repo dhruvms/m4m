@@ -136,6 +136,7 @@ bool Robot::Setup()
 	m_coord_deltas = std::move(deltas);
 
 	// setup planar approx
+	m_priority = 1;
 	m_grasp_at = -1;
 	m_mass = R_MASS;
 	m_b = SEMI_MINOR;
@@ -164,10 +165,6 @@ bool Robot::Setup()
 		return false;
 	}
 
-	if (!m_wastar) {
-		m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
-	}
-
 	m_planner_init = false;
 	m_pushes_per_object = -1;
 
@@ -194,11 +191,9 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 bool Robot::Init()
 {
 	m_solve.clear();
-	m_retrieve.clear();
 	m_move.clear();
 
 	m_t = 0;
-	m_retrieved = 0;
 
 	m_init.t = m_t;
 	m_init.state.clear();
@@ -247,6 +242,84 @@ void Robot::ProfileTraj(Trajectory& traj)
 	traj.back().state.push_back(prev_time);
 }
 
+bool Robot::Plan()
+{
+	UpdateKDLRobot(0);
+	InitArmPlanner(true);
+
+	moveit_msgs::MotionPlanRequest req;
+	moveit_msgs::MotionPlanResponse res;
+
+	m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
+	createJointSpaceGoal(m_pregrasp_state, req);
+	req.max_acceleration_scaling_factor = 1.0;
+	req.max_velocity_scaling_factor = 1.0;
+	req.num_planning_attempts = 1;
+	// req.path_constraints;
+	req.planner_id = "arastar.joint_distance.manip";
+	req.start_state = m_start_state;
+	// req.trajectory_constraints;
+	// req.workspace_parameters;
+
+	// completely unnecessary variable
+	moveit_msgs::PlanningScene planning_scene;
+	planning_scene.robot_state = m_start_state;
+
+	SMPL_INFO("Planning to pregrasp state.");
+	if (!m_planner->solve(planning_scene, req, res))
+	{
+		ROS_ERROR("Failed to plan.");
+		return false;
+	}
+
+	m_traj = res.trajectory.joint_trajectory;
+	m_grasp_at = m_traj.points.size() - 1;
+
+	double grasp_time = profileAction(m_pregrasp_state, m_grasp_state);
+	double postgrasp_time = profileAction(m_grasp_state, m_postgrasp_state);
+	double retreat_time = profileAction(m_postgrasp_state, m_pregrasp_state);
+
+	trajectory_msgs::JointTrajectoryPoint p;
+	p.positions = m_grasp_state;
+	p.time_from_start = ros::Duration(grasp_time) + m_traj.points.back().time_from_start;
+	m_traj.points.push_back(p);
+
+	p.positions = m_postgrasp_state;
+	p.time_from_start = ros::Duration(postgrasp_time) + m_traj.points.back().time_from_start;
+	m_traj.points.push_back(p);
+
+	p.positions = m_pregrasp_state;
+	p.time_from_start = ros::Duration(retreat_time) + m_traj.points.back().time_from_start;
+	m_traj.points.push_back(p);
+
+	for (size_t i = m_grasp_at - 1; i > 0; --i)
+	{
+		p.positions = res.trajectory.joint_trajectory.points.at(i).positions;
+		p.time_from_start = (res.trajectory.joint_trajectory.points.at(i).time_from_start -
+								res.trajectory.joint_trajectory.points.at(i-1).time_from_start) +
+									m_traj.points.back().time_from_start;
+		m_traj.points.push_back(p);
+	}
+
+	int t = 0;
+	for (const auto& wp: m_traj.points)
+	{
+		LatticeState s;
+		s.state = wp.positions;
+		s.coord = Coord(m_rm->jointVariableCount());
+		stateToCoord(s.state, s.coord);
+		s.t = t;
+
+		m_solve.push_back(s);
+		++t;
+	}
+	m_cc->UpdateTraj(m_priority, m_solve);
+
+	SMPL_INFO("Robot found plan! m_solve.size() = %d", m_solve.size());
+
+	return true;
+}
+
 bool Robot::ComputeGrasps(
 	const std::vector<double>& pregrasp_goal,
 	const Object& ooi)
@@ -269,7 +342,7 @@ bool Robot::ComputeGrasps(
 	do
 	{
 		double z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
-		ee_pose = Eigen::Translation3d(ooi.o_x, ooi.o_y, z) *
+		ee_pose = Eigen::Translation3d(ooi.o_x + 0.02 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.02 * std::sin(pregrasp_goal[5]), z) *
 						Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
 						Eigen::AngleAxisd(pregrasp_goal[4], Eigen::Vector3d::UnitY()) *
 						Eigen::AngleAxisd(pregrasp_goal[3], Eigen::Vector3d::UnitX());
@@ -468,25 +541,6 @@ void Robot::ConvertTraj(
 	traj_out.joint_trajectory.header.stamp = ros::Time::now();
 }
 
-bool Robot::AtGoal(const LatticeState& s, bool verbose)
-{
-	if (m_phase == 0)
-	{
-		reinitObjects(s.state);
-		return m_cc->OOICollision(m_objs.back());
-	}
-
-	Eigen::Affine3d ee_pose = m_rm->computeFK(s.state);
-	State ee = {ee_pose.translation().x(), ee_pose.translation().y()};
-	double dist = EuclideanDist(ee, m_goalf);
-
-	if (verbose) {
-		SMPL_INFO("Robot EE at: (%f, %f), Goal: (%f, %f), dist = %f (thresh = %f)", ee.at(0), ee.at(1), m_goalf.at(0), m_goalf.at(1), dist, GOAL_THRESH);
-	}
-
-	return dist < GOAL_THRESH;
-}
-
 void Robot::Step(int k)
 {
 	// TODO: account for k > 1
@@ -499,13 +553,6 @@ void Robot::Step(int k)
 			reinitObjects(m_current.state);
 
 			m_move.push_back(m_current);
-		}
-	}
-
-	if (m_phase == 1 && m_priority == 1 && !m_retrieve.empty())	{
-		m_retrieve.erase(m_retrieve.begin());
-		if (m_retrieve.size() == 1) {
-			m_retrieved = 1;
 		}
 	}
 }
@@ -542,13 +589,13 @@ bool Robot::UpdateKDLRobot(int mode)
 	m_rm->computeFK(dummy); // for reasons unknown
 }
 
-bool Robot::InitArmPlanner()
+bool Robot::InitArmPlanner(bool interp)
 {
 	if (!m_planner_init) {
 		return initPlanner();
 	}
 	else {
-		return createPlanner();
+		return createPlanner(interp);
 	}
 }
 
@@ -618,7 +665,7 @@ bool Robot::PlanPush(
 
 	UpdateKDLRobot(0);
 	ProcessObstacles(obs);
-	InitArmPlanner();
+	InitArmPlanner(false);
 
 	moveit_msgs::MotionPlanRequest req;
 	moveit_msgs::MotionPlanResponse res;
@@ -662,7 +709,7 @@ void Robot::AnimateSolution()
 	size_t pidx = 0;
 	while (ros::ok())
 	{
-		auto& point = m_move[pidx];
+		auto& point = m_solve[pidx];
 		auto markers = m_cc_i->getCollisionRobotVisualization(point.state);
 		for (auto& m : markers.markers) {
 			m.ns = "path_animation";
@@ -670,84 +717,8 @@ void Robot::AnimateSolution()
 		SV_SHOW_INFO(markers);
 		std::this_thread::sleep_for(std::chrono::milliseconds(200));
 		pidx++;
-		pidx %= m_move.size();
+		pidx %= m_solve.size();
 	}
-}
-
-void Robot::GetSuccs(
-	int state_id,
-	std::vector<int>* succ_ids,
-	std::vector<unsigned int>* costs)
-{
-	assert(state_id >= 0);
-	succ_ids->clear();
-	costs->clear();
-
-	LatticeState* parent = getHashEntry(state_id);
-	assert(parent);
-	m_closed.push_back(parent);
-
-	if (IsGoal(state_id)) {
-		SMPL_WARN("We are expanding the goal state (???)");
-		return;
-	}
-
-	for(int jidx = 0; jidx < m_rm->jointVariableCount(); jidx++)
-	{
-		generateSuccessor(parent, jidx, 1, succ_ids, costs);
-		generateSuccessor(parent, jidx, -1, succ_ids, costs);
-	}
-	// // r_shoulder_pan_joint
-	// generateSuccessor(parent, 0, 1, succ_ids, costs);
-	// generateSuccessor(parent, 0, -1, succ_ids, costs);
-
-	// // r_elbow_flex_joint
-	// generateSuccessor(parent, 3, 1, succ_ids, costs);
-	// generateSuccessor(parent, 3, -1, succ_ids, costs);
-
-	// // r_wrist_flex_joint
-	// generateSuccessor(parent, 5, 1, succ_ids, costs);
-	// generateSuccessor(parent, 5, -1, succ_ids, costs);
-}
-
-unsigned int Robot::GetGoalHeuristic(int state_id)
-{
-	// TODO: RRA* informed backwards Dijkstra's heuristic
-	// TODO: Try penalising distance to shelf edge?
-	assert(state_id >= 0);
-	LatticeState* s = getHashEntry(state_id);
-	assert(s);
-
-	if (s->state.empty()) {
-		if (s->coord.size() == 2) {
-			DiscToCont(s->coord, s->state);
-		}
-		else {
-			coordToState(s->coord, s->state);
-		}
-	}
-
-	State ee;
-	if (s->state.size() == 2) {
-		// this should only be true for the goal state?
-		ee = s->state;
-	}
-	else {
-		Eigen::Affine3d ee_pose = m_rm->computeFK(s->state);
-		ee = {ee_pose.translation().x(), ee_pose.translation().y()};
-	}
-
-	double dist = EuclideanDist(ee, m_goalf);
-	return (dist * COST_MULT);
-}
-
-unsigned int Robot::GetGoalHeuristic(const LatticeState& s)
-{
-	// TODO: RRA* informed backwards Dijkstra's heuristic
-	Eigen::Affine3d ee_pose = m_rm->computeFK(s.state);
-	State ee = {ee_pose.translation().x(), ee_pose.translation().y()};
-	double dist = EuclideanDist(ee, m_goalf);
-	return (dist * COST_MULT);
 }
 
 const std::vector<Object>* Robot::GetObject(const LatticeState& s)
@@ -921,164 +892,6 @@ bool Robot::reinitStartState()
 		return false;
 	}
 
-	return true;
-}
-
-int Robot::generateSuccessor(
-	const LatticeState* parent,
-	int jidx, int delta,
-	std::vector<int>* succs,
-	std::vector<unsigned int>* costs)
-{
-	LatticeState child;
-	child.t = parent->t + 1;
-	child.coord = parent->coord;
-	child.coord.at(jidx) += delta;
-	child.state = State(m_rm->jointVariableCount());
-	coordToState(child.coord, child.state);
-
-	// reject invalid successors
-	if (!m_rm->checkJointLimits(child.state)) {
-		return -1;
-	}
-	if (!m_cc_i->isStateValid(child.state)) {
-		return -1;
-	}
-	Eigen::Affine3d ee_pose = m_rm->computeFK(child.state);
-	if (std::fabs(ee_pose.translation().z() - (m_table_z + 0.05)) > 0.05) {
-		return -1;
-	}
-
-	reinitObjects(child.state);
-	if (m_cc->ImmovableCollision(m_objs, m_priority)) {
-		return -1;
-	}
-
-	// robot always has 1 priority
-
-	int succ_state_id = getOrCreateState(child);
-	LatticeState* successor = getHashEntry(succ_state_id);
-
-	succs->push_back(succ_state_id);
-	costs->push_back(cost(parent, successor));
-
-	return succ_state_id;
-}
-
-unsigned int Robot::cost(
-	const LatticeState* s1,
-	const LatticeState* s2)
-{
-	if (s2->t <= m_t + WINDOW)
-	{
-		if (AtGoal(*s1) && AtGoal(*s2)){
-			return 0;
-		}
-
-		return COST_MULT;
-
-		// State s1_loc, s2_loc;
-		// DiscToCont(s1->coord, s1_loc);
-		// DiscToCont(s2->coord, s2_loc);
-
-		// double dist = 1.0f + EuclideanDist(s1_loc, s2_loc);
-		// return (dist * COST_MULT);
-
-		// // Works okay for WINDOW = 20, but not for WINDOW <= 10
-		// double bdist = m_cc->BoundaryDistance(s2f);
-		// double bw = m_cc->GetBaseWidth(), bl = m_cc->GetBaseLength();
-		// return ((dist + WINDOW*(1 - bdist/std::min(bw, bl))*(m_priority > 0)) * COST_MULT);
-	}
-	else if (s2->t == m_t + WINDOW + 1) {
-		return GetGoalHeuristic(*s2);
-	}
-	else {
-		SMPL_ERROR("Unknown edge cost condition! Return 0. (s1->t, s2->t, m_t) = (%d, %d, %d)", s1->t, s2->t, m_t);
-		return 0;
-	}
-}
-
-bool Robot::convertPath(
-	const std::vector<int>& idpath)
-{
-	Trajectory opath; // vector of LatticeState
-
-	if (idpath.empty()) {
-		return true;
-	}
-
-	LatticeState state;
-
-	// attempt to handle paths of length 1...do any of the sbpl planners still
-	// return a single-point path in some cases?
-	if (idpath.size() == 1)
-	{
-		auto state_id = idpath[0];
-
-		if (state_id == m_goal_id)
-		{
-			auto* entry = getHashEntry(m_start_id);
-			if (!entry)
-			{
-				SMPL_ERROR("Failed to get state entry for state %d", m_start_id);
-				return false;
-			}
-			state = *entry;
-			opath.push_back(state);
-		}
-		else
-		{
-			auto* entry = getHashEntry(state_id);
-			if (!entry)
-			{
-				SMPL_ERROR("Failed to get state entry for state %d", state_id);
-				return false;
-			}
-			state = *entry;
-			opath.push_back(state);
-		}
-	}
-
-	if (idpath[0] == m_goal_id)
-	{
-		SMPL_ERROR("Cannot extract a non-trivial path starting from the goal state");
-		return false;
-	}
-
-	// grab the first point
-	{
-		auto* entry = getHashEntry(idpath[0]);
-		if (!entry)
-		{
-			SMPL_ERROR("Failed to get state entry for state %d", idpath[0]);
-			return false;
-		}
-		state = *entry;
-		opath.push_back(state);
-	}
-
-	// grab the rest of the points
-	for (size_t i = 1; i < idpath.size(); ++i)
-	{
-		auto prev_id = idpath[i - 1];
-		auto curr_id = idpath[i];
-
-		if (prev_id == m_goal_id)
-		{
-			SMPL_ERROR("Cannot determine goal state predecessor state during path extraction");
-			return false;
-		}
-
-		auto* entry = getHashEntry(curr_id);
-		if (!entry)
-		{
-			SMPL_ERROR("Failed to get state entry state %d", curr_id);
-			return false;
-		}
-		state = *entry;
-		opath.push_back(state);
-	}
-	m_solve = std::move(opath);
 	return true;
 }
 
@@ -1823,17 +1636,17 @@ auto Robot::makePathVisualization() const
 {
 	std::vector<smpl::visual::Marker> ma;
 
-	if (m_move.empty()) {
+	if (m_solve.empty()) {
 		return ma;
 	}
 
-	auto cinc = 1.0f / float(m_move.size());
-	for (size_t i = 0; i < m_move.size(); ++i) {
-		auto markers = m_cc_i->getCollisionModelVisualization(m_move[i].state);
+	auto cinc = 1.0f / float(m_solve.size());
+	for (size_t i = 0; i < m_solve.size(); ++i) {
+		auto markers = m_cc_i->getCollisionModelVisualization(m_solve[i].state);
 
 		for (auto& marker : markers) {
 			auto r = 0.1f;
-			auto g = cinc * (float)(m_move.size() - (i + 1));
+			auto g = cinc * (float)(m_solve.size() - (i + 1));
 			auto b = cinc * (float)i;
 			marker.color = smpl::visual::Color{ r, g, b, 1.0f };
 		}
@@ -1881,8 +1694,9 @@ bool Robot::initPlanner()
 	m_planning_params.addParam("repair_time", 1.0);
 	m_planning_params.addParam("bfs_inflation_radius", 0.02);
 	m_planning_params.addParam("bfs_cost_per_cell", 100);
+	m_ph.getParam("robot/interpolate", m_planning_params.interpolate_path);
 
-	if (!createPlanner())
+	if (!createPlanner(m_planning_params.interpolate_path))
 	{
 		ROS_ERROR("Failed to create planner.");
 		return false;
@@ -1946,10 +1760,14 @@ bool Robot::readPlannerConfig(const ros::NodeHandle &nh)
 	return true;
 }
 
-bool Robot::createPlanner()
+bool Robot::createPlanner(bool interp)
 {
 	m_planner = std::make_unique<smpl::PlannerInterface>(
 										m_rm.get(), m_cc_i.get(), m_grid_i.get());
+	if (!interp) {
+		m_planning_params.interpolate_path = false;
+	}
+
 	if (!m_planner->init(m_planning_params)) {
 		ROS_ERROR("Failed to initialize Planner Interface");
 		return false;

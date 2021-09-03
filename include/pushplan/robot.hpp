@@ -26,15 +26,16 @@
 namespace clutter
 {
 
-class Robot : public Movable
+class Robot
 {
 public:
 	Robot() : m_ph("~"), m_rng(m_dev()) {};
 
-	bool Setup() override;
+	bool Setup();
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
-	bool Init() override;
+	bool Init();
 	bool RandomiseStart();
+	bool Plan();
 
 	void ProfileTraj(Trajectory& traj);
 	bool ComputeGrasps(
@@ -45,13 +46,17 @@ public:
 		const Trajectory& traj_in,
 		moveit_msgs::RobotTrajectory& traj_out);
 
-	bool AtGoal(const LatticeState& s, bool verbose=false) override;
-	void Step(int k) override;
-	void SetGraspT() { m_grasp_at = m_t; };
+	bool AtGrasp() {
+		return m_t == m_grasp_at - 1;
+	}
+	bool AtEnd() {
+		return m_t == m_solve.back().t;
+	}
 	int GraspAt() { return m_grasp_at; };
+	void Step(int k);
 
 	bool UpdateKDLRobot(int mode);
-	bool InitArmPlanner();
+	bool InitArmPlanner(bool interp=false);
 	void SetPushGoal(const std::vector<double>& push);
 	bool PlanPush(
 		int oid, const Trajectory* o_traj, const Object& o,
@@ -67,19 +72,17 @@ public:
 
 	void AnimateSolution();
 
-	void GetSuccs(
-		int state_id,
-		std::vector<int>* succ_ids,
-		std::vector<unsigned int>* costs) override;
+	const LatticeState* GetCurrentState() const { return &m_current; };
+	const Trajectory* GetMoveTraj() const { return &m_move; };
 
-	unsigned int GetGoalHeuristic(int state_id) override;
-	unsigned int GetGoalHeuristic(const LatticeState& s) override;
-
-	const std::vector<Object>* GetObject(const LatticeState& s) override;
+	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
+		m_cc = cc;
+	}
+	const std::vector<Object>* GetObject() const { return &m_objs; };
+	const std::vector<Object>* GetObject(const LatticeState& s);
 	const std::vector<Object>* GetGraspObjs() {
 		return &m_grasp_objs;
 	};
-	using Movable::GetObject;
 
 	Coord GetEECoord();
 	const moveit_msgs::RobotState* GetStartState() { return &m_start_state; };
@@ -139,6 +142,13 @@ private:
 	moveit_msgs::Constraints m_goal;
 	std::string m_chain_tip_link;
 	trajectory_msgs::JointTrajectory m_traj;
+
+	int m_t, m_priority;
+	LatticeState m_current, m_init;
+	Trajectory m_solve, m_move;
+	std::vector<Object> m_objs;
+	std::shared_ptr<CollisionChecker> m_cc;
+
 	std::shared_ptr<BulletSim> m_sim;
 	std::vector<smpl::RobotState> m_push_starts, m_push_ends;
 	int m_pushes_per_object;
@@ -147,17 +157,6 @@ private:
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();
-
-	int generateSuccessor(
-		const LatticeState* parent,
-		int jidx, int delta,
-		std::vector<int>* succs,
-		std::vector<unsigned int>* costs);
-	unsigned int cost(
-		const LatticeState* s1,
-		const LatticeState* s2) override;
-	bool convertPath(
-		const std::vector<int>& idpath) override;
 
 	void coordToState(const Coord& coord, State& state) const;
 	void stateToCoord(const State& state, Coord& coord) const;
@@ -200,7 +199,7 @@ private:
 
 	bool initPlanner();
 	bool readPlannerConfig(const ros::NodeHandle &nh);
-	bool createPlanner();
+	bool createPlanner(bool interp);
 	void fillGoalConstraint();
 	void createMultiPoseGoalConstraint(moveit_msgs::MotionPlanRequest& req);
 	void createPoseGoalConstraint(
