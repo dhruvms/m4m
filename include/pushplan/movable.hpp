@@ -57,7 +57,6 @@ protected:
 	int m_start_id, m_goal_id, m_expansions = 0;
 	STATES m_states, m_closed;
 	Trajectory m_solve, m_move, m_retrieve;
-	int m_retrieved;
 
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<WAStar> m_wastar;

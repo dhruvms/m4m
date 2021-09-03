@@ -37,31 +37,16 @@ bool Movable::Search(int robin)
 {
 	m_priority = robin;
 
-	if (m_phase == 1 && m_priority == 1)
+	std::vector<int> solution;
+	int solcost;
+	bool result = m_wastar->replan(&solution, &solcost);
+
+	if (result)
 	{
-		if (!m_retrieve.empty())
-		{
-			m_solve.clear();
-			m_solve.insert(m_solve.begin(), m_retrieve.begin(), m_retrieve.end());
-			m_cc->UpdateTraj(m_priority, m_solve);
+		convertPath(solution);
+		m_cc->UpdateTraj(m_priority, m_solve);
 
-			return true;
-		}
-	}
-
-	else
-	{
-		std::vector<int> solution;
-		int solcost;
-		bool result = m_wastar->replan(&solution, &solcost);
-
-		if (result)
-		{
-			convertPath(solution);
-			m_cc->UpdateTraj(m_priority, m_solve);
-
-			return true;
-		}
+		return true;
 	}
 
 	return false;
@@ -90,19 +75,7 @@ void Movable::reset(int phase)
 
 	m_wastar->reset();
 
-	m_phase = phase + m_retrieved;
-	if (m_phase == 1 && m_priority == 1 && m_retrieve.empty())
-	{
-		m_retrieve = m_move;
-		std::reverse(m_retrieve.begin(), m_retrieve.end());
-		int t = 0;
-		for (auto& s: m_retrieve)
-		{
-			s.t += t;
-			t += 2;
-		}
-	}
-
+	m_phase = phase;
 }
 
 // Return a pointer to the data for the input the state id
