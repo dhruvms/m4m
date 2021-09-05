@@ -79,13 +79,14 @@ void Agent::Step(int k)
 	{
 		if (s.t == m_t)
 		{
+			m_current.t = s.t;
 			if (m_current.state != s.state)
 			{
+				if (m_t > 1 && m_priority > 0) {
+					m_cc->UpdateConflicts(m_current, m_objs.back(), m_priority);
+				}
 				m_current = s;
 				m_move.push_back(m_current);
-			}
-			else {
-				m_current.t = s.t;
 			}
 		}
 	}
