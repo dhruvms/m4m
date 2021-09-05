@@ -167,6 +167,8 @@ bool Robot::Setup()
 
 	m_planner_init = false;
 	m_pushes_per_object = -1;
+	m_ph.getParam("robot/grasp_lift", m_grasp_lift);
+	m_ph.getParam("robot/grasp_tries", m_grasp_tries);
 
 	return true;
 }
@@ -243,8 +245,100 @@ void Robot::ProfileTraj(Trajectory& traj)
 	traj.back().state.push_back(prev_time);
 }
 
-bool Robot::Plan()
+bool Robot::detachOOI()
 {
+	const std::string attached_body_id = "ooi";
+	if (!m_cc_i->detachObject(attached_body_id))
+	{
+		ROS_ERROR("Failed to detach body '%s'", attached_body_id.c_str());
+		return false;
+	}
+	return true;
+}
+
+bool Robot::attachOOI(const Object& ooi)
+{
+	std::vector<Object> ooi_v = {ooi};
+	ProcessObstacles(ooi_v); // hack to compute collision object
+
+	smpl::collision::CollisionObject* ooi_co;
+	for (auto& object : m_collision_objects)
+	{
+		if (object->id == std::to_string(ooi.id))
+		{
+			ooi_co = object.get();
+			break;
+		}
+	}
+
+	std::vector<shapes::ShapeConstPtr> shapes;
+	smpl::collision::Affine3dVector transforms;
+	if (ooi_co)
+	{
+		for (size_t sidx = 0; sidx < ooi_co->shapes.size(); ++sidx)
+		{
+
+			switch (ooi_co->shapes.at(sidx)->type)
+			{
+				case smpl::collision::ShapeType::Box:
+				{
+					auto box = static_cast<smpl::collision::BoxShape*>(ooi_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape(new shapes::Box(box->size[0], box->size[1], box->size[2]));
+					shapes.push_back(std::move(ao_shape));
+					break;
+				}
+				case smpl::collision::ShapeType::Cylinder:
+				{
+					auto cylinder = static_cast<smpl::collision::CylinderShape*>(ooi_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape(new shapes::Cylinder(cylinder->radius, cylinder->height));
+					shapes.push_back(std::move(ao_shape));
+					break;
+				}
+				case smpl::collision::ShapeType::Mesh:
+				case smpl::collision::ShapeType::Sphere:
+				case smpl::collision::ShapeType::Cone:
+				case smpl::collision::ShapeType::Plane:
+				case smpl::collision::ShapeType::OcTree:
+				default:
+				{
+					ROS_ERROR("Incompatible shape type!");
+					return false;
+				}
+			}
+			auto transform = Eigen::Affine3d::Identity();
+			transforms.push_back(transform);
+		}
+	}
+	else
+	{
+		ROS_ERROR("Collision object not found!");
+		return false;
+	}
+
+
+	const std::string attach_link = "r_gripper_palm_link";
+	const std::string attached_body_id = "ooi";
+	if (!m_cc_i->attachObject(
+				attached_body_id, shapes, transforms, attach_link))
+	{
+		ROS_ERROR("Failed to attach body to '%s'", attach_link.c_str());
+		return false;
+	}
+
+	auto markers = m_cc_i->getCollisionRobotVisualization(m_postgrasp_state);
+	SV_SHOW_INFO(markers);
+
+	ProcessObstacles(ooi_v, true);
+
+	return true;
+}
+
+bool Robot::Plan(const Object& ooi)
+{
+	///////////////////
+	// Plan approach //
+	///////////////////
+
 	UpdateKDLRobot(0);
 	InitArmPlanner(true);
 
@@ -269,9 +363,19 @@ bool Robot::Plan()
 	SMPL_INFO("Planning to pregrasp state.");
 	if (!m_planner->solve(planning_scene, req, res))
 	{
+		m_stats = m_planner->getPlannerStats();
+		SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+
 		ROS_ERROR("Failed to plan.");
 		return false;
 	}
+	SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
+	m_stats = m_planner->getPlannerStats();
+	SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+
+	//////////////////
+	// Append grasp //
+	//////////////////
 
 	m_traj = res.trajectory.joint_trajectory;
 	m_grasp_at = m_traj.points.size() - 1;
@@ -289,17 +393,50 @@ bool Robot::Plan()
 	p.time_from_start = ros::Duration(postgrasp_time) + m_traj.points.back().time_from_start;
 	m_traj.points.push_back(p);
 
-	p.positions = m_pregrasp_state;
-	p.time_from_start = ros::Duration(retreat_time) + m_traj.points.back().time_from_start;
-	m_traj.points.push_back(p);
+	/////////////////////
+	// Plan extraction //
+	/////////////////////
 
-	for (size_t i = m_grasp_at - 1; i > 0; --i)
+	attachOOI(ooi);
+	InitArmPlanner(true);
+
+	moveit_msgs::RobotState orig_start = m_start_state;
+	m_start_state.joint_state.position.erase(
+		m_start_state.joint_state.position.begin() + 1,
+		m_start_state.joint_state.position.begin() + 1 + m_postgrasp_state.size());
+	m_start_state.joint_state.position.insert(
+		m_start_state.joint_state.position.begin() + 1,
+		m_postgrasp_state.begin(), m_postgrasp_state.end());
+	req.start_state = m_start_state;
+	planning_scene.robot_state = m_start_state;
+
+	smpl::RobotState home;
+	home.insert(home.begin(),
+		orig_start.joint_state.position.begin() + 1, orig_start.joint_state.position.end());
+	createJointSpaceGoal(home, req);
+
+	SMPL_INFO("Planning to home state with attached body.");
+	if (!m_planner->solve(planning_scene, req, res))
 	{
-		p.positions = res.trajectory.joint_trajectory.points.at(i).positions;
-		p.time_from_start = (res.trajectory.joint_trajectory.points.at(i).time_from_start -
-								res.trajectory.joint_trajectory.points.at(i-1).time_from_start) +
-									m_traj.points.back().time_from_start;
-		m_traj.points.push_back(p);
+		m_stats = m_planner->getPlannerStats();
+		SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+
+		ROS_ERROR("Failed to plan.");
+		return false;
+	}
+	SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
+	m_stats = m_planner->getPlannerStats();
+	SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+
+	detachOOI();
+	m_start_state = orig_start;
+
+	auto extract_start_time = m_traj.points.back().time_from_start;
+	for (size_t i = 0; i < res.trajectory.joint_trajectory.points.size(); ++i)
+	{
+		auto& wp = res.trajectory.joint_trajectory.points.at(i);
+		wp.time_from_start += extract_start_time;
+		m_traj.points.push_back(wp);
 	}
 
 	int t = 0;
@@ -316,8 +453,7 @@ bool Robot::Plan()
 	}
 	m_cc->UpdateTraj(m_priority, m_solve);
 
-	SMPL_INFO("Robot found plan! m_solve.size() = %d", m_solve.size());
-
+	SMPL_INFO("Robot has complete plan! m_solve.size() = %d", m_solve.size());
 	return true;
 }
 
@@ -328,11 +464,6 @@ bool Robot::ComputeGrasps(
 	m_pregrasp_state.clear();
 	m_grasp_state.clear();
 	m_postgrasp_state.clear();
-
-	int grasp_tries;
-	double grasp_lift;
-	m_ph.getParam("robot/grasp_lift", grasp_lift);
-	m_ph.getParam("robot/grasp_tries", grasp_tries);
 
 	bool success = false;
 	int tries = 0;

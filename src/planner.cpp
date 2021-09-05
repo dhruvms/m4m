@@ -202,7 +202,7 @@ bool Planner::whcastar()
 	int iter = 0;
 	writePlanState(iter);
 
-	if (!m_robot->Plan()) {
+	if (!m_robot->Plan(m_ooi.GetObject()->back())) {
 		return false;
 	}
 	// m_robot->AnimateSolution();

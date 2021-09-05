@@ -35,7 +35,7 @@ public:
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
 	bool Init();
 	bool RandomiseStart();
-	bool Plan();
+	bool Plan(const Object& ooi);
 
 	void ProfileTraj(Trajectory& traj);
 	bool ComputeGrasps(
@@ -151,8 +151,8 @@ private:
 
 	std::shared_ptr<BulletSim> m_sim;
 	std::vector<smpl::RobotState> m_push_starts, m_push_ends;
-	int m_pushes_per_object;
-	double m_plan_push_time;
+	int m_pushes_per_object, m_grasp_tries;
+	double m_plan_push_time, m_grasp_lift;
 
 	void samplePush(const Trajectory* object, const std::vector<Object>& obs);
 
@@ -215,6 +215,9 @@ private:
 		smpl::RobotState& state,
 		int N=2,
 		const std::string& ns="");
+
+	bool attachOOI(const Object& ooi);
+	bool detachOOI();
 };
 
 } // namespace clutter
