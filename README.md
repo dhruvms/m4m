@@ -19,6 +19,8 @@ rearrangement sequences
 	2. Execute MAPF robot trajectory to grasp
 6. If SUCCESS, done
 7. Else, repeat from Step 1 with new object positions
+	- If there is nothing to be rearranged, and extraction fails,
+	report FAILURE.
 
 ### Domain Notes
 - All agents except the OOI cannot exit table bounds.
