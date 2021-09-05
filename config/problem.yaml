@@ -26,10 +26,11 @@ robot:
   qy: 0.0
   qz: 0.0
   qw: 1.0
-  semi_minor: 0.045
+  semi_minor: 0.05
   robot_obj_mass: 0.5
   speed: 1.0
   pushes: 8
+  plan_push_time: 30.0
   grasp_tries: 10
   grasp_lift: 0.02
   grasp_clip: 5

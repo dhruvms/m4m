@@ -152,6 +152,7 @@ private:
 	std::shared_ptr<BulletSim> m_sim;
 	std::vector<smpl::RobotState> m_push_starts, m_push_ends;
 	int m_pushes_per_object;
+	double m_plan_push_time;
 
 	void samplePush(const Trajectory* object, const std::vector<Object>& obs);
 

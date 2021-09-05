@@ -194,6 +194,7 @@ bool Robot::Init()
 	m_move.clear();
 
 	m_t = 0;
+	m_grasp_at = -1;
 
 	m_init.t = m_t;
 	m_init.state.clear();
@@ -620,16 +621,21 @@ bool Robot::PlanPush(
 {
 	if (m_pushes_per_object == -1) {
 		m_ph.getParam("robot/pushes", m_pushes_per_object);
+		m_ph.getParam("robot/plan_push_time", m_plan_push_time);
 	}
 
 	m_push_starts.clear();
 	m_push_ends.clear();
 	std::vector<Object> obs = {o};
+	int i = 0;
 	double start_time = GetTime();
-	for (int i = 0; i < m_pushes_per_object; ++i) {
+	while((i == 0) || ((GetTime() - start_time < m_plan_push_time) && (i < m_pushes_per_object)))
+	{
 		samplePush(o_traj, obs);
+		++i;
 	}
 	double time_spent = GetTime() - start_time;
+	SMPL_INFO("Simulate %d pushes! Sampling took %f seconds.", i, time_spent);
 
 	trajectory_msgs::JointTrajectory starts, ends;
 	auto& variable_names = m_rm->getPlanningJoints();
@@ -653,7 +659,6 @@ bool Robot::PlanPush(
 	starts.header.stamp = ros::Time::now();
 	ends.header.stamp = ros::Time::now();
 	int pidx;
-	SMPL_INFO("Simulate pushes! Sampling took %f seconds.", time_spent);
 	start_time = GetTime();
 	m_sim->SimPushes(starts, ends, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx, rearranged, result);
 	time_spent = GetTime() - start_time;
@@ -751,7 +756,7 @@ void Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 		UpdateKDLRobot(link);
 
 		// sample push dist fraction
-		double push_frac = (m_distD(m_rng) * 0.5) + 0.5;
+		double push_frac = (m_distD(m_rng) * 0.6) + 0.5;
 
 		// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise (from -10 to 10 degrees)
 		double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * deg5);
@@ -814,19 +819,19 @@ void Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 	while (true);
 	ProcessObstacles(obs, true);
 
-	// auto* vis_name = "push_start";
-	// auto markers = m_cc_i->getCollisionModelVisualization(push_start);
-	// for (auto& marker : markers) {
-	// 	marker.ns = vis_name;
-	// }
-	// SV_SHOW_INFO_NAMED(vis_name, markers);
+	auto* vis_name = "push_start";
+	auto markers = m_cc_i->getCollisionModelVisualization(push_start);
+	for (auto& marker : markers) {
+		marker.ns = vis_name;
+	}
+	SV_SHOW_INFO_NAMED(vis_name, markers);
 
-	// vis_name = "push_end";
-	// markers = m_cc_i->getCollisionModelVisualization(push_end);
-	// for (auto& marker : markers) {
-	// 	marker.ns = vis_name;
-	// }
-	// SV_SHOW_INFO_NAMED(vis_name, markers);
+	vis_name = "push_end";
+	markers = m_cc_i->getCollisionModelVisualization(push_end);
+	for (auto& marker : markers) {
+		marker.ns = vis_name;
+	}
+	SV_SHOW_INFO_NAMED(vis_name, markers);
 
 	m_push_starts.push_back(push_start);
 	m_push_ends.push_back(push_end);
@@ -1764,9 +1769,7 @@ bool Robot::createPlanner(bool interp)
 {
 	m_planner = std::make_unique<smpl::PlannerInterface>(
 										m_rm.get(), m_cc_i.get(), m_grid_i.get());
-	if (!interp) {
-		m_planning_params.interpolate_path = false;
-	}
+	m_planning_params.interpolate_path = interp;
 
 	if (!m_planner->init(m_planning_params)) {
 		ROS_ERROR("Failed to initialize Planner Interface");
