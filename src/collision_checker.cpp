@@ -103,20 +103,12 @@ bool CollisionChecker::IsStateValid(
 				// (o2.o_x, o2.o_y) are consistent with
 				// s2.state
 				auto a2_objs = m_planner->GetObject(s2, p);
-				if (!checkCollisionObjSet(o1, o1_loc, priority, rect_o1, o1_rect, a2_objs, p)) {
+				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs, p)) {
 					return false;
 				}
 			}
 		}
 	}
-
-	// if (priority > 1)
-	// {
-	// 	auto r_grasp_objs = m_planner->GetGraspObjs();
-	// 	if (!checkCollisionObjSet(o1, o1_loc, priority, rect_o1, o1_rect, r_grasp_objs, 1)) {
-	// 		return false;
-	// 	}
-	// }
 
 	return true;
 }
@@ -146,6 +138,73 @@ bool CollisionChecker::OOICollision(const Object& o)
 	}
 
 	return false;
+}
+
+bool CollisionChecker::UpdateConflicts(
+	const LatticeState& s, const Object& o1, const int& priority)
+{
+	State o1_loc = {s.state.at(0), s.state.at(1)};
+	std::vector<State> o1_rect;
+	bool rect_o1 = false;
+
+	// preprocess rectangle once only
+	if (o1.shape == 0)
+	{
+		GetRectObjAtPt(o1_loc, o1, o1_rect);
+		rect_o1 = true;
+	}
+
+	for (int p = 0; p < priority; ++p)
+	{
+		for (const auto& s2: m_trajs.at(p))
+		{
+			if (s.t == s2.t)
+			{
+				// (o2.o_x, o2.o_y) are consistent with
+				// s2.state
+				auto a2_objs = m_planner->GetObject(s2, p);
+				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs, p))
+				{
+					int id1 = o1.id, id2 = a2_objs->back().id;
+					if (p == 1) {
+						id2 = 100;
+					}
+					updateConflicts(id1, priority, id2, p, s.t);
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
+void CollisionChecker::CleanupConflicts()
+{
+	std::vector<int> check;
+	for (const auto& c: m_conflicts)
+	{
+		if (c.first.second == 100) {
+			check.push_back(c.first.first);
+		}
+	}
+
+	size_t s;
+	do
+	{
+		s = check.size();
+		cleanupChildren(check);
+	}
+	while (s != check.size());
+
+	auto conflicts = m_conflicts;
+	conflicts.clear();
+	for (const auto& c: m_conflicts) {
+		auto loc = std::find(check.begin(), check.end(), c.first.second);
+		if (loc == check.end()) {
+			conflicts.insert(c);
+		}
+	}
+	m_conflicts = conflicts;
 }
 
 double CollisionChecker::BoundaryDistance(const State& p)
@@ -271,7 +330,7 @@ bool CollisionChecker::immovableCollision(const Object& o, const int& priority)
 }
 
 bool CollisionChecker::checkCollisionObjSet(
-	const Object& o1, const State& o1_loc, int a1_p,
+	const Object& o1, const State& o1_loc,
 	bool rect_o1, const std::vector<State>& o1_rect,
 	const std::vector<Object>* a2_objs, int a2_p)
 {
@@ -300,17 +359,13 @@ bool CollisionChecker::checkCollisionObjSet(
 		{
 			if (rect_o2)
 			{
-				if (rectRectCollision(o1_rect, o2_rect))
-				{
-					updateConflicts(o1, a1_p, o2, a2_p);
+				if (rectRectCollision(o1_rect, o2_rect)) {
 					return false;
 				}
 			}
 			else
 			{
-				if (rectCircCollision(o1_rect, o2, o2_loc))
-				{
-					updateConflicts(o1, a1_p, o2, a2_p);
+				if (rectCircCollision(o1_rect, o2, o2_loc)) {
 					return false;
 				}
 			}
@@ -319,17 +374,13 @@ bool CollisionChecker::checkCollisionObjSet(
 		{
 			if (rect_o2)
 			{
-				if (rectCircCollision(o2_rect, o1, o1_loc))
-				{
-					updateConflicts(o1, a1_p, o2, a2_p);
+				if (rectCircCollision(o2_rect, o1, o1_loc)) {
 					return false;
 				}
 			}
 			else
 			{
-				if (circCircCollision(o1, o1_loc, o2, o2_loc))
-				{
-					updateConflicts(o1, a1_p, o2, a2_p);
+				if (circCircCollision(o1, o1_loc, o2, o2_loc)) {
 					return false;
 				}
 			}
@@ -426,35 +477,39 @@ bool CollisionChecker::circCollisionBase(
 }
 
 bool CollisionChecker::updateConflicts(
-	const Object& o1, int p1,
-	const Object& o2, int p2)
+	int id1, int p1,
+	int id2, int p2, int t)
 {
 	if (p1 == 0 || p2 == 0) {
 		return false;
 	}
 
-	double y = 0.0;
-	if (o1.id < 100 && o2.id < 100) {
-		y = std::min(o1.o_y, o2.o_y);
-	}
-	else if (o1.id < 100) {
-		y = o1.o_y;
-	}
-	else {
-		y = o2.o_y;
-	}
-
-	auto key = std::make_pair(o1.id, o2.id);
+	auto key = std::make_pair(id1, id2);
 	auto search = m_conflicts.find(key);
     if (search != m_conflicts.end())
     {
-        if (search->second > y) {
-        	m_conflicts[key] = y;
+        if (search->second > t) {
+        	m_conflicts[key] = t;
         }
     }
     else {
-        m_conflicts.emplace(key, y);
+        m_conflicts.emplace(key, t);
     }
+}
+
+void CollisionChecker::cleanupChildren(std::vector<int>& check)
+{
+	for (const auto& c: m_conflicts)
+	{
+		auto loc = std::find(check.begin(), check.end(), c.first.second);
+		if (loc != check.end())
+		{
+			loc = std::find(check.begin(), check.end(), c.first.first);
+			if (loc == check.end()) {
+				check.push_back(c.first.first);
+			}
+		}
+	}
 }
 
 } // namespace clutter

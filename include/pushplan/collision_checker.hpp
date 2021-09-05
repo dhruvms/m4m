@@ -35,10 +35,10 @@ bool operator==(const pair<int, int>& a, const pair<int, int>& b)
 }
 
 inline
-ostream& operator<<(ostream& os, unordered_map<pair<int, int>, double, PairHash> const& s)
+ostream& operator<<(ostream& os, unordered_map<pair<int, int>, int, PairHash> const& s)
 {
 	os << "[" << s.size() << "] { ";
-	for (pair<pair<int, int>, double> i : s)
+	for (pair<pair<int, int>, int> i : s)
 		os << "(" << i.first.first << ", " << i.first.second << ", " << i.second << ") ";
 	return os << "}\n";
 }
@@ -63,10 +63,13 @@ public:
 
 	bool ImmovableCollision(const LatticeState& s, const Object& o, const int& priority);
 	bool ImmovableCollision(const std::vector<Object>& objs, const int& priority);
-
 	bool IsStateValid(const LatticeState& s, const Object& o, const int& priority);
-
 	bool OOICollision(const Object& o);
+	bool UpdateConflicts(
+		const LatticeState& s, const Object& o1, const int& priority);
+
+	void CleanupConflicts();
+	void ClearConflicts() { m_conflicts.clear(); };
 
 	double BoundaryDistance(const State& p);
 	double GetMinX() { return m_base.at(0).at(0); };
@@ -86,7 +89,7 @@ public:
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
 
 	void PrintConflicts() { std::cout << m_conflicts << std::endl; }
-	auto GetConflicts() const -> std::unordered_map<std::pair<int, int>, double, std::PairHash> {
+	auto GetConflicts() const -> std::unordered_map<std::pair<int, int>, int, std::PairHash> {
 		return m_conflicts;
 	};
 
@@ -98,7 +101,7 @@ private:
 	size_t m_base_loc;
 	std::vector<State> m_base;
 	std::vector<Trajectory> m_trajs;
-	std::unordered_map<std::pair<int, int>, double, std::PairHash> m_conflicts;
+	std::unordered_map<std::pair<int, int>, int, std::PairHash> m_conflicts;
 
 	std::random_device m_dev;
 	std::mt19937 m_rng;
@@ -106,7 +109,7 @@ private:
 
 	bool immovableCollision(const Object& o, const int& priority);
 	bool checkCollisionObjSet(
-		const Object& o1, const State& o1_loc, int a1_p,
+		const Object& o1, const State& o1_loc,
 		bool rect_o1, const std::vector<State>& o1_rect,
 		const std::vector<Object>* a2_objs, int a2_p);
 
@@ -127,8 +130,10 @@ private:
 		const int& priority);
 
 	bool updateConflicts(
-		const Object& o1, int p1,
-		const Object& o2, int p2);
+		int id1, int p1,
+		int id2, int p2, int t);
+	void cleanupChildren(std::vector<int>& check);
+
 };
 
 } // namespace clutter
