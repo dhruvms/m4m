@@ -474,14 +474,14 @@ bool Robot::ComputeGrasps(
 	do
 	{
 		double z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
-		ee_pose = Eigen::Translation3d(ooi.o_x + 0.02 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.02 * std::sin(pregrasp_goal[5]), z) *
+		ee_pose = Eigen::Translation3d(ooi.o_x + 0.04 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.04 * std::sin(pregrasp_goal[5]), z) *
 						Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
-						Eigen::AngleAxisd(pregrasp_goal[4], Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(pregrasp_goal[3], Eigen::Vector3d::UnitX());
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
 	}
-	while (!getStateNearPose(ee_pose, ee_state, m_grasp_state, 5) && ++tries < grasp_tries);
+	while (!getStateNearPose(ee_pose, ee_state, m_grasp_state, 5) && ++tries < m_grasp_tries);
 
-	if (tries == grasp_tries) {
+	if (tries == m_grasp_tries) {
 		return false;
 	}
 
@@ -495,7 +495,7 @@ bool Robot::ComputeGrasps(
 	{
 		SMPL_INFO("Found pregrasp state!");
 		ee_pose = m_rm->computeFK(m_grasp_state);
-		ee_pose.translation().z() += grasp_lift;
+		ee_pose.translation().z() += m_grasp_lift;
 
 		// compute postgrasp state
 		if (getStateNearPose(ee_pose, m_grasp_state, m_postgrasp_state, 1))
@@ -505,13 +505,16 @@ bool Robot::ComputeGrasps(
 		}
 	}
 
-	m_grasp_objs.clear();
-	reinitObjects(m_pregrasp_state);
-	m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
-	reinitObjects(m_grasp_state);
-	m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
-	reinitObjects(m_postgrasp_state);
-	m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
+	if (success)
+	{
+		m_grasp_objs.clear();
+		reinitObjects(m_pregrasp_state);
+		m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
+		reinitObjects(m_grasp_state);
+		m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
+		reinitObjects(m_postgrasp_state);
+		m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
+	}
 
 	return success;
 }
@@ -760,13 +763,19 @@ bool Robot::PlanPush(
 	std::vector<Object> obs = {o};
 	int i = 0;
 	double start_time = GetTime();
-	while((i == 0) || ((GetTime() - start_time < m_plan_push_time) && (i < m_pushes_per_object)))
+	while((GetTime() - start_time < m_plan_push_time) && (i < m_pushes_per_object))
 	{
-		samplePush(o_traj, obs);
-		++i;
+		if (samplePush(o_traj, obs)) {
+			++i;
+		}
 	}
 	double time_spent = GetTime() - start_time;
 	SMPL_INFO("Simulate %d pushes! Sampling took %f seconds.", i, time_spent);
+
+	if (i == 0) {
+		SMPL_INFO("No pushes found! Do nothing!");
+		return false;
+	}
 
 	trajectory_msgs::JointTrajectory starts, ends;
 	auto& variable_names = m_rm->getPlanningJoints();
@@ -774,15 +783,15 @@ bool Robot::PlanPush(
 		starts.joint_names.push_back(var_name);
 		ends.joint_names.push_back(var_name);
 	}
-	for (int i = 0; i < m_pushes_per_object; ++i) {
-		double push_time = profileAction(m_push_starts.at(i), m_push_ends.at(i));
+	for (int j = 0; j < i; ++j) {
+		double push_time = profileAction(m_push_starts.at(j), m_push_ends.at(j));
 
 		trajectory_msgs::JointTrajectoryPoint p;
-		p.positions = m_push_starts.at(i);
+		p.positions = m_push_starts.at(j);
 		p.time_from_start = ros::Duration(0.0);
 		starts.points.push_back(p);
 
-		p.positions = m_push_ends.at(i);
+		p.positions = m_push_ends.at(j);
 		p.time_from_start = ros::Duration(push_time);
 		ends.points.push_back(p);
 	}
@@ -824,11 +833,16 @@ bool Robot::PlanPush(
 	SMPL_INFO("Found push! Plan to push start! Simulating took %f seconds.", time_spent);
 	if (!m_planner->solve(planning_scene, req, res))
 	{
+		m_stats = m_planner->getPlannerStats();
+		SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+
 		ROS_ERROR("Failed to plan.");
 		ProcessObstacles(obs, true);
 		return false;
 	}
 	ProcessObstacles(obs, true);
+	m_stats = m_planner->getPlannerStats();
+	SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
 
 	trajectory_msgs::JointTrajectoryPoint push_end = ends.points.at(pidx);
 	push_end.time_from_start += res.trajectory.joint_trajectory.points.back().time_from_start;
@@ -872,100 +886,101 @@ Coord Robot::GetEECoord()
 	return ee_coord;
 }
 
-void Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
+bool Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 {
 	double deg5 = 0.0872665;
+	bool success = false;
 
 	// sample push_end via IK
 	smpl::RobotState dummy, push_end, push_start;
 	Eigen::Affine3d push_pose;
 
-	do
+	// sample robot link
+	int link = std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
+	UpdateKDLRobot(link);
+
+	// sample push dist fraction
+	double push_frac = (m_distD(m_rng) * 0.85) + 0.25;
+
+	// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise (from -10 to 10 degrees)
+	double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * deg5);
+
+	// roll and pitch are noise (from -10 to 10 degrees)
+	double roll = (m_distG(m_rng) * deg5);
+	double pitch = (m_distG(m_rng) * deg5);
+
+	// z is between 2.5 to 7.5cm above table height
+	double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.025;
+
+	// (x, y) are linearly interpolated between object start and end
+	double x = object->front().state.at(0) * (1 - push_frac) + object->back().state.at(0) * push_frac;
+	double y = object->front().state.at(1) * (1 - push_frac) + object->back().state.at(1) * push_frac;
+	x += (m_distG(m_rng) * 0.025);
+	y += (m_distG(m_rng) * 0.025);
+
+	push_pose = Eigen::Translation3d(x, y, z) *
+				Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
+				Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
+				Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
+
+	// auto* vis_name = "push_end_pose";
+	// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+	// 	push_pose, m_grid_i->getReferenceFrame(), vis_name));
+
+	// run IK for push end pose with random seed
+	if (getStateNearPose(push_pose, dummy, push_end, 1))
 	{
-		// sample robot link
-		int link = std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
-		UpdateKDLRobot(link);
+		// vis_name = "push_end";
+		// auto markers = m_cc_i->getCollisionModelVisualization(push_end);
+		// for (auto& marker : markers) {
+		// 	marker.ns = vis_name;
+		// }
+		// SV_SHOW_INFO_NAMED(vis_name, markers);
 
-		// sample push dist fraction
-		double push_frac = (m_distD(m_rng) * 0.6) + 0.5;
+		push_pose = m_rm->computeFK(push_end);
+		push_pose.translation().x() = m_goal_vec[0] + (m_distG(m_rng) * 0.025);
+		push_pose.translation().y() = m_goal_vec[1] + (m_distG(m_rng) * 0.025);
 
-		// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise (from -10 to 10 degrees)
-		double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * deg5);
-
-		// roll and pitch are noise (from -10 to 10 degrees)
-		double roll = (m_distG(m_rng) * deg5);
-		double pitch = (m_distG(m_rng) * deg5);
-
-		// z is between 2.5 to 7.5cm above table height
-		double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.025;
-
-		// (x, y) are linearly interpolated between object start and end
-		double x = object->front().state.at(0) * (1 - push_frac) + object->back().state.at(0) * push_frac;
-		double y = object->front().state.at(1) * (1 - push_frac) + object->back().state.at(1) * push_frac;
-		x += (m_distG(m_rng) * 0.025);
-		y += (m_distG(m_rng) * 0.025);
-
-		push_pose = Eigen::Translation3d(x, y, z) *
-					Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
-					Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
-					Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
-
-		// auto* vis_name = "push_end_pose";
+		// vis_name = "push_start_pose";
 		// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
 		// 	push_pose, m_grid_i->getReferenceFrame(), vis_name));
 
-		// run IK for push end pose with random seed
-		if (getStateNearPose(push_pose, dummy, push_end, 1))
+		ProcessObstacles(obs);
+		if (getStateNearPose(push_pose, push_end, push_start, 1))
 		{
-			// vis_name = "push_end";
-			// auto markers = m_cc_i->getCollisionModelVisualization(push_end);
+			// vis_name = "push_start";
+			// markers = m_cc_i->getCollisionModelVisualization(push_start);
 			// for (auto& marker : markers) {
 			// 	marker.ns = vis_name;
 			// }
 			// SV_SHOW_INFO_NAMED(vis_name, markers);
 
-			push_pose = m_rm->computeFK(push_end);
-			push_pose.translation().x() = m_goal_vec[0] + (m_distG(m_rng) * 0.025);
-			push_pose.translation().y() = m_goal_vec[1] + (m_distG(m_rng) * 0.025);
-
-			// vis_name = "push_start_pose";
-			// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
-			// 	push_pose, m_grid_i->getReferenceFrame(), vis_name));
-
-			ProcessObstacles(obs);
-			if (getStateNearPose(push_pose, push_end, push_start, 1))
-			{
-				// vis_name = "push_start";
-				// markers = m_cc_i->getCollisionModelVisualization(push_start);
-				// for (auto& marker : markers) {
-				// 	marker.ns = vis_name;
-				// }
-				// SV_SHOW_INFO_NAMED(vis_name, markers);
-
-				break;
-			}
-			ProcessObstacles(obs, true);
+			success = true;
 		}
+		ProcessObstacles(obs, true);
 	}
-	while (true);
-	ProcessObstacles(obs, true);
 
-	auto* vis_name = "push_start";
-	auto markers = m_cc_i->getCollisionModelVisualization(push_start);
-	for (auto& marker : markers) {
-		marker.ns = vis_name;
+	if (success)
+	{
+		auto* vis_name = "push_start";
+		auto markers = m_cc_i->getCollisionModelVisualization(push_start);
+		for (auto& marker : markers) {
+			marker.ns = vis_name;
+		}
+		SV_SHOW_INFO_NAMED(vis_name, markers);
+
+		vis_name = "push_end";
+		markers = m_cc_i->getCollisionModelVisualization(push_end);
+		for (auto& marker : markers) {
+			marker.ns = vis_name;
+		}
+		SV_SHOW_INFO_NAMED(vis_name, markers);
+
+		m_push_starts.push_back(push_start);
+		m_push_ends.push_back(push_end);
 	}
-	SV_SHOW_INFO_NAMED(vis_name, markers);
 
-	vis_name = "push_end";
-	markers = m_cc_i->getCollisionModelVisualization(push_end);
-	for (auto& marker : markers) {
-		marker.ns = vis_name;
-	}
-	SV_SHOW_INFO_NAMED(vis_name, markers);
-
-	m_push_starts.push_back(push_start);
-	m_push_ends.push_back(push_end);
+	return success;
 }
 
 void Robot::getRandomState(smpl::RobotState& s)

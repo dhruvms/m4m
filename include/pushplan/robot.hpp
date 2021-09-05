@@ -142,6 +142,7 @@ private:
 	moveit_msgs::Constraints m_goal;
 	std::string m_chain_tip_link;
 	trajectory_msgs::JointTrajectory m_traj;
+	std::map<std::string, double> m_stats;
 
 	int m_t, m_priority;
 	LatticeState m_current, m_init;
@@ -154,7 +155,7 @@ private:
 	int m_pushes_per_object, m_grasp_tries;
 	double m_plan_push_time, m_grasp_lift;
 
-	void samplePush(const Trajectory* object, const std::vector<Object>& obs);
+	bool samplePush(const Trajectory* object, const std::vector<Object>& obs);
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();
