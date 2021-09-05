@@ -32,7 +32,7 @@ robot:
   pushes: 8
   plan_push_time: 30.0
   grasp_tries: 10
-  grasp_lift: 0.02
+  grasp_lift: 0.05
   grasp_clip: 5
   interpolate: true
 

@@ -111,7 +111,7 @@ private:
 	bool checkCollisionObjSet(
 		const Object& o1, const State& o1_loc,
 		bool rect_o1, const std::vector<State>& o1_rect,
-		const std::vector<Object>* a2_objs, int a2_p);
+		const std::vector<Object>* a2_objs);
 
 	bool rectRectCollision(
 		const std::vector<State>& r1, const std::vector<State>& r2);

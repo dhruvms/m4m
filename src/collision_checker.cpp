@@ -103,7 +103,7 @@ bool CollisionChecker::IsStateValid(
 				// (o2.o_x, o2.o_y) are consistent with
 				// s2.state
 				auto a2_objs = m_planner->GetObject(s2, p);
-				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs, p)) {
+				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs)) {
 					return false;
 				}
 			}
@@ -163,7 +163,7 @@ bool CollisionChecker::UpdateConflicts(
 				// (o2.o_x, o2.o_y) are consistent with
 				// s2.state
 				auto a2_objs = m_planner->GetObject(s2, p);
-				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs, p))
+				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs))
 				{
 					int id1 = o1.id, id2 = a2_objs->back().id;
 					if (p == 1) {
@@ -332,7 +332,7 @@ bool CollisionChecker::immovableCollision(const Object& o, const int& priority)
 bool CollisionChecker::checkCollisionObjSet(
 	const Object& o1, const State& o1_loc,
 	bool rect_o1, const std::vector<State>& o1_rect,
-	const std::vector<Object>* a2_objs, int a2_p)
+	const std::vector<Object>* a2_objs)
 {
 	State o2_loc;
 	bool rect_o2;
@@ -340,18 +340,11 @@ bool CollisionChecker::checkCollisionObjSet(
 
 	for (const auto& ao: *a2_objs)
 	{
-		Object o2 = ao;
-		if (a2_p == 0)
-		{
-			o2.x_size += RES * 2;
-			o2.y_size += RES * 2;
-		}
-
 		rect_o2 = false;
-		o2_loc = {o2.o_x, o2.o_y};
-		if (o2.shape == 0)
+		o2_loc = {ao.o_x, ao.o_y};
+		if (ao.shape == 0)
 		{
-			GetRectObjAtPt(o2_loc, o2, o2_rect);
+			GetRectObjAtPt(o2_loc, ao, o2_rect);
 			rect_o2 = true;
 		}
 
@@ -365,7 +358,7 @@ bool CollisionChecker::checkCollisionObjSet(
 			}
 			else
 			{
-				if (rectCircCollision(o1_rect, o2, o2_loc)) {
+				if (rectCircCollision(o1_rect, ao, o2_loc)) {
 					return false;
 				}
 			}
@@ -380,7 +373,7 @@ bool CollisionChecker::checkCollisionObjSet(
 			}
 			else
 			{
-				if (circCircCollision(o1, o1_loc, o2, o2_loc)) {
+				if (circCircCollision(o1, o1_loc, ao, o2_loc)) {
 					return false;
 				}
 			}
