@@ -23,6 +23,9 @@ public:
 	Planner(const std::string& scene_file, int scene_id);
 
 	void Plan();
+	bool Rearrange();
+	std::uint32_t RunSim();
+	void AnimateSolution();
 
 	const std::vector<Object>* GetObject(const LatticeState& s, int priority);
 	const std::vector<Object>* GetGraspObjs() {
@@ -53,6 +56,7 @@ private:
 
 	ros::NodeHandle m_ph, m_nh;
 	ros::ServiceServer m_simulate, m_animate, m_rearrange;
+	std::uint32_t m_violation;
 
 	bool whcastar();
 
@@ -65,7 +69,7 @@ private:
 	void prioritize();
 	void step_agents(int k=1);
 
-	bool setupProblem(bool random=false);
+	bool setupProblem();
 	void updateAgentPositions(
 		const pushplan::ObjectsPoses& result,
 		pushplan::ObjectsPoses& rearranged);

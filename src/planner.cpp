@@ -96,10 +96,6 @@ m_ph("~")
 		while (true) {};
 	}
 
-	while (!setupProblem()) {
-		continue;
-	}
-
 	m_simulate = m_nh.advertiseService("run_sim", &Planner::runSim, this);
 	m_animate = m_nh.advertiseService("anim_soln", &Planner::animateSolution, this);
 	m_rearrange = m_nh.advertiseService("rearrange", &Planner::rearrange, this);
@@ -115,6 +111,10 @@ m_ph("~")
 
 void Planner::Plan()
 {
+	while (!setupProblem()) {
+		continue;
+	}
+
 	int runs = 1;
 
 	double start_time = GetTime();
@@ -131,10 +131,8 @@ void Planner::Plan()
 		}
 
 		SMPL_WARN("Re-run WHCA*!");
-		m_t = 0;
-		m_phase = 0;
 
-		while (!setupProblem(true)) {
+		while (!setupProblem()) {
 			continue;
 		}
 
@@ -150,6 +148,49 @@ void Planner::Plan()
 	SMPL_INFO("Planning took %f seconds. (%d runs)", time_taken, runs);
 
 	m_cc->PrintConflicts();
+	m_cc->CleanupConflicts();
+	m_cc->PrintConflicts();
+}
+
+bool Planner::Rearrange()
+{
+	std_srvs::Empty::Request req;
+	std_srvs::Empty::Response resp;
+
+	if (!rearrange(req, resp)) {
+		SMPL_WARN("There were no conflicts to rearrange!");
+		return false;
+	}
+
+	for (auto& a: m_agents) {
+		a.Setup(); // updates original object
+	}
+	return true;
+}
+
+std::uint32_t Planner::RunSim()
+{
+	std_srvs::Empty::Request req;
+	std_srvs::Empty::Response resp;
+
+	if (!runSim(req, resp)) {
+		SMPL_ERROR("Simulation failed!");
+	}
+	return m_violation;
+}
+
+void Planner::AnimateSolution()
+{
+	std::vector<Object> final_objects;
+	for (auto& a: m_agents) {
+		a.ResetObject();
+		final_objects.push_back(a.GetObject()->back());
+	}
+	m_robot->ProcessObstacles(final_objects);
+
+	std_srvs::Empty::Request req;
+	std_srvs::Empty::Response resp;
+	animateSolution(req, resp);
 }
 
 bool Planner::whcastar()
@@ -243,6 +284,10 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 	}
 
 	auto conflicts = m_cc->GetConflicts();
+	if (conflicts.empty()) {
+		return false;
+	}
+
 	std::vector<int> rearranged_ids;
 	pushplan::ObjectsPoses rearranged;
 	while (!conflicts.empty())
@@ -308,6 +353,8 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		conflicts.erase(i);
 		rearranged_ids.push_back(oid);
 	}
+
+	return true;
 }
 
 bool Planner::animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
@@ -354,21 +401,31 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 {
 	setupSim();
 
+	m_violation = 0x00000000;
+
 	for (const auto& traj: m_rearrangements) {
-		m_sim->ExecTraj(traj);
+		if (!m_sim->ExecTraj(traj))
+		{
+			SMPL_ERROR("Failed to exec rearrangement!");
+			m_violation |= 0x00000001;
+		}
 	}
+	// if any rearrangement traj execuction failed, m_violation == 1
 
 	moveit_msgs::RobotTrajectory to_exec;
 	m_robot->ConvertTraj(m_exec, to_exec);
 	if (!m_sim->ExecTraj(to_exec.joint_trajectory, m_robot->GraspAt(), m_ooi.GetID()))
 	{
-		ROS_ERROR("Failed to exec traj!");
-		return false;
+		SMPL_ERROR("Failed to exec traj!");
+		m_violation |= 0x00000004;
 	}
+	// if all rearrangements succeeded, but extraction failed, m_violation == 4
+	// if any rearrangement traj execuction failed, and extraction failed, m_violation == 5
+	// if all executions succeeded, m_violation == 0
 
 	m_sim->RemoveConstraint();
 
-	return true;
+	return m_violation == 0;
 }
 
 const std::vector<Object>* Planner::GetObject(const LatticeState& s, int priority)
@@ -464,16 +521,20 @@ void Planner::updateAgentPositions(
 	}
 }
 
-bool Planner::setupProblem(bool random)
+bool Planner::setupProblem()
 {
+	m_t = 0;
+	m_phase = 0;
+	m_cc->ClearConflicts();
+
 	// Set agent current positions and time
 	m_ooi.Init();
+
 	m_robot->Init();
-	if (random) {
-		if (!m_robot->RandomiseStart()) {
-			return false;
-		}
+	if (!m_robot->RandomiseStart()) {
+		return false;
 	}
+
 	for (auto& a: m_agents) {
 		a.Init();
 	}
