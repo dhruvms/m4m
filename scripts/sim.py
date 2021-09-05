@@ -409,34 +409,51 @@ class BulletSim:
 		sim.stepSimulation()
 
 		grasp_at = req.grasp_at
+		violation_flag = False
+		all_interactions = []
+		cause = 0
 		for point in req.traj.points[1:]:
-			if (grasp_at >= 0) and (point == req.traj.points[grasp_at]):
-				self.grasp(sim_id, True) # open gripper
+			if (grasp_at >= 0):
+				if (point == req.traj.points[grasp_at]):
+					self.grasp(sim_id, True) # open gripper
 
-			if (grasp_at >= 0) and (point == req.traj.points[grasp_at+1]):
-				self.grasp(sim_id, False) # close gripper
+				elif (point == req.traj.points[grasp_at+1]):
+					self.grasp(sim_id, False) # close gripper
 
-				if self.grasp_constraint is None:
-					obj_transform = sim.getBasePositionAndOrientation(req.ooi)
-					robot_link = link_from_name(sim_data['robot_id'], 'r_gripper_finger_dummy_planning_link', sim=sim)
+					if self.grasp_constraint is None:
+						obj_transform = sim.getBasePositionAndOrientation(req.ooi)
+						robot_link = link_from_name(sim_data['robot_id'], 'r_gripper_finger_dummy_planning_link', sim=sim)
 
-					ee_state = get_link_state(sim_data['robot_id'], robot_link, sim=sim)
-					ee_transform = sim.invertTransform(ee_state.linkWorldPosition, ee_state.linkWorldOrientation)
+						ee_state = get_link_state(sim_data['robot_id'], robot_link, sim=sim)
+						ee_transform = sim.invertTransform(ee_state.linkWorldPosition, ee_state.linkWorldOrientation)
 
-					grasp_pose = sim.multiplyTransforms(ee_transform[0], ee_transform[1], *obj_transform)
-					grasp_point, grasp_quat = grasp_pose
+						grasp_pose = sim.multiplyTransforms(ee_transform[0], ee_transform[1], *obj_transform)
+						grasp_point, grasp_quat = grasp_pose
 
-					self.grasp_constraint = sim.createConstraint(
-									sim_data['robot_id'], robot_link, req.ooi, BASE_LINK,  # Both seem to work
-									sim.JOINT_FIXED, jointAxis=[0., 0., 0.],
-									parentFramePosition=grasp_point,
-									childFramePosition=[0., 0., 0.],
-									parentFrameOrientation=grasp_quat,
-									childFrameOrientation=sim.getQuaternionFromEuler([0., 0., 0.]))
+						self.grasp_constraint = sim.createConstraint(
+										sim_data['robot_id'], robot_link, req.ooi, BASE_LINK,  # Both seem to work
+										sim.JOINT_FIXED, jointAxis=[0., 0., 0.],
+										parentFramePosition=grasp_point,
+										childFramePosition=[0., 0., 0.],
+										parentFrameOrientation=grasp_quat,
+										childFrameOrientation=sim.getQuaternionFromEuler([0., 0., 0.]))
+
+				else:
+					sim.setJointMotorControlArray(
+							robot_id, gripper_joints,
+							controlMode=sim.POSITION_CONTROL,
+							targetPositions=[0.0]*len(gripper_joints),
+							velocityGains=[2.0]*len(gripper_joints))
+			else:
+				sim.setJointMotorControlArray(
+						robot_id, gripper_joints,
+						controlMode=sim.POSITION_CONTROL,
+						targetPositions=[0.3]*len(gripper_joints),
+						velocityGains=[2.0]*len(gripper_joints))
 
 			prev_timestep = curr_timestep
 			curr_timestep = point.time_from_start.to_sec()
-			time_diff = (curr_timestep - prev_timestep) * 100
+			time_diff = (curr_timestep - prev_timestep) * 25
 			duration = time_diff * 240
 			prev_pose = curr_pose
 			curr_pose = np.asarray(point.positions)
@@ -448,20 +465,79 @@ class BulletSim:
 					targetVelocities=target_vel,
 					velocityGains=[2.0]*len(arm_joints))
 
+			objs_curr = self.getObjects(sim_id)
+			action_interactions = []
 			for i in range(int(duration)):
 				sim.stepSimulation()
 
+				action_interactions += self.checkInteractions(sim_id, objs_curr)
+				action_interactions = list(np.unique(np.array(action_interactions)))
+				action_interactions[:] = [idx for idx in action_interactions if idx != req.ooi]
+
+				topple = self.checkPoseConstraints(sim_id)
+				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
+				table = self.checkTableCollision(sim_id)
+				velocity = self.checkVelConstraints(sim_id)
+
+				violation_flag = topple or immovable or table or velocity
+				if (violation_flag):
+					cause = int('0' + topple*'1' + immovable*'2' + table*'3' + velocity*'4')
+					break
+
+			all_interactions += action_interactions
+			all_interactions = list(np.unique(np.array(all_interactions)))
+			del action_interactions[:]
+
+			if (violation_flag):
+				break # trajectory execution failed
+
 		# To simulate the scene after execution of the trajectory
-		sim.setJointMotorControlArray(
-				robot_id, arm_joints,
-				controlMode=sim.VELOCITY_CONTROL,
-				targetVelocities=len(arm_joints)*[0.0])
-		for i in range(1000):
-			sim.stepSimulation()
+		if (not violation_flag):
+			sim.setJointMotorControlArray(
+					robot_id, arm_joints,
+					controlMode=sim.VELOCITY_CONTROL,
+					targetVelocities=len(arm_joints)*[0.0])
+			self.holdPosition(sim_id)
+
+			objs_curr = self.getObjects(sim_id)
+			action_interactions = []
+			for i in range(480):
+				sim.stepSimulation()
+
+				action_interactions += self.checkInteractions(sim_id, objs_curr)
+				action_interactions = list(np.unique(np.array(action_interactions)))
+				action_interactions[:] = [idx for idx in action_interactions if idx != req.ooi]
+
+				topple = self.checkPoseConstraints(sim_id)
+				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
+				table = self.checkTableCollision(sim_id)
+				velocity = self.checkVelConstraints(sim_id)
+				wrong = False
+				if (grasp_at >= 0):
+					wrong = len(action_interactions) > 0
+
+				violation_flag = topple or immovable or table or velocity or wrong
+				if (violation_flag):
+					cause = int('0' + topple*'1' + immovable*'2' + table*'3' + velocity*'4')
+					if (wrong):
+						cause = 99
+					break
+
+			all_interactions += action_interactions
+			all_interactions = list(np.unique(np.array(all_interactions)))
+			del action_interactions[:]
 
 		# ee_dummy_state = get_link_state(sim_data['robot_id'], ee_link).linkWorldPosition
+		all_interactions = list(np.unique(np.array(all_interactions).astype(np.int)))
 
-		return ExecTrajResponse(True)
+		output = ExecTrajResponse()
+		output.violation = violation_flag
+		output.cause = cause
+		output.interactions = all_interactions
+		output.objects = ObjectsPoses()
+		output.objects.poses = self.getObjects(sim_id)
+
+		return output
 
 	def SimPushesDefault(self, req):
 		sim_id = 0
@@ -499,7 +575,7 @@ class BulletSim:
 
 			self.enableCollisionsWithObjects(sim_id)
 
-			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 100
+			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 25
 			duration = time_diff * 240
 			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
 
@@ -508,6 +584,11 @@ class BulletSim:
 					controlMode=sim.VELOCITY_CONTROL,
 					targetVelocities=target_vel,
 					velocityGains=[2.0]*len(arm_joints))
+			sim.setJointMotorControlArray(
+					robot_id, gripper_joints,
+					controlMode=sim.POSITION_CONTROL,
+					targetPositions=[0.3]*len(gripper_joints),
+					velocityGains=[2.0]*len(gripper_joints))
 
 			objs_curr = self.getObjects(sim_id)
 			action_interactions = []
@@ -517,7 +598,6 @@ class BulletSim:
 
 				action_interactions += self.checkInteractions(sim_id, objs_curr)
 				action_interactions = list(np.unique(np.array(action_interactions)))
-				action_interactions[:] = [idx for idx in action_interactions if idx != req.oid]
 
 				topple = self.checkPoseConstraints(sim_id)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
@@ -536,7 +616,7 @@ class BulletSim:
 			# 		robot_id, arm_joints,
 			# 		controlMode=sim.VELOCITY_CONTROL,
 			# 		targetVelocities=len(arm_joints)*[0.0])
-			# for i in range(1000):
+			# for i in range(240):
 			# 	sim.stepSimulation()
 
 			# 	action_interactions += self.checkInteractions(sim_id, objs_curr)
@@ -760,7 +840,7 @@ class BulletSim:
 
 		self.holdPosition(sim_id)
 
-		target_vel = 0.2 * np.ones(len(gripper_joints))
+		target_vel = 0.5 * np.ones(len(gripper_joints))
 		if not open_g:
 			target_vel = -1*target_vel
 
