@@ -23,6 +23,8 @@ extern const std::vector<int> YCB_OBJECTS;
 extern const std::map<int, std::string> YCB_OBJECT_NAMES;
 extern const std::map<int, double> YCB_OBJECT_HEIGHTS;
 
+extern const std::map<int, std::string> EXEC_TRAJ_FAIL;
+
 } // namespace clutter
 
 

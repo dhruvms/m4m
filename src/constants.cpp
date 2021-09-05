@@ -36,3 +36,12 @@ const std::map<int, double> clutter::YCB_OBJECT_HEIGHTS = {
 	{25, 0.039},
 	{35, 0.092},
 };
+
+const std::map<int, std::string> clutter::EXEC_TRAJ_FAIL = {
+	{0, "no violation"},
+	{1, "object toppled"},
+	{2, "obstacle collision"},
+	{3, "table collision"},
+	{4, "velocity constraint violation"},
+	{99, "grabbed wrong object"},
+};
