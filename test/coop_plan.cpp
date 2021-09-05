@@ -43,8 +43,27 @@ int main(int argc, char** argv)
 	planfile += level + "/plan_" + scene + "_SCENE.txt";
 
 	Planner p(planfile, scene_id);
-	p.Plan();
 
+	while (true)
+	{
+		p.Plan();
+		bool rearrange = false;
+		// bool rearrange = p.Rearrange();
+		std::uint32_t violation = p.RunSim();
+		ROS_INFO("Iteration result: rearrangement planning = %d, execution = %d", rearrange, violation);
+
+		if (!rearrange && violation > 0) {
+			ROS_ERROR("FAILURE!!!");
+			break;
+		}
+
+		if (violation == 0) {
+			ROS_INFO("SUCCESS!!!");
+			break;
+		}
+	}
+
+	p.AnimateSolution();
 	ros::spin();
 
 	return 0;
