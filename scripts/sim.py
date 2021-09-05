@@ -228,6 +228,8 @@ class BulletSim:
 						}
 			sim_data['joint_idxs'] = joints_from_names(robot_id, PR2_GROUPS['right_arm'], sim=self.sims[sim_idx])
 
+		print()
+
 		return AddRobotResponse(self.sim_datas[0]['robot_id'])
 
 	def SetRobotStateAll(self, req):
@@ -244,11 +246,11 @@ class BulletSim:
 
 			joint_idxs = joints_from_names(robot_id, sim_data['start_joint_names'], sim=sim)
 			for jidx, jval in zip(joint_idxs, req.state.position):
-				sim.resetJointState(robot_id, jidx, jval)
+				sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
 
 			gripper_joints = joints_from_names(robot_id, PR2_GROUPS['right_gripper'], sim=sim)
 			for gjidx in gripper_joints:
-				sim.resetJointState(robot_id, gjidx, 0.0)
+				sim.resetJointState(robot_id, gjidx, 0.0, targetVelocity=0.0)
 
 			sim.stepSimulation()
 
@@ -274,7 +276,7 @@ class BulletSim:
 				joint_config = WIDE_RIGHT_ARM
 
 			for jidx, jval in zip(joint_idxs, joint_config):
-				sim.resetJointState(robot_id, jidx, jval)
+				sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
 			sim.stepSimulation()
 
 			self.enableCollisionsWithObjects(sim_id)
@@ -403,9 +405,9 @@ class BulletSim:
 		# 								enableCollision=0)
 
 		for jidx, jval in zip(arm_joints, curr_pose):
-			sim.resetJointState(robot_id, jidx, jval)
+			sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
 		for gjidx in gripper_joints:
-			sim.resetJointState(robot_id, gjidx, 0.3)
+			sim.resetJointState(robot_id, gjidx, 0.3, targetVelocity=0.0)
 		sim.stepSimulation()
 
 		grasp_at = req.grasp_at
@@ -431,7 +433,7 @@ class BulletSim:
 						grasp_point, grasp_quat = grasp_pose
 
 						self.grasp_constraint = sim.createConstraint(
-										sim_data['robot_id'], robot_link, req.ooi, BASE_LINK,  # Both seem to work
+										sim_data['robot_id'], robot_link, req.ooi, BASE_LINK,
 										sim.JOINT_FIXED, jointAxis=[0., 0., 0.],
 										parentFramePosition=grasp_point,
 										childFramePosition=[0., 0., 0.],
@@ -439,11 +441,12 @@ class BulletSim:
 										childFrameOrientation=sim.getQuaternionFromEuler([0., 0., 0.]))
 
 				else:
-					sim.setJointMotorControlArray(
-							robot_id, gripper_joints,
-							controlMode=sim.POSITION_CONTROL,
-							targetPositions=[0.0]*len(gripper_joints),
-							velocityGains=[2.0]*len(gripper_joints))
+					if self.grasp_constraint is None:
+						sim.setJointMotorControlArray(
+								robot_id, gripper_joints,
+								controlMode=sim.POSITION_CONTROL,
+								targetPositions=[0.0]*len(gripper_joints),
+								velocityGains=[2.0]*len(gripper_joints))
 			else:
 				sim.setJointMotorControlArray(
 						robot_id, gripper_joints,
@@ -453,7 +456,7 @@ class BulletSim:
 
 			prev_timestep = curr_timestep
 			curr_timestep = point.time_from_start.to_sec()
-			time_diff = (curr_timestep - prev_timestep) * 25
+			time_diff = (curr_timestep - prev_timestep) * 100
 			duration = time_diff * 240
 			prev_pose = curr_pose
 			curr_pose = np.asarray(point.positions)
@@ -476,7 +479,7 @@ class BulletSim:
 
 				topple = self.checkPoseConstraints(sim_id)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
-				table = self.checkTableCollision(sim_id)
+				table = False # self.checkTableCollision(sim_id)
 				velocity = self.checkVelConstraints(sim_id)
 
 				violation_flag = topple or immovable or table or velocity
@@ -510,7 +513,7 @@ class BulletSim:
 
 				topple = self.checkPoseConstraints(sim_id)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
-				table = self.checkTableCollision(sim_id)
+				table = False # self.checkTableCollision(sim_id)
 				velocity = self.checkVelConstraints(sim_id)
 				wrong = False
 				if (grasp_at >= 0):
@@ -568,14 +571,14 @@ class BulletSim:
 				self.resetObjects(sim_id, req.objects.poses)
 
 			for jidx, jval in zip(arm_joints, start_pose):
-				sim.resetJointState(robot_id, jidx, jval)
+				sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
 			for gjidx in gripper_joints:
-				sim.resetJointState(robot_id, gjidx, 0.3)
+				sim.resetJointState(robot_id, gjidx, 0.3, targetVelocity=0.0)
 			sim.stepSimulation()
 
 			self.enableCollisionsWithObjects(sim_id)
 
-			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 25
+			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 100
 			duration = time_diff * 240
 			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
 
@@ -601,7 +604,7 @@ class BulletSim:
 
 				topple = self.checkPoseConstraints(sim_id)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
-				table = self.checkTableCollision(sim_id)
+				table = False # self.checkTableCollision(sim_id)
 				velocity = self.checkVelConstraints(sim_id)
 
 				violation_flag = topple or immovable or table or velocity
