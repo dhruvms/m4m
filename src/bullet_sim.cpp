@@ -12,6 +12,8 @@
 #include <pushplan/ExecTraj.h>
 #include <pushplan/SimPushes.h>
 
+#include <smpl/console/console.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
@@ -211,8 +213,21 @@ bool BulletSim::ExecTraj(
 		return false;
 	}
 
+	std::stringstream ss;
+	for (const auto& id: srv.response.interactions) {
+		ss << std::setw(3) << id << ",";
+	}
+	std::string s = ss.str();
+	SMPL_INFO("Interactions: (%s)", s.c_str());
+	if (srv.response.violation)
+	{
+		auto itr = EXEC_TRAJ_FAIL.find(srv.response.cause);
+		if (itr != EXEC_TRAJ_FAIL.end()) {
+			SMPL_ERROR("Exec Traj error message: %s", itr->second.c_str());
+		}
+	}
 
-	return true;
+	return !srv.response.violation;
 }
 
 bool BulletSim::SimPushes(
