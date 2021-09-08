@@ -28,9 +28,10 @@ public:
 	bool ResetArm(const int& arm);
 	bool CheckScene(const int& arm, int& count);
 	bool ResetScene();
-	bool SetColours();
+	bool SetColours(int ooi);
 	bool ExecTraj(
 		const trajectory_msgs::JointTrajectory& traj,
+		const pushplan::ObjectsPoses& rearranged,
 		int grasp_at=-1, int ooi=-1);
 	bool SimPushes(
 		const trajectory_msgs::JointTrajectory& starts,

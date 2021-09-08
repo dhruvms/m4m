@@ -157,7 +157,7 @@ bool BulletSim::ResetScene()
 	return true;
 }
 
-bool BulletSim::SetColours()
+bool BulletSim::SetColours(int ooi)
 {
 	pushplan::SetColours srv;
 	srv.request.sim_id = -1; // add to all simulator instances
@@ -173,6 +173,12 @@ bool BulletSim::SetColours()
 		{
 			srv.request.ids.push_back(itr->first);
 			srv.request.type.push_back(-1); // tables
+		}
+
+		else if (itr->first == ooi) // tables
+		{
+			srv.request.ids.push_back(itr->first);
+			srv.request.type.push_back(999); // tables
 		}
 
 		else
@@ -200,10 +206,12 @@ bool BulletSim::SetColours()
 
 bool BulletSim::ExecTraj(
 	const trajectory_msgs::JointTrajectory& traj,
+	const pushplan::ObjectsPoses& rearranged,
 	int grasp_at, int ooi)
 {
 	pushplan::ExecTraj srv;
 	srv.request.traj = traj;
+	srv.request.objects = rearranged;
 	srv.request.grasp_at = grasp_at;
 	srv.request.ooi = ooi;
 
@@ -1080,7 +1088,7 @@ std::string BulletSim::getPartialFilename(int id)
 
 	if (id < 100000) {
 		level = "0";
-		ROS_WARN("Planning for a scene with no movable objects!");
+		// ROS_WARN("Planning for a scene with no movable objects!");
 	}
 	else if (id < 200000) {
 		level = "5";

@@ -381,6 +381,11 @@ class BulletSim:
 									rgbaColor=MOVEABLE_COLOUR + [1.0],
 									specularColor=MOVEABLE_COLOUR)
 					sim_data['objs'][obj_id]['type'] = 1
+				if req.type[idx] == 999: # ooi
+					sim.changeVisualShape(obj_id, -1,
+									rgbaColor=OOI_COLOUR + [1.0],
+									specularColor=OOI_COLOUR)
+					sim_data['objs'][obj_id]['type'] = 999
 
 		return SetColoursResponse(True)
 
@@ -409,6 +414,11 @@ class BulletSim:
 		for gjidx in gripper_joints:
 			sim.resetJointState(robot_id, gjidx, 0.3, targetVelocity=0.0)
 		sim.stepSimulation()
+
+		self.disableCollisionsWithObjects(sim_id)
+		if (len(req.objects.poses) != 0):
+			self.resetObjects(sim_id, req.objects.poses)
+		self.enableCollisionsWithObjects(sim_id)
 
 		grasp_at = req.grasp_at
 		violation_flag = False
