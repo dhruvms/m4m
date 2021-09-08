@@ -17,6 +17,8 @@ goal:
   roll: 0.0
   pitch: 0.0
   yaw: 0.0
+  plan_budget: 300.0
+  sim_budget: 600.0
 
 robot:
   x: 0.0
@@ -26,13 +28,13 @@ robot:
   qy: 0.0
   qz: 0.0
   qw: 1.0
-  semi_minor: 0.05
+  semi_minor: 0.04
   robot_obj_mass: 0.5
   speed: 1.0
   pushes: 8
   plan_push_time: 30.0
   grasp_tries: 10
-  grasp_lift: 0.05
+  grasp_lift: 0.075
   grasp_clip: 5
   interpolate: true
 

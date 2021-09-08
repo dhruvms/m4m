@@ -195,7 +195,7 @@
       </geometry>
       <material name="White"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/base_v0/base_L.stl"/>
@@ -217,7 +217,7 @@
       </geometry>
       <material name="White"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <!-- represent base collision with a simple rectangular model, positioned by base_size_z s.t. top
              surface of the collision box matches the top surface of the PR2 base -->
       <origin rpy="0 0 0" xyz="0 0 0.071"/>
@@ -245,7 +245,7 @@
       </geometry>
       <material name="Black"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <box size="0.05 0.37 0.3"/>
@@ -328,7 +328,7 @@
       </geometry>
       <material name="Caster"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/base_v0/caster_L.stl"/>
@@ -365,7 +365,7 @@
       </geometry>
       <material name="Wheel_l"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
       <!-- rotation because cyl. geom primitive has symmetry axis in +x direction -->
       <geometry>
@@ -410,7 +410,7 @@
       </geometry>
       <material name="Wheel_r"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
       <!-- rotation because cyl. geom primitive has symmetry axis in +x direction -->
       <geometry>
@@ -460,7 +460,7 @@
       </geometry>
       <material name="Caster"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/base_v0/caster_L.stl"/>
@@ -497,7 +497,7 @@
       </geometry>
       <material name="Wheel_l"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
       <!-- rotation because cyl. geom primitive has symmetry axis in +x direction -->
       <geometry>
@@ -542,7 +542,7 @@
       </geometry>
       <material name="Wheel_r"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
       <!-- rotation because cyl. geom primitive has symmetry axis in +x direction -->
       <geometry>
@@ -592,7 +592,7 @@
       </geometry>
       <material name="Caster"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/base_v0/caster_L.stl"/>
@@ -629,7 +629,7 @@
       </geometry>
       <material name="Wheel_l"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
       <!-- rotation because cyl. geom primitive has symmetry axis in +x direction -->
       <geometry>
@@ -674,7 +674,7 @@
       </geometry>
       <material name="Wheel_r"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
       <!-- rotation because cyl. geom primitive has symmetry axis in +x direction -->
       <geometry>
@@ -724,7 +724,7 @@
       </geometry>
       <material name="Caster"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/base_v0/caster_L.stl"/>
@@ -761,7 +761,7 @@
       </geometry>
       <material name="Wheel_l"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
       <!-- rotation because cyl. geom primitive has symmetry axis in +x direction -->
       <geometry>
@@ -806,7 +806,7 @@
       </geometry>
       <material name="Wheel_r"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="1.57079632679 0 0" xyz="0 0 0"/>
       <!-- rotation because cyl. geom primitive has symmetry axis in +x direction -->
       <geometry>
@@ -839,7 +839,7 @@
       <always_on>true</always_on>
       <update_rate>100.0</update_rate>
       <contact>
-        <collision>base_link_collision</collision>
+        <collision concave="yes">base_link_collision</collision>
       </contact>
       <plugin filename="libgazebo_ros_bumper.so" name="base_gazebo_ros_bumper_controller">
         <alwaysOn>true</alwaysOn>
@@ -937,7 +937,7 @@
           <box size="0.5 0.7 0.01" />
         </geometry>
       </visual>
-      <collision>
+      <collision concave="yes">
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
           <box size="0.5 0.7 0.01" />
@@ -956,7 +956,7 @@
   <gazebo reference="torso_lift_link">
     <sensor name="torso_lift_contact_sensor" type="contact">
       <contact>
-        <collision>torso_lift_link_collision</collision>
+        <collision concave="yes">torso_lift_link_collision</collision>
       </contact>
       <update_rate>100.0</update_rate>
       <plugin filename="libgazebo_ros_bumper.so" name="torso_lift_gazebo_ros_bumper_controller">
@@ -1037,7 +1037,7 @@
       </geometry>
       <material name="Blue"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <geometry>
         <mesh filename="meshes/head_v0/head_pan_L.stl"/>
       </geometry>
@@ -1074,7 +1074,7 @@
       </geometry>
       <material name="Green"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0.0 0.0 0.0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/head_v0/head_tilt_L.stl"/>
@@ -1106,7 +1106,7 @@
       </geometry>
       <material name="Blue"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <box size="0.01 0.01 0.01"/>
@@ -1609,7 +1609,7 @@
       </geometry>
       <material name="Red"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/tilting_laser_v0/tilting_hokuyo_L.stl"/>
@@ -1697,7 +1697,7 @@
       </geometry>
       <material name="Blue"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
       <geometry>
         <mesh filename="meshes/shoulder_v0/shoulder_pan.stl"/>
@@ -1730,7 +1730,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/shoulder_v0/shoulder_lift.stl"/>
@@ -1764,7 +1764,7 @@
       </geometry>
       <material name="RollLinks"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/shoulder_v0/upper_arm_roll_L.stl"/>
@@ -1837,7 +1837,7 @@
       </geometry>
       <material name="Green"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/upper_arm_v0/upper_arm.stl"/>
@@ -1879,7 +1879,7 @@
       <material name="RollLinks"/>
     </visual>
     <!-- TODO: collision tag should be optional -->
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/upper_arm_v0/forearm_roll_L.stl"/>
@@ -1924,7 +1924,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/upper_arm_v0/elbow_flex.stl"/>
@@ -1968,7 +1968,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/forearm_v0/forearm.stl"/>
@@ -2000,7 +2000,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/forearm_v0/wrist_flex.stl"/>
@@ -2033,7 +2033,7 @@
       </geometry>
       <material name="RollLinks"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/forearm_v0/wrist_roll_L.stl"/>
@@ -2085,7 +2085,7 @@
       </geometry>
       <material name="Red"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/gripper_palm.stl"/>
@@ -2129,7 +2129,7 @@
         <box size="0.001 0.001 0.001"/>
       </geometry>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <box size="0.001 0.001 0.001"/>
@@ -2156,7 +2156,7 @@
           <cylinder length="0.002" radius="0.025"/>
         </geometry>
       </visual>
-      <collision>
+      <collision concave="yes">
         <origin xyz="0 0 0" rpy="1.5708 0 0" />
         <geometry>
           <cylinder length="0.002" radius="0.025"/>
@@ -2184,7 +2184,7 @@
           <box size="0.05 0.001 0.05" />
         </geometry>
       </visual>
-      <collision>
+      <collision concave="yes">
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
           <box size="0.05 0.001 0.05" />
@@ -2227,7 +2227,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/l_finger.stl"/>
@@ -2262,7 +2262,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/l_finger.stl"/>
@@ -2297,7 +2297,7 @@
       </geometry>
       <material name="Green"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/l_finger_tip.stl"/>
@@ -2332,7 +2332,7 @@
       </geometry>
       <material name="Green"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/l_finger_tip.stl"/>
@@ -2376,7 +2376,7 @@
     <sensor name="r_gripper_l_finger_tip_contact_sensor" type="contact">
       <update_rate>100.0</update_rate>
       <contact>
-        <collision>r_gripper_l_finger_tip_link_collision</collision>
+        <collision concave="yes">r_gripper_l_finger_tip_link_collision</collision>
       </contact>
       <plugin filename="libgazebo_ros_bumper.so" name="r_gripper_l_finger_tip_gazebo_ros_bumper_controller">
         <alwaysOn>true</alwaysOn>
@@ -2403,7 +2403,7 @@
     <sensor name="r_gripper_r_finger_tip_contact_sensor" type="contact">
       <update_rate>100.0</update_rate>
       <contact>
-        <collision>r_gripper_r_finger_tip_link_collision</collision>
+        <collision concave="yes">r_gripper_r_finger_tip_link_collision</collision>
       </contact>
       <plugin filename="libgazebo_ros_bumper.so" name="r_gripper_r_finger_tip_gazebo_ros_bumper_controller">
         <alwaysOn>true</alwaysOn>
@@ -2653,7 +2653,7 @@
       </geometry>
       <material name="Blue"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0.0 0 0.0"/>
       <geometry>
         <mesh filename="meshes/shoulder_v0/shoulder_pan.stl"/>
@@ -2686,7 +2686,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/shoulder_v0/shoulder_lift.stl"/>
@@ -2720,7 +2720,7 @@
       </geometry>
       <material name="RollLinks"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/shoulder_v0/upper_arm_roll_L.stl"/>
@@ -2793,7 +2793,7 @@
       </geometry>
       <material name="Green"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/upper_arm_v0/upper_arm.stl"/>
@@ -2835,7 +2835,7 @@
       <material name="RollLinks"/>
     </visual>
     <!-- TODO: collision tag should be optional -->
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/upper_arm_v0/forearm_roll_L.stl"/>
@@ -2880,7 +2880,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/upper_arm_v0/elbow_flex.stl"/>
@@ -2924,7 +2924,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/forearm_v0/forearm.stl"/>
@@ -2956,7 +2956,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/forearm_v0/wrist_flex.stl"/>
@@ -2989,7 +2989,7 @@
       </geometry>
       <material name="RollLinks"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/forearm_v0/wrist_roll_L.stl"/>
@@ -3041,7 +3041,7 @@
       </geometry>
       <material name="Red"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/gripper_palm.stl"/>
@@ -3086,7 +3086,7 @@
         <box size="0.001 0.001 0.001"/>
       </geometry>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <box size="0.001 0.001 0.001"/>
@@ -3113,7 +3113,7 @@
           <cylinder length="0.002" radius="0.025"/>
         </geometry>
       </visual>
-      <collision>
+      <collision concave="yes">
         <origin xyz="0 0 0" rpy="1.5708 0 0" />
         <geometry>
           <cylinder length="0.002" radius="0.025"/>
@@ -3141,7 +3141,7 @@
           <box size="0.05 0.001 0.05" />
         </geometry>
       </visual>
-      <collision>
+      <collision concave="yes">
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
           <box size="0.05 0.001 0.05" />
@@ -3184,7 +3184,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/l_finger.stl"/>
@@ -3219,7 +3219,7 @@
       </geometry>
       <material name="Grey"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/l_finger.stl"/>
@@ -3254,7 +3254,7 @@
       </geometry>
       <material name="Green"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/l_finger_tip.stl"/>
@@ -3289,7 +3289,7 @@
       </geometry>
       <material name="Green"/>
     </visual>
-    <collision>
+    <collision concave="yes">
       <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="meshes/gripper_v0/l_finger_tip.stl"/>
@@ -3333,7 +3333,7 @@
     <sensor name="l_gripper_l_finger_tip_contact_sensor" type="contact">
       <update_rate>100.0</update_rate>
       <contact>
-        <collision>l_gripper_l_finger_tip_link_collision</collision>
+        <collision concave="yes">l_gripper_l_finger_tip_link_collision</collision>
       </contact>
       <plugin filename="libgazebo_ros_bumper.so" name="l_gripper_l_finger_tip_gazebo_ros_bumper_controller">
         <alwaysOn>true</alwaysOn>
@@ -3360,7 +3360,7 @@
     <sensor name="l_gripper_r_finger_tip_contact_sensor" type="contact">
       <update_rate>100.0</update_rate>
       <contact>
-        <collision>l_gripper_r_finger_tip_link_collision</collision>
+        <collision concave="yes">l_gripper_r_finger_tip_link_collision</collision>
       </contact>
       <plugin filename="libgazebo_ros_bumper.so" name="l_gripper_r_finger_tip_gazebo_ros_bumper_controller">
         <alwaysOn>true</alwaysOn>
