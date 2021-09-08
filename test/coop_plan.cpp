@@ -20,9 +20,10 @@ int main(int argc, char** argv)
 	ros::Duration(1.0).sleep();
 
 	// read from NONE file
-	std::string filename(__FILE__);
+	std::string filename(__FILE__), results(__FILE__);
 	auto found = filename.find_last_of("/\\");
 	filename = filename.substr(0, found + 1) + "../dat/FIRST.txt";
+	results = results.substr(0, found + 1) + "../dat/RESULTS.csv";
 
 	std::ifstream NONE;
 	NONE.open(filename);
@@ -40,7 +41,7 @@ int main(int argc, char** argv)
 			if (scene_id < 100000)
 			{
 				level = "0";
-				ROS_WARN("Planning for a scene with no movable objects!");
+				// ROS_WARN("Planning for a scene with no movable objects!");
 			}
 			else if (scene_id < 200000) {
 				level = "5";
@@ -58,12 +59,32 @@ int main(int argc, char** argv)
 			planfile += level + "/plan_" + line + "_SCENE.txt";
 			ROS_WARN("Run planner on: %s", planfile.c_str());
 
-			Planner p(planfile, scene_id);
+			Planner p;
+			if (!p.Init(planfile, scene_id)) {
+				continue;
+			}
 
-			p.Plan();
-			bool rearrange = p.Rearrange();
+			bool rearrange = true;
+			do
+			{
+				if (p.Plan())
+				{
+					// ROS_WARN("Try extraction!");
+					// if (p.TryExtract()) {
+					// 	break;
+					// }
+					rearrange = p.Rearrange();
+				}
+			}
+			while (p.Alive() && rearrange);
+
 			std::uint32_t violation = p.RunSim();
 			ROS_INFO("Iteration result: rearrangement planning = %d, execution = %d", rearrange, violation);
+			// std::ofstream RESULTS;
+			// RESULTS.open(results, std::ofstream::out | std::ofstream::app);
+			// RESULTS << scene_id << ',' << int(rearrange) << ',' << int(violation) << '\n';
+			// RESULTS.close();
+			// p.SaveData();
 
 			if (violation == 0) {
 				ROS_WARN("SUCCESS!!!");
