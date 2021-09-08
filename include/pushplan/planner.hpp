@@ -6,6 +6,7 @@
 #include <pushplan/collision_checker.hpp>
 #include <pushplan/robot.hpp>
 #include <pushplan/bullet_sim.hpp>
+#include <pushplan/ObjectsPoses.h>
 
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
@@ -20,11 +21,16 @@ namespace clutter
 class Planner
 {
 public:
-	Planner(const std::string& scene_file, int scene_id);
+	Planner() : m_num_agents(-1), m_ooi_idx(-1),
+				m_t(0), m_phase(0), m_ph("~") {};
+	bool Init(const std::string& scene_file, int scene_id);
 
-	void Plan();
+	bool Plan();
+	bool SaveData();
+	bool Alive();
 	bool Rearrange();
 	std::uint32_t RunSim();
+	bool TryExtract();
 	void AnimateSolution();
 
 	const std::vector<Object>* GetObject(const LatticeState& s, int priority);
@@ -51,12 +57,19 @@ private:
 
 	Trajectory m_exec;
 	std::vector<trajectory_msgs::JointTrajectory> m_rearrangements;
+	pushplan::ObjectsPoses m_rearranged;
 
 	std::vector<size_t> m_priorities;
 
 	ros::NodeHandle m_ph, m_nh;
 	ros::ServiceServer m_simulate, m_animate, m_rearrange;
 	std::uint32_t m_violation;
+
+	double m_plan_time, m_extract_time, m_rearrange_time;
+	int m_plan_attempts, m_extract_attempts, m_rearrange_attempts, m_objs_rearrange_tries, m_objs_rearranged;
+	double m_pipeline_rearrange_time, m_pipeline_ooi_time;
+	int m_pipeline_run, m_rearrange_execs;
+	double m_plan_budget, m_sim_budget;
 
 	bool whcastar();
 

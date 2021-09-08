@@ -31,7 +31,9 @@ class Robot
 public:
 	Robot() : m_ph("~"), m_rng(m_dev()) {};
 
+
 	bool Setup();
+	bool SaveData(int scene_id);
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
 	bool Init();
 	bool RandomiseStart();
@@ -41,7 +43,6 @@ public:
 	bool ComputeGrasps(
 		const std::vector<double>& pregrasp_goal,
 		const Object& ooi);
-	bool InsertGrasp(Trajectory& traj_in);
 	void ConvertTraj(
 		const Trajectory& traj_in,
 		moveit_msgs::RobotTrajectory& traj_out);
@@ -94,6 +95,16 @@ public:
 			auto pose = m_rm->computeFK(p.positions);
 			SMPL_INFO("ee (x, y, z) = (%f, %f, %f)", pose.translation().x(), pose.translation().y(), pose.translation().z());
 		}
+	}
+
+	double GraspPlanTime() {
+		return m_grasp_compute_time + m_push_traj_plan_time;
+	}
+	double SimTime() {
+		return m_push_sim_time;
+	}
+	bool AttachFailed() {
+		return m_attach_fails > 0;
 	}
 
 private:
@@ -154,6 +165,12 @@ private:
 	std::vector<smpl::RobotState> m_push_starts, m_push_ends;
 	int m_pushes_per_object, m_grasp_tries;
 	double m_plan_push_time, m_grasp_lift;
+
+	double m_grasp_compute_time, m_approach_plan_time, m_extract_plan_time;
+	int m_grasp_compute_tries, m_grasp_compute_fails, m_approach_plan_fails, m_approaches_planned, m_extract_plan_fails, m_extractions_planned;
+	double m_push_sample_time, m_push_sim_time, m_push_traj_plan_time;
+	int m_objs_push_attempts, m_pushes_sampled, m_push_sample_fails, m_push_trajs_planned, m_push_traj_plan_fails;
+	int m_attach_fails, m_kdl_chain_updates, m_planner_inits;
 
 	bool samplePush(const Trajectory* object, const std::vector<Object>& obs);
 

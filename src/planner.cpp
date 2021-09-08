@@ -2,7 +2,6 @@
 #include <pushplan/agent.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/geometry.hpp>
-#include <pushplan/ObjectsPoses.h>
 
 #include <smpl/console/console.h>
 #include <moveit_msgs/RobotTrajectory.h>
@@ -20,16 +19,29 @@
 namespace clutter
 {
 
-Planner::Planner(const std::string& scene_file, int scene_id)
-:
-m_scene_file(scene_file),
-m_num_agents(-1),
-m_ooi_idx(-1),
-m_t(0),
-m_phase(0),
-m_scene_id(scene_id),
-m_ph("~")
+bool Planner::Init(const std::string& scene_file, int scene_id)
 {
+	m_scene_file = scene_file;
+	m_scene_id = scene_id;
+
+	m_plan_time = 0.0; // planner
+	m_plan_attempts = 0;
+
+	m_extract_time = 0.0; // simulator
+	m_extract_attempts = 0;
+
+	m_rearrange_time = 0.0; // simulator
+	m_rearrange_attempts = 0;
+	m_objs_rearrange_tries = 0;
+	m_objs_rearranged = 0;
+
+	m_pipeline_rearrange_time = 0.0;
+	m_pipeline_ooi_time = 0.0;
+	m_pipeline_run = 0;
+
+	m_ph.getParam("goal/plan_budget", m_plan_budget);
+	m_ph.getParam("goal/sim_budget", m_sim_budget);
+
 	setupGlobals();
 
 	m_agents.clear();
@@ -71,15 +83,19 @@ m_ph("~")
 	}
 
 	m_ooi.Setup();
-	if (!m_robot->Setup()) {
+	if (!m_robot->Setup())
+	{
 		SMPL_ERROR("Robot setup failed!");
+		return false;
 	}
 	for (auto& a: m_agents) {
 		a.Setup();
 	}
 
-	if (!m_robot->ProcessObstacles(all_obstacles)) {
+	if (!m_robot->ProcessObstacles(all_obstacles))
+	{
 		SMPL_ERROR("Robot collision space setup failed!");
+		return false;
 	}
 	all_obstacles.clear();
 
@@ -91,9 +107,10 @@ m_ph("~")
 			break;
 		}
 	}
-	if (t == grasp_tries) {
-		SMPL_ERROR("Robot failed to compute grasp states! Entering infinite loop, please kill!");
-		while (true) {};
+	if (t == grasp_tries)
+	{
+		SMPL_ERROR("Robot failed to compute grasp states!");
+		return false;
 	}
 
 	m_simulate = m_nh.advertiseService("run_sim", &Planner::runSim, this);
@@ -107,60 +124,108 @@ m_ph("~")
 	setupSim();
 
 	m_robot->SetSim(m_sim);
+
+	return true;
 }
 
-void Planner::Plan()
+bool Planner::SaveData()
 {
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../dat/PLANNER.csv";
+
+	bool exists = FileExists(filename);
+	std::ofstream STATS;
+	STATS.open(filename, std::ofstream::out | std::ofstream::app);
+	if (!exists)
+	{
+		STATS << "UID,"
+				<< "PlanTime,PlanAttempts,"
+				<< "ExtractTime,ExtractAttempts,"
+				<< "RearrangeTime,RearrangeAttempts,"
+				<< "ObjRearrangeTries,ObjRearranged,"
+				<< "PipelineRun,PipelineRearrangeTime,PipelineOOITime,Violation\n";
+	}
+
+	STATS << m_scene_id << ','
+			<< m_plan_time << ',' << m_plan_attempts << ','
+			<< m_extract_time << ',' << m_extract_attempts << ','
+			<< m_rearrange_time << ',' << m_rearrange_attempts << ','
+			<< m_objs_rearrange_tries << ',' << m_plan_attempts << ','
+			<< m_plan_time << ',' << m_objs_rearranged << ','
+			<< m_pipeline_run << ',' << m_pipeline_rearrange_time << ',' << m_pipeline_ooi_time << ',' << m_violation << '\n';
+	STATS.close();
+
+	m_robot->SaveData(m_scene_id);
+}
+
+bool Planner::Alive()
+{
+	double plan_time = m_plan_time + m_robot->GraspPlanTime();
+	if (plan_time > m_plan_budget) {
+		return false;
+	}
+
+	double sim_time = m_extract_time + m_robot->SimTime();
+	if (plan_time > m_sim_budget) {
+		return false;
+	}
+
+	if (m_robot->AttachFailed()) {
+		return false;
+	}
+
+	return true;
+}
+
+bool Planner::Plan()
+{
+	++m_plan_attempts;
 	while (!setupProblem()) {
 		continue;
 	}
 
-	int runs = 1;
-
-	double start_time = GetTime();
-	do
+	double start_time = GetTime(), time_taken;
+	if (whcastar())
 	{
-		if (whcastar())
-		{
-			m_exec.clear();
+		m_exec.clear();
 
-			auto robot_traj = m_robot->GetMoveTraj();
-			m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
-			m_robot->ProfileTraj(m_exec);
-			break;
-		}
-
-		SMPL_WARN("Re-run WHCA*!");
-
-		while (!setupProblem()) {
-			continue;
-		}
-
-		int res = cleanupLogs();
-		if (res == -1) {
-			SMPL_ERROR("system command errored!");
-		}
-
-		++runs;
+		auto robot_traj = m_robot->GetMoveTraj();
+		m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
+		SMPL_INFO("Exec trajj size = %d", m_exec.size());
+		m_robot->ProfileTraj(m_exec);
 	}
-	while (true);
-	double time_taken = GetTime() - start_time;
-	SMPL_INFO("Planning took %f seconds. (%d runs)", time_taken, runs);
+	else
+	{
+		time_taken = GetTime() - start_time;
+		SMPL_WARN("Need to re-run WHCA*! Planning took %f seconds.", time_taken);
+		m_plan_time += time_taken;
+		return false;
+	}
+	time_taken = GetTime() - start_time;
+	m_plan_time += time_taken;
+	SMPL_INFO("Planning took %f seconds. (%d runs so far)", time_taken, m_plan_attempts);
 
 	m_cc->PrintConflicts();
 	m_cc->CleanupConflicts();
 	m_cc->PrintConflicts();
+
+	return true;
 }
 
 bool Planner::Rearrange()
 {
 	std_srvs::Empty::Request req;
 	std_srvs::Empty::Response resp;
-
+	double start_time = GetTime(), time_taken;
 	if (!rearrange(req, resp)) {
 		SMPL_WARN("There were no conflicts to rearrange!");
+		time_taken = GetTime() - start_time;
+		m_rearrange_time += GetTime() - start_time;
 		return false;
 	}
+	time_taken = GetTime() - start_time;
+	m_rearrange_time += GetTime() - start_time;
 
 	for (auto& a: m_agents) {
 		a.Setup(); // updates original object
@@ -177,6 +242,30 @@ std::uint32_t Planner::RunSim()
 		SMPL_ERROR("Simulation failed!");
 	}
 	return m_violation;
+}
+
+bool Planner::TryExtract()
+{
+	if (!setupSim()) {
+		return false;
+	}
+
+	moveit_msgs::RobotTrajectory to_exec;
+	m_robot->ConvertTraj(m_exec, to_exec);
+	pushplan::ObjectsPoses rearranged = m_rearranged;
+	bool success = true;
+	double start_time = GetTime();
+	if (!m_sim->ExecTraj(to_exec.joint_trajectory, rearranged, m_robot->GraspAt(), m_ooi.GetID()))
+	{
+		SMPL_ERROR("Failed to exec traj!");
+		success = false;
+	}
+	m_extract_time += GetTime() - start_time;
+	++m_extract_attempts;
+
+	m_sim->RemoveConstraint();
+
+	return success;
 }
 
 void Planner::AnimateSolution()
@@ -279,6 +368,8 @@ bool Planner::whcastar()
 
 bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
 {
+	++m_rearrange_attempts;
+
 	for (auto& a: m_agents) {
 		a.ResetObject();
 	}
@@ -288,8 +379,16 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		return false;
 	}
 
+	pushplan::ObjectsPoses rearranged = m_rearranged;
 	std::vector<int> rearranged_ids;
-	pushplan::ObjectsPoses rearranged;
+	for (const auto& o: m_rearranged.poses)
+	{
+		auto search = m_agent_map.find(o.id);
+		if (search != m_agent_map.end()) {
+			rearranged_ids.push_back(o.id);
+		}
+	}
+
 	while (!conflicts.empty())
 	{
 		auto i = conflicts.begin();
@@ -321,6 +420,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 			new_obstacles.push_back(m_agents.at(m_agent_map[obsid]).GetObject()->back());
 		}
 		for (const auto& id: rearranged_ids) {
+			SMPL_INFO("Adding rearranged object %d as obstacle", id);
 			new_obstacles.push_back(m_agents.at(m_agent_map[id]).GetObject()->back());
 		}
 		// add new obstacles
@@ -337,11 +437,13 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		// plan to push location
 		// m_robot->PlanPush creates the planner internally, because it might
 		// change KDL chain during the process
+		++m_objs_rearrange_tries;
 		SMPL_INFO("Planning!");
 		pushplan::ObjectsPoses result;
 		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back(), rearranged, result)) {
 			SMPL_INFO("Found push!");
 			m_rearrangements.push_back(m_robot->GetLastPlan());
+			++m_objs_rearranged;
 
 			// update positions of moved objects
 			updateAgentPositions(result, rearranged);
@@ -351,8 +453,13 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		m_robot->ProcessObstacles(new_obstacles, true);
 
 		conflicts.erase(i);
-		rearranged_ids.push_back(oid);
+
+		auto it = std::find(begin(rearranged_ids), end(rearranged_ids), oid);
+		if (it == end(rearranged_ids)) {
+			rearranged_ids.push_back(oid);
+		}
 	}
+	m_rearranged = rearranged;
 
 	return true;
 }
@@ -390,7 +497,7 @@ bool Planner::setupSim()
 		return false;
 	}
 
-	if (!m_sim->SetColours())
+	if (!m_sim->SetColours(m_ooi.GetID()))
 	{
 		ROS_ERROR("Failed to set object colours in scene!");
 		return false;
@@ -402,23 +509,30 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 	setupSim();
 
 	m_violation = 0x00000000;
+	++m_pipeline_run;
 
+	pushplan::ObjectsPoses dummy;
+	double start_time = GetTime();
 	for (const auto& traj: m_rearrangements) {
-		if (!m_sim->ExecTraj(traj))
+		if (!m_sim->ExecTraj(traj, dummy))
 		{
 			SMPL_ERROR("Failed to exec rearrangement!");
 			m_violation |= 0x00000001;
 		}
+		++m_rearrange_execs;
 	}
+	m_pipeline_rearrange_time += GetTime() - start_time;
 	// if any rearrangement traj execuction failed, m_violation == 1
 
 	moveit_msgs::RobotTrajectory to_exec;
 	m_robot->ConvertTraj(m_exec, to_exec);
-	if (!m_sim->ExecTraj(to_exec.joint_trajectory, m_robot->GraspAt(), m_ooi.GetID()))
+	start_time = GetTime();
+	if (!m_sim->ExecTraj(to_exec.joint_trajectory, dummy, m_robot->GraspAt(), m_ooi.GetID()))
 	{
 		SMPL_ERROR("Failed to exec traj!");
 		m_violation |= 0x00000004;
 	}
+	m_pipeline_ooi_time += GetTime() - start_time;
 	// if all rearrangements succeeded, but extraction failed, m_violation == 4
 	// if any rearrangement traj execuction failed, and extraction failed, m_violation == 5
 	// if all executions succeeded, m_violation == 0
@@ -516,13 +630,31 @@ void Planner::updateAgentPositions(
 		auto search = m_agent_map.find(o.id);
 		if (search != m_agent_map.end()) {
 			m_agents.at(m_agent_map[o.id]).SetObjectPose(o.xyz, o.rpy);
-			rearranged.poses.push_back(o);
+
+			bool exist = false;
+			for (auto& p: rearranged.poses)
+			{
+				if (p.id == o.id)
+				{
+					p = o;
+					exist = true;
+					break;
+				}
+			}
+			if (!exist) {
+				rearranged.poses.push_back(o);
+			}
 		}
 	}
 }
 
 bool Planner::setupProblem()
 {
+	int res = cleanupLogs();
+	if (res == -1) {
+		SMPL_ERROR("system command errored!");
+	}
+
 	m_t = 0;
 	m_phase = 0;
 	m_cc->ClearConflicts();
@@ -655,6 +787,7 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 					m_goal[4] = 0.0;
 					m_goal[5] = smpl::angles::normalize_angle(m_goal[5] + M_PI);
 				}
+				SMPL_INFO("Goal (x, y, z, yaw): (%f, %f, %f, %f)", m_goal[0], m_goal[1], m_goal[2], m_goal[5]);
 			}
 		}
 	}

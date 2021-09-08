@@ -25,6 +25,37 @@ namespace clutter
 
 bool Robot::Setup()
 {
+	///////////
+	// Stats //
+	///////////
+
+	m_grasp_compute_time = 0.0;
+	m_grasp_compute_tries = 0;
+	m_grasp_compute_fails = 0;
+
+	m_approach_plan_time = 0.0;
+	m_approach_plan_fails = 0;
+	m_approaches_planned = 0;
+
+	m_extract_plan_time = 0.0;
+	m_extract_plan_fails = 0;
+	m_extractions_planned = 0;
+
+	m_objs_push_attempts = 0;
+	m_push_sample_time = 0.0;
+	m_pushes_sampled = 0;
+	m_push_sample_fails = 0;
+
+	m_push_sim_time = 0.0;
+
+	m_push_traj_plan_time = 0.0;
+	m_push_trajs_planned = 0;
+	m_push_traj_plan_fails = 0;
+
+	m_attach_fails = 0;
+	m_kdl_chain_updates = 0;
+	m_planner_inits = 0;
+
 	/////////////////
 	// Robot Model //
 	/////////////////
@@ -173,6 +204,38 @@ bool Robot::Setup()
 	return true;
 }
 
+bool Robot::SaveData(int scene_id)
+{
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../dat/ROBOT.csv";
+
+	bool exists = FileExists(filename);
+	std::ofstream STATS;
+	STATS.open(filename, std::ofstream::out | std::ofstream::app);
+	if (!exists)
+	{
+		STATS << "UID,"
+				<< "GraspingTime,GraspingAttempts,GraspingFails,"
+				<< "OOIApproachTime,OOIApproachesP,OOIApproachFails,"
+				<< "OOIExtractTime,OOIExtractionsP,OOIExtractFails,"
+				<< "ObjsPushAttempted,PushSampleTime,PushesSampled,PushSampleFails,"
+				<< "PushSimTime,"
+				<< "PushPlanTime,PushPlans,PushPlanFails,"
+				<< "AttachFails,KDLUpdates,PlannerInits\n";
+	}
+
+	STATS << scene_id << ','
+			<< m_grasp_compute_time << ',' << m_grasp_compute_tries << ',' << m_grasp_compute_fails << ','
+			<< m_approach_plan_time << ',' << m_approaches_planned << ',' << m_approach_plan_fails << ','
+			<< m_extract_plan_time << ',' << m_extractions_planned << ',' << m_extract_plan_fails << ','
+			<< m_objs_push_attempts << ',' << m_push_sample_time << ',' << m_pushes_sampled << ',' << m_push_sample_fails << ','
+			<< m_push_sim_time << ','
+			<< m_push_traj_plan_time << ',' << m_push_trajs_planned << ',' << m_push_traj_plan_fails << ','
+			<< m_attach_fails << ',' << m_kdl_chain_updates << ',' << m_planner_inits << '\n';
+	STATS.close();
+}
+
 bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 {
 	for (const auto& obs: obstacles)
@@ -306,6 +369,7 @@ bool Robot::attachOOI(const Object& ooi)
 				}
 			}
 			auto transform = Eigen::Affine3d::Identity();
+			transform.translation().x() += 0.2;
 			transforms.push_back(transform);
 		}
 	}
@@ -339,6 +403,7 @@ bool Robot::Plan(const Object& ooi)
 	// Plan approach //
 	///////////////////
 
+	detachOOI();
 	UpdateKDLRobot(0);
 	InitArmPlanner(true);
 
@@ -364,14 +429,16 @@ bool Robot::Plan(const Object& ooi)
 	if (!m_planner->solve(planning_scene, req, res))
 	{
 		m_stats = m_planner->getPlannerStats();
-		SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+		m_approach_plan_time += m_stats["initial solution planning time"];
+		++m_approach_plan_fails;
 
 		ROS_ERROR("Failed to plan.");
 		return false;
 	}
 	SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
 	m_stats = m_planner->getPlannerStats();
-	SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+	m_approach_plan_time += m_stats["initial solution planning time"];
+	++m_approaches_planned;
 
 	//////////////////
 	// Append grasp //
@@ -397,7 +464,10 @@ bool Robot::Plan(const Object& ooi)
 	// Plan extraction //
 	/////////////////////
 
-	attachOOI(ooi);
+	if (!attachOOI(ooi)) {
+		++m_attach_fails;
+		return false;
+	}
 	InitArmPlanner(true);
 
 	moveit_msgs::RobotState orig_start = m_start_state;
@@ -419,14 +489,16 @@ bool Robot::Plan(const Object& ooi)
 	if (!m_planner->solve(planning_scene, req, res))
 	{
 		m_stats = m_planner->getPlannerStats();
-		SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+		m_extract_plan_time += m_stats["initial solution planning time"];
+		++m_extract_plan_fails;
 
 		ROS_ERROR("Failed to plan.");
 		return false;
 	}
 	SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
 	m_stats = m_planner->getPlannerStats();
-	SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+	m_extract_plan_time += m_stats["initial solution planning time"];
+	++m_extractions_planned;
 
 	detachOOI();
 	m_start_state = orig_start;
@@ -461,6 +533,9 @@ bool Robot::ComputeGrasps(
 	const std::vector<double>& pregrasp_goal,
 	const Object& ooi)
 {
+	++m_grasp_compute_tries;
+	double start_time = GetTime();
+
 	m_pregrasp_state.clear();
 	m_grasp_state.clear();
 	m_postgrasp_state.clear();
@@ -481,7 +556,9 @@ bool Robot::ComputeGrasps(
 	}
 	while (!getStateNearPose(ee_pose, ee_state, m_grasp_state, 5) && ++tries < m_grasp_tries);
 
-	if (tries == m_grasp_tries) {
+	if (tries == m_grasp_tries)
+	{
+		++m_grasp_compute_fails;
 		return false;
 	}
 
@@ -501,8 +578,15 @@ bool Robot::ComputeGrasps(
 		if (getStateNearPose(ee_pose, m_grasp_state, m_postgrasp_state, 1))
 		{
 			SMPL_INFO("Found postgrasp state!!!");
+			m_grasp_compute_time += GetTime() - start_time;
 			success = true;
 		}
+		else {
+			++m_grasp_compute_fails;
+		}
+	}
+	else {
+		++m_grasp_compute_fails;
 	}
 
 	if (success)
@@ -517,60 +601,6 @@ bool Robot::ComputeGrasps(
 	}
 
 	return success;
-}
-
-bool Robot::InsertGrasp(Trajectory& traj_in)
-{
-	int grasp_clip;
-	m_ph.getParam("robot/grasp_clip", grasp_clip);
-
-	LatticeState pregrasp, grasp, postgrasp;
-	pregrasp.state = m_pregrasp_state;
-	grasp.state = m_grasp_state;
-	postgrasp.state = m_postgrasp_state;
-
-	pregrasp.coord = Coord(m_rm->jointVariableCount());
-	grasp.coord = Coord(m_rm->jointVariableCount());
-	postgrasp.coord = Coord(m_rm->jointVariableCount());
-	stateToCoord(pregrasp.state, pregrasp.coord);
-	stateToCoord(grasp.state, grasp.coord);
-	stateToCoord(postgrasp.state, postgrasp.coord);
-
-	double min_dist = std::numeric_limits<double>::max();
-	int start_idx = -1, end_idx = -1;
-
-	Eigen::Affine3d ee_pose, traj_pose;
-	ee_pose = m_rm->computeFK(m_pregrasp_state);
-	State ee = {ee_pose.translation().x(), ee_pose.translation().y(), ee_pose.translation().z()}, traj;
-	for (int sidx = 0; sidx < traj_in.size(); sidx++)
-	{
-		traj_pose = m_rm->computeFK(traj_in.at(sidx).state);
-		traj = {traj_pose.translation().x(), traj_pose.translation().y(), traj_pose.translation().z()};
-		double dist = EuclideanDist(ee, traj);
-
-		if (dist < min_dist)
-		{
-			min_dist = dist;
-			start_idx = sidx;
-		}
-		else if (dist == min_dist) {
-			end_idx = sidx;
-		}
-	}
-	start_idx = std::max(0, start_idx - grasp_clip);
-
-	pregrasp.t = start_idx + 1;
-	grasp.t = pregrasp.t + 1;
-	postgrasp.t = grasp.t + 1;
-
-	traj_in.insert(traj_in.begin() + end_idx + 1, {pregrasp, grasp, postgrasp});
-	traj_in.erase(traj_in.begin() + start_idx, traj_in.begin() + end_idx);
-
-	m_grasp_at = grasp.t;
-
-	SMPL_INFO("Successfully spliced in grasping sequence!");
-
-	return true;
 }
 
 void Robot::ConvertTraj(
@@ -694,6 +724,8 @@ void Robot::Step(int k)
 
 bool Robot::UpdateKDLRobot(int mode)
 {
+	++m_kdl_chain_updates;
+
 	if (mode == 0) {
 		m_robot_config.chain_tip_link = m_chain_tip_link;
 	}
@@ -726,6 +758,7 @@ bool Robot::UpdateKDLRobot(int mode)
 
 bool Robot::InitArmPlanner(bool interp)
 {
+	++m_planner_inits;
 	if (!m_planner_init) {
 		return initPlanner();
 	}
@@ -753,6 +786,8 @@ bool Robot::PlanPush(
 	int oid, const Trajectory* o_traj, const Object& o,
 	const pushplan::ObjectsPoses& rearranged, pushplan::ObjectsPoses& result)
 {
+	++m_objs_push_attempts;
+
 	if (m_pushes_per_object == -1) {
 		m_ph.getParam("robot/pushes", m_pushes_per_object);
 		m_ph.getParam("robot/plan_push_time", m_plan_push_time);
@@ -762,15 +797,20 @@ bool Robot::PlanPush(
 	m_push_ends.clear();
 	std::vector<Object> obs = {o};
 	int i = 0;
-	double start_time = GetTime();
-	while((GetTime() - start_time < m_plan_push_time) && (i < m_pushes_per_object))
+	double start_time = GetTime(), time_spent;
+	while(((i == 0) && (GetTime() - start_time < 2 * m_plan_push_time)) || ((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time)))
 	{
 		if (samplePush(o_traj, obs)) {
 			++i;
 		}
+		else {
+			++m_push_sample_fails;
+		}
 	}
-	double time_spent = GetTime() - start_time;
+	time_spent = GetTime() - start_time;
 	SMPL_INFO("Simulate %d pushes! Sampling took %f seconds.", i, time_spent);
+	m_pushes_sampled += i;
+	m_push_sample_time += time_spent;
 
 	if (i == 0) {
 		SMPL_INFO("No pushes found! Do nothing!");
@@ -802,6 +842,7 @@ bool Robot::PlanPush(
 	start_time = GetTime();
 	m_sim->SimPushes(starts, ends, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx, rearranged, result);
 	time_spent = GetTime() - start_time;
+	m_push_sim_time += time_spent;
 
 	if (pidx == -1) {
 		SMPL_WARN("Failed to find a good push for the object! Simulating took %f seconds.", time_spent);
@@ -834,7 +875,8 @@ bool Robot::PlanPush(
 	if (!m_planner->solve(planning_scene, req, res))
 	{
 		m_stats = m_planner->getPlannerStats();
-		SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+		m_push_traj_plan_time += m_stats["initial solution planning time"];
+		++m_push_traj_plan_fails;
 
 		ROS_ERROR("Failed to plan.");
 		ProcessObstacles(obs, true);
@@ -842,7 +884,8 @@ bool Robot::PlanPush(
 	}
 	ProcessObstacles(obs, true);
 	m_stats = m_planner->getPlannerStats();
-	SMPL_INFO("Planning time = %f seconds", m_stats["initial solution planning time"]);
+	m_push_traj_plan_time += m_stats["initial solution planning time"];
+	++m_push_trajs_planned;
 
 	trajectory_msgs::JointTrajectoryPoint push_end = ends.points.at(pidx);
 	push_end.time_from_start += res.trajectory.joint_trajectory.points.back().time_from_start;
@@ -905,9 +948,9 @@ bool Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 	// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise (from -10 to 10 degrees)
 	double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * deg5);
 
-	// roll and pitch are noise (from -10 to 10 degrees)
-	double roll = (m_distG(m_rng) * deg5);
-	double pitch = (m_distG(m_rng) * deg5);
+	// roll and pitch are noise (from 0 to 10 degrees)
+	double roll = (m_distD(m_rng) * 2 * deg5);
+	double pitch = (m_distD(m_rng) * 2 * deg5);
 
 	// z is between 2.5 to 7.5cm above table height
 	double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.025;
