@@ -614,34 +614,44 @@ class BulletSim:
 
 				violation_flag = topple or immovable or table or velocity
 				if (violation_flag):
+					# cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
+					# print(cause)
 					break
 
 			if (violation_flag):
 				continue # to next push
 
-			# # To simulate the scene after execution of the trajectory
-			# sim.setJointMotorControlArray(
-			# 		robot_id, arm_joints,
-			# 		controlMode=sim.VELOCITY_CONTROL,
-			# 		targetVelocities=len(arm_joints)*[0.0])
-			# for i in range(240):
-			# 	sim.stepSimulation()
+			# To simulate the scene after execution of the trajectory
+			self.disableCollisionsWithObjects(sim_id)
 
-			# 	action_interactions += self.checkInteractions(sim_id, objs_curr)
-			# 	action_interactions = list(np.unique(np.array(action_interactions)))
-			# 	action_interactions[:] = [idx for idx in action_interactions if idx != req.oid]
+			sim.setJointMotorControlArray(
+					robot_id, arm_joints,
+					controlMode=sim.VELOCITY_CONTROL,
+					targetVelocities=len(arm_joints)*[0.0])
+			self.holdPosition(sim_id)
 
-			# 	topple = self.checkPoseConstraints(sim_id)
-			# 	immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
-			# 	table = self.checkTableCollision(sim_id)
-			# 	velocity = self.checkVelConstraints(sim_id)
+			objs_curr = self.getObjects(sim_id)
+			del action_interactions[:]
+			for i in range(480):
+				sim.stepSimulation()
 
-			# 	violation_flag = topple or immovable or table or velocity
-			# 	if (violation_flag):
-			# 		break
+				action_interactions += self.checkInteractions(sim_id, objs_curr)
+				action_interactions = list(np.unique(np.array(action_interactions)))
 
-			# if (violation_flag):
-			# 	continue # to next push
+				topple = self.checkPoseConstraints(sim_id)
+				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
+				table = False # self.checkTableCollision(sim_id)
+				velocity = self.checkVelConstraints(sim_id)
+
+				violation_flag = topple or immovable or table or velocity
+				if (violation_flag):
+					cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
+					print(cause)
+					break
+
+			self.enableCollisionsWithObjects(sim_id)
+			if (violation_flag):
+				continue # to next push
 			else:
 				oid_xyz, oid_rpy = self.sims[sim_id].getBasePositionAndOrientation(req.oid)
 				dist = np.linalg.norm(goal_pos - np.asarray(oid_xyz[:2]))
