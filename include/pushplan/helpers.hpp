@@ -6,8 +6,21 @@
 
 #include <smpl/time.h>
 
+#include <sys/stat.h>
+
 namespace clutter
 {
+
+inline
+bool FileExists(const std::string& filename)
+{
+	struct stat buf;
+	if (stat(filename.c_str(), &buf) != -1)
+	{
+		return true;
+	}
+	return false;
+}
 
 static double GetTime()
 {
