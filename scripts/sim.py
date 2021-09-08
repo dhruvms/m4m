@@ -311,9 +311,9 @@ class BulletSim:
 			overlaps = sim.getOverlappingObjects(lower_limits, upper_limits)
 			for (obj_id, link) in overlaps:
 				if (obj_id != ground_plane_id) and (obj_id not in table_id) and (obj_id != robot_id):
-					sim.removeBody(obj_id)
-					del sim_data['objs'][obj_id]
-					sim_data['num_objs'] -= 1
+					# sim.removeBody(obj_id)
+					# del sim_data['objs'][obj_id]
+					# sim_data['num_objs'] -= 1
 					intersects.append(obj_id)
 
 		intersects = list(set(intersects))
@@ -455,18 +455,16 @@ class BulletSim:
 						sim.setJointMotorControlArray(
 								robot_id, gripper_joints,
 								controlMode=sim.POSITION_CONTROL,
-								targetPositions=[0.0]*len(gripper_joints),
-								velocityGains=[2.0]*len(gripper_joints))
+								targetPositions=[0.0]*len(gripper_joints))
 			else:
 				sim.setJointMotorControlArray(
 						robot_id, gripper_joints,
 						controlMode=sim.POSITION_CONTROL,
-						targetPositions=[0.3]*len(gripper_joints),
-						velocityGains=[2.0]*len(gripper_joints))
+						targetPositions=[0.3]*len(gripper_joints))
 
 			prev_timestep = curr_timestep
 			curr_timestep = point.time_from_start.to_sec()
-			time_diff = (curr_timestep - prev_timestep) * 100
+			time_diff = (curr_timestep - prev_timestep) * 25
 			duration = time_diff * 240
 			prev_pose = curr_pose
 			curr_pose = np.asarray(point.positions)
@@ -475,8 +473,7 @@ class BulletSim:
 			sim.setJointMotorControlArray(
 					robot_id, arm_joints,
 					controlMode=sim.VELOCITY_CONTROL,
-					targetVelocities=target_vel,
-					velocityGains=[2.0]*len(arm_joints))
+					targetVelocities=target_vel)
 
 			objs_curr = self.getObjects(sim_id)
 			action_interactions = []
@@ -487,10 +484,10 @@ class BulletSim:
 				action_interactions = list(np.unique(np.array(action_interactions)))
 				action_interactions[:] = [idx for idx in action_interactions if idx != req.ooi]
 
-				topple = self.checkPoseConstraints(sim_id)
+				topple = self.checkPoseConstraints(sim_id, grasp_at, req.ooi)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
 				table = False # self.checkTableCollision(sim_id)
-				velocity = self.checkVelConstraints(sim_id)
+				velocity = self.checkVelConstraints(sim_id, grasp_at, req.ooi)
 
 				violation_flag = topple or immovable or table or velocity
 				if (violation_flag):
@@ -521,10 +518,10 @@ class BulletSim:
 				action_interactions = list(np.unique(np.array(action_interactions)))
 				action_interactions[:] = [idx for idx in action_interactions if idx != req.ooi]
 
-				topple = self.checkPoseConstraints(sim_id)
+				topple = self.checkPoseConstraints(sim_id, grasp_at, req.ooi)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
 				table = False # self.checkTableCollision(sim_id)
-				velocity = self.checkVelConstraints(sim_id)
+				velocity = self.checkVelConstraints(sim_id, grasp_at, req.ooi)
 				wrong = False
 				if (grasp_at >= 0):
 					wrong = len(action_interactions) > 0
@@ -588,20 +585,18 @@ class BulletSim:
 
 			self.enableCollisionsWithObjects(sim_id)
 
-			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 100
+			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 25
 			duration = time_diff * 240
 			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
 
 			sim.setJointMotorControlArray(
 					robot_id, arm_joints,
 					controlMode=sim.VELOCITY_CONTROL,
-					targetVelocities=target_vel,
-					velocityGains=[2.0]*len(arm_joints))
+					targetVelocities=target_vel)
 			sim.setJointMotorControlArray(
 					robot_id, gripper_joints,
 					controlMode=sim.POSITION_CONTROL,
-					targetPositions=[0.3]*len(gripper_joints),
-					velocityGains=[2.0]*len(gripper_joints))
+					targetPositions=[0.3]*len(gripper_joints))
 
 			objs_curr = self.getObjects(sim_id)
 			action_interactions = []
@@ -800,9 +795,12 @@ class BulletSim:
 
 		return interactions
 
-	def checkPoseConstraints(self, sim_id):
+	def checkPoseConstraints(self, sim_id, grasp_at=-1, ooi=-1):
 		sim_data = self.sim_datas[sim_id]
 		for obj_id in sim_data['objs']:
+			if (grasp_at >= 0 and obj_id == ooi):
+				continue
+
 			start_rpy = sim_data['objs'][obj_id]['rpy']
 			curr_xyz, curr_rpy = self.sims[sim_id].getBasePositionAndOrientation(obj_id)
 			if(shortest_angle_dist(curr_rpy[0], start_rpy[0]) > FALL_POS_THRESH or
@@ -822,8 +820,11 @@ class BulletSim:
 
 		return (any(x[0] == robot_id and x[1] < CONTACT_THRESH for x in contact_data))
 
-	def checkVelConstraints(self, sim_id):
+	def checkVelConstraints(self, sim_id, grasp_at=-1, ooi=-1):
 		for obj_id in self.sim_datas[sim_id]['objs']:
+			if (grasp_at >= 0 and obj_id == ooi):
+				continue
+
 			vel_xyz, vel_rpy = self.sims[sim_id].getBaseVelocity(obj_id)
 			if(abs(vel_rpy[0]) > FALL_VEL_THRESH or abs(vel_rpy[1]) > FALL_VEL_THRESH):
 				return True
