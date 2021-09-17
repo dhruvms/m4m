@@ -69,28 +69,43 @@ int main(int argc, char** argv)
 			{
 				if (p.Plan())
 				{
-					// ROS_WARN("Try extraction!");
-					// if (p.TryExtract()) {
-					// 	break;
-					// }
-					rearrange = p.Rearrange();
+					ROS_WARN("Try extraction before rearrangement!");
+					if (p.Alive() && p.TryExtract()) {
+						break;
+					}
+
+					ROS_WARN("Try rearrangement!");
+					if (p.Alive()) {
+						rearrange = p.Rearrange();
+					}
+
+					ROS_WARN("Try extraction after rearrangement!");
+					if (p.Alive() && p.TryExtract()) {
+						break;
+					}
 				}
 			}
 			while (p.Alive() && rearrange);
 
-			std::uint32_t violation = p.RunSim();
-			ROS_INFO("Iteration result: rearrangement planning = %d, execution = %d", rearrange, violation);
-			// std::ofstream RESULTS;
-			// RESULTS.open(results, std::ofstream::out | std::ofstream::app);
-			// RESULTS << scene_id << ',' << int(rearrange) << ',' << int(violation) << '\n';
-			// RESULTS.close();
-			// p.SaveData();
+			if (p.Alive())
+			{
+				std::uint32_t violation = p.RunSim();
+				// ROS_INFO("Iteration result: rearrangement planning = %d, execution = %d", rearrange, violation);
+				// std::ofstream RESULTS;
+				// RESULTS.open(results, std::ofstream::out | std::ofstream::app);
+				// RESULTS << scene_id << ',' << int(rearrange) << ',' << int(violation) << '\n';
+				// RESULTS.close();
+				// p.SaveData();
 
-			if (violation == 0) {
-				ROS_WARN("SUCCESS!!!");
+				if (violation == 0) {
+					ROS_WARN("SUCCESS!!!");
+				}
+				else {
+					ROS_ERROR("FAILURE!!!");
+				}
 			}
 			else {
-				ROS_WARN("FAILURE!!!");
+				ROS_ERROR("Planner terminated!!!");
 			}
 		}
 	}
