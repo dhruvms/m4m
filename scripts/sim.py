@@ -413,6 +413,14 @@ class BulletSim:
 			sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
 		for gjidx in gripper_joints:
 			sim.resetJointState(robot_id, gjidx, 0.3, targetVelocity=0.0)
+		sim.setJointMotorControlArray(
+					robot_id, arm_joints,
+					controlMode=sim.VELOCITY_CONTROL,
+					targetVelocities=[0.0] * len(arm_joints))
+		sim.setJointMotorControlArray(
+			robot_id, gripper_joints,
+			controlMode=sim.VELOCITY_CONTROL,
+			targetVelocities=[0.0] * len(gripper_joints))
 		sim.stepSimulation()
 
 		self.disableCollisionsWithObjects(sim_id)
@@ -464,7 +472,7 @@ class BulletSim:
 
 			prev_timestep = curr_timestep
 			curr_timestep = point.time_from_start.to_sec()
-			time_diff = (curr_timestep - prev_timestep) * 25
+			time_diff = (curr_timestep - prev_timestep) * 50
 			duration = time_diff * 240
 			prev_pose = curr_pose
 			curr_pose = np.asarray(point.positions)
@@ -486,12 +494,14 @@ class BulletSim:
 
 				topple = self.checkPoseConstraints(sim_id, grasp_at, req.ooi)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
-				table = False # self.checkTableCollision(sim_id)
+				table = self.checkTableCollision(sim_id)
 				velocity = self.checkVelConstraints(sim_id, grasp_at, req.ooi)
 
 				violation_flag = topple or immovable or table or velocity
 				if (violation_flag):
 					cause = int('0' + topple*'1' + immovable*'2' + table*'3' + velocity*'4')
+					cause_str = 'traj violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
+					print(cause_str)
 					break
 
 			all_interactions += action_interactions
@@ -520,7 +530,7 @@ class BulletSim:
 
 				topple = self.checkPoseConstraints(sim_id, grasp_at, req.ooi)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
-				table = False # self.checkTableCollision(sim_id)
+				table = self.checkTableCollision(sim_id)
 				velocity = self.checkVelConstraints(sim_id, grasp_at, req.ooi)
 				wrong = False
 				if (grasp_at >= 0):
@@ -529,8 +539,11 @@ class BulletSim:
 				violation_flag = topple or immovable or table or velocity or wrong
 				if (violation_flag):
 					cause = int('0' + topple*'1' + immovable*'2' + table*'3' + velocity*'4')
+					cause_str = 'traj violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
 					if (wrong):
 						cause = 99
+						cause_str = 'traj violation: wrong object'
+					print(cause_str)
 					break
 
 			all_interactions += action_interactions
@@ -581,11 +594,19 @@ class BulletSim:
 				sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
 			for gjidx in gripper_joints:
 				sim.resetJointState(robot_id, gjidx, 0.3, targetVelocity=0.0)
+			sim.setJointMotorControlArray(
+					robot_id, arm_joints,
+					controlMode=sim.VELOCITY_CONTROL,
+					targetVelocities=[0.0] * len(arm_joints))
+			sim.setJointMotorControlArray(
+				robot_id, gripper_joints,
+				controlMode=sim.VELOCITY_CONTROL,
+				targetVelocities=[0.0] * len(gripper_joints))
 			sim.stepSimulation()
 
 			self.enableCollisionsWithObjects(sim_id)
 
-			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 25
+			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 50
 			duration = time_diff * 240
 			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
 
@@ -609,13 +630,13 @@ class BulletSim:
 
 				topple = self.checkPoseConstraints(sim_id)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
-				table = False # self.checkTableCollision(sim_id)
+				table = self.checkTableCollision(sim_id)
 				velocity = self.checkVelConstraints(sim_id)
 
 				violation_flag = topple or immovable or table or velocity
 				if (violation_flag):
-					# cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
-					# print(cause)
+					cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
+					print(cause)
 					break
 
 			if (violation_flag):
@@ -640,7 +661,7 @@ class BulletSim:
 
 				topple = self.checkPoseConstraints(sim_id)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
-				table = False # self.checkTableCollision(sim_id)
+				table = self.checkTableCollision(sim_id)
 				velocity = self.checkVelConstraints(sim_id)
 
 				violation_flag = topple or immovable or table or velocity
