@@ -228,7 +228,7 @@ class BulletSim:
 						}
 			sim_data['joint_idxs'] = joints_from_names(robot_id, PR2_GROUPS['right_arm'], sim=self.sims[sim_idx])
 
-		print()
+		# print()
 
 		return AddRobotResponse(self.sim_datas[0]['robot_id'])
 
@@ -500,8 +500,8 @@ class BulletSim:
 				violation_flag = topple or immovable or table or velocity
 				if (violation_flag):
 					cause = int('0' + topple*'1' + immovable*'2' + table*'3' + velocity*'4')
-					cause_str = 'traj violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
-					print(cause_str)
+					# cause_str = 'traj violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
+					# print(cause_str)
 					break
 
 			all_interactions += action_interactions
@@ -539,11 +539,11 @@ class BulletSim:
 				violation_flag = topple or immovable or table or velocity or wrong
 				if (violation_flag):
 					cause = int('0' + topple*'1' + immovable*'2' + table*'3' + velocity*'4')
-					cause_str = 'traj violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
+					# cause_str = 'traj violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
 					if (wrong):
 						cause = 99
-						cause_str = 'traj violation: wrong object'
-					print(cause_str)
+						# cause_str = 'traj violation: wrong object'
+					# print(cause_str)
 					break
 
 			all_interactions += action_interactions
@@ -635,8 +635,8 @@ class BulletSim:
 
 				violation_flag = topple or immovable or table or velocity
 				if (violation_flag):
-					cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
-					print(cause)
+					# cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
+					# print(cause)
 					break
 
 			if (violation_flag):
@@ -666,8 +666,8 @@ class BulletSim:
 
 				violation_flag = topple or immovable or table or velocity
 				if (violation_flag):
-					cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
-					print(cause)
+					# cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
+					# print(cause)
 					break
 
 			self.enableCollisionsWithObjects(sim_id)
