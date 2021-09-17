@@ -2,7 +2,7 @@
 #define ROBOT_HPP
 
 #include <pushplan/types.hpp>
-#include <pushplan/movable.hpp>
+#include <pushplan/collision_checker.hpp>
 #include <pushplan/bullet_sim.hpp>
 #include <pushplan/ObjectsPoses.h>
 
@@ -103,8 +103,8 @@ public:
 	double SimTime() {
 		return m_push_sim_time;
 	}
-	bool AttachFailed() {
-		return m_attach_fails > 0;
+	bool BadAttach() {
+		return (m_attach_fails > 0) || (m_attach_collides > 0);
 	}
 
 private:
@@ -170,7 +170,7 @@ private:
 	int m_grasp_compute_tries, m_grasp_compute_fails, m_approach_plan_fails, m_approaches_planned, m_extract_plan_fails, m_extractions_planned;
 	double m_push_sample_time, m_push_sim_time, m_push_traj_plan_time;
 	int m_objs_push_attempts, m_pushes_sampled, m_push_sample_fails, m_push_trajs_planned, m_push_traj_plan_fails;
-	int m_attach_fails, m_kdl_chain_updates, m_planner_inits;
+	int m_attach_fails, m_attach_collides, m_kdl_chain_updates, m_planner_inits;
 
 	bool samplePush(const Trajectory* object, const std::vector<Object>& obs);
 

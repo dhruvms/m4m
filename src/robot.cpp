@@ -53,6 +53,7 @@ bool Robot::Setup()
 	m_push_traj_plan_fails = 0;
 
 	m_attach_fails = 0;
+	m_attach_collides = 0;
 	m_kdl_chain_updates = 0;
 	m_planner_inits = 0;
 
@@ -464,9 +465,19 @@ bool Robot::Plan(const Object& ooi)
 	// Plan extraction //
 	/////////////////////
 
-	if (!attachOOI(ooi)) {
+	if (!attachOOI(ooi))
+	{
 		++m_attach_fails;
 		return false;
+	}
+	else
+	{
+		// ooi attached, but are we collision free with it grasped?
+		if (!m_cc_i->isStateValid(m_postgrasp_state))
+		{
+			++m_attach_collides;
+			return false;
+		}
 	}
 	InitArmPlanner(true);
 
