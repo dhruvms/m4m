@@ -129,8 +129,8 @@ void Agent::GetSE2Push(std::vector<double>& push)
 		}
 
 		// compute push point on side
-		intersection.at(0) += std::cos(move_dir + M_PI) * 0.02;
-		intersection.at(1) += std::sin(move_dir + M_PI) * 0.02;
+		intersection.at(0) += std::cos(move_dir + M_PI) * 0.08;
+		intersection.at(1) += std::sin(move_dir + M_PI) * 0.08;
 
 		// update push
 		push.at(0) = intersection.at(0);

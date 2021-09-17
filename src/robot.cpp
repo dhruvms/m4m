@@ -1028,8 +1028,8 @@ bool Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 		// SV_SHOW_INFO_NAMED(vis_name, markers);
 
 		push_pose = m_rm->computeFK(push_end);
-		push_pose.translation().x() = m_goal_vec[0] + (m_distG(m_rng) * 0.025);
-		push_pose.translation().y() = m_goal_vec[1] + (m_distG(m_rng) * 0.025);
+		push_pose.translation().x() = m_goal_vec[0];
+		push_pose.translation().y() = m_goal_vec[1];
 
 		// vis_name = "push_start_pose";
 		// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
