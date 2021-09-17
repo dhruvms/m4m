@@ -113,6 +113,7 @@ private:
 	RobotModelConfig m_robot_config;
 	std::unique_ptr<smpl::KDLRobotModel> m_rm;
 	moveit_msgs::RobotState m_start_state;
+	ros::Publisher m_vis_pub;
 
 	// cached from robot model
 	std::vector<double> m_min_limits;
@@ -236,6 +237,7 @@ private:
 
 	bool attachOOI(const Object& ooi);
 	bool detachOOI();
+	void displayObjectMarker(const Object& ooi);
 };
 
 } // namespace clutter

@@ -201,6 +201,7 @@ bool Robot::Setup()
 	m_pushes_per_object = -1;
 	m_ph.getParam("robot/grasp_lift", m_grasp_lift);
 	m_ph.getParam("robot/grasp_tries", m_grasp_tries);
+	m_vis_pub = m_nh.advertise<visualization_msgs::Marker>( "/visualization_marker", 10);
 
 	return true;
 }
@@ -560,12 +561,22 @@ bool Robot::ComputeGrasps(
 	do
 	{
 		double z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
-		ee_pose = Eigen::Translation3d(ooi.o_x + 0.04 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.04 * std::sin(pregrasp_goal[5]), z) *
+		ee_pose = Eigen::Translation3d(ooi.o_x + 0.025 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.025 * std::sin(pregrasp_goal[5]), z) *
 						Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
 	}
 	while (!getStateNearPose(ee_pose, ee_state, m_grasp_state, 5) && ++tries < m_grasp_tries);
+	// auto* vis_name = "grasp_pose";
+	// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+	// 	ee_pose, m_grid_i->getReferenceFrame(), vis_name));
+
+	// vis_name = "grasp_state";
+	// auto markers = m_cc_i->getCollisionModelVisualization(m_grasp_state);
+	// for (auto& marker : markers) {
+	// 	marker.ns = vis_name;
+	// }
+	// SV_SHOW_INFO_NAMED(vis_name, markers);
 
 	if (tries == m_grasp_tries)
 	{
@@ -579,15 +590,38 @@ bool Robot::ComputeGrasps(
 	ee_pose = m_rm->computeFK(m_grasp_state);
 	ee_pose.translation().x() = pregrasp_goal[0];
 	ee_pose.translation().y() = pregrasp_goal[1];
+
+	// vis_name = "pregrasp_pose";
+	// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+	// 	ee_pose, m_grid_i->getReferenceFrame(), vis_name));
+
 	if (getStateNearPose(ee_pose, m_grasp_state, m_pregrasp_state, 1))
 	{
+		// vis_name = "pregrasp_state";
+		// auto markers = m_cc_i->getCollisionModelVisualization(m_pregrasp_state);
+		// for (auto& marker : markers) {
+		// 	marker.ns = vis_name;
+		// }
+		// SV_SHOW_INFO_NAMED(vis_name, markers);
+
 		SMPL_INFO("Found pregrasp state!");
 		ee_pose = m_rm->computeFK(m_grasp_state);
 		ee_pose.translation().z() += m_grasp_lift;
 
+		// vis_name = "postgrasp_pose";
+		// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+		// 	ee_pose, m_grid_i->getReferenceFrame(), vis_name));
+
 		// compute postgrasp state
 		if (getStateNearPose(ee_pose, m_grasp_state, m_postgrasp_state, 1))
 		{
+			// vis_name = "postgrasp_state";
+			// auto markers = m_cc_i->getCollisionModelVisualization(m_postgrasp_state);
+			// for (auto& marker : markers) {
+			// 	marker.ns = vis_name;
+			// }
+			// SV_SHOW_INFO_NAMED(vis_name, markers);
+
 			SMPL_INFO("Found postgrasp state!!!");
 			m_grasp_compute_time += GetTime() - start_time;
 			success = true;
@@ -609,6 +643,8 @@ bool Robot::ComputeGrasps(
 		m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
 		reinitObjects(m_postgrasp_state);
 		m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
+
+		displayObjectMarker(ooi);
 	}
 
 	return success;
@@ -2104,6 +2140,45 @@ bool Robot::getStateNearPose(
 	while (tries < N);
 
 	return tries < N;
+}
+
+
+void Robot::displayObjectMarker(const Object& ooi)
+{
+	visualization_msgs::Marker marker;
+	marker.header.frame_id = "base_footprint";
+	marker.header.stamp = ros::Time();
+	marker.ns = "ooi";
+	marker.id = ooi.id;
+	marker.action = visualization_msgs::Marker::ADD;
+	marker.type = ooi.shape == 0 ? visualization_msgs::Marker::CUBE : visualization_msgs::Marker::CYLINDER;
+
+	geometry_msgs::Pose pose;
+	pose.position.x = ooi.o_x;
+	pose.position.y = ooi.o_y;
+	pose.position.z = ooi.o_z;
+
+	Eigen::Quaterniond q;
+	smpl::angles::from_euler_zyx(
+			ooi.o_yaw, ooi.o_pitch, ooi.o_roll, q);
+
+	geometry_msgs::Quaternion orientation;
+	tf::quaternionEigenToMsg(q, orientation);
+	pose.orientation = orientation;
+
+	marker.pose = pose;
+
+	marker.scale.x = 2 * ooi.x_size;
+	marker.scale.y = 2 * ooi.y_size;
+	marker.scale.z = 2 * ooi.z_size;
+	marker.scale.z /= ooi.shape == 2 ? 2.0 : 1.0;
+
+	marker.color.a = 0.5; // Don't forget to set the alpha!
+	marker.color.r = 0.86;
+	marker.color.g = 0.34;
+	marker.color.b = 0.16;
+
+	m_vis_pub.publish(marker);
 }
 
 } // namespace clutter
