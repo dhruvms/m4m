@@ -167,11 +167,11 @@ bool Planner::Alive()
 	}
 
 	double sim_time = m_extract_time + m_robot->SimTime();
-	if (plan_time > m_sim_budget) {
+	if (sim_time > m_sim_budget) {
 		return false;
 	}
 
-	if (m_robot->AttachFailed()) {
+	if (m_robot->BadAttach()) {
 		return false;
 	}
 
@@ -291,6 +291,15 @@ bool Planner::whcastar()
 	int iter = 0;
 	writePlanState(iter);
 
+	// // Add rearranged objects as obstacles for extraction planning
+	// std::vector<Object> extract_obs;
+	// for (const auto& o: m_rearranged.poses)
+	// {
+	// 	auto search = m_agent_map.find(o.id);
+	// 	if (search != m_agent_map.end()) {
+	// 		extract_obs.push_back(m_agents.at(m_agent_map[o.id]).GetObject()->back());
+	// 	}
+	// }
 	if (!m_robot->Plan(m_ooi.GetObject()->back())) {
 		return false;
 	}
@@ -420,6 +429,9 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 			new_obstacles.push_back(m_agents.at(m_agent_map[obsid]).GetObject()->back());
 		}
 		for (const auto& id: rearranged_ids) {
+			if (id == oid) {
+				continue;
+			}
 			SMPL_INFO("Adding rearranged object %d as obstacle", id);
 			new_obstacles.push_back(m_agents.at(m_agent_map[id]).GetObject()->back());
 		}
