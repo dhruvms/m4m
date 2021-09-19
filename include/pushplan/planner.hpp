@@ -65,10 +65,7 @@ private:
 	ros::ServiceServer m_simulate, m_animate, m_rearrange;
 	std::uint32_t m_violation;
 
-	double m_plan_time, m_extract_time, m_rearrange_time;
-	int m_plan_attempts, m_extract_attempts, m_rearrange_attempts, m_objs_rearrange_tries, m_objs_rearranged;
-	double m_pipeline_rearrange_time, m_pipeline_ooi_time;
-	int m_pipeline_run, m_rearrange_execs;
+	std::map<std::string, double> m_stats;
 	double m_plan_budget, m_sim_budget;
 
 	bool whcastar();
@@ -92,6 +89,9 @@ private:
 	void writePlanState(int iter);
 	void setupGlobals();
 	int armId();
+
+	bool savePlanData();
+
 };
 
 } // namespace clutter

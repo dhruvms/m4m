@@ -7,4 +7,5 @@ ObjectsPoses objects
 ---
 bool res
 int64 idx
+int64 successes
 ObjectsPoses objects

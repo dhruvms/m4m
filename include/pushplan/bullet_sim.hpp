@@ -37,7 +37,8 @@ public:
 		const trajectory_msgs::JointTrajectory& starts,
 		const trajectory_msgs::JointTrajectory& ends,
 		int oid, float gx, float gy,
-		int& pidx, const pushplan::ObjectsPoses& rearranged,
+		int& pidx, int& successes,
+		const pushplan::ObjectsPoses& rearranged,
 		pushplan::ObjectsPoses& result);
 	bool RemoveConstraint();
 

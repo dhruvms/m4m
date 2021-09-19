@@ -29,33 +29,19 @@ bool Robot::Setup()
 	// Stats //
 	///////////
 
-	m_grasp_compute_time = 0.0;
-	m_grasp_compute_tries = 0;
-	m_grasp_compute_fails = 0;
+	m_stats["planner_time"] = 0.0;
+	m_stats["approach_plan_time"] = 0.0;
+	m_stats["extract_plan_time"] = 0.0;
 
-	m_approach_plan_time = 0.0;
-	m_approach_plan_fails = 0;
-	m_approaches_planned = 0;
+	m_stats["pushes_sampled"] = 0;
+	m_stats["push_sample_fails"] = 0;
+	m_stats["push_sample_time"] = 0.0;
+	m_stats["push_sim_time"] = 0.0;
+	m_stats["push_successes"] = 0;
+	m_stats["push_traj_plan_time"] = 0.0;
 
-	m_extract_plan_time = 0.0;
-	m_extract_plan_fails = 0;
-	m_extractions_planned = 0;
-
-	m_objs_push_attempts = 0;
-	m_push_sample_time = 0.0;
-	m_pushes_sampled = 0;
-	m_push_sample_fails = 0;
-
-	m_push_sim_time = 0.0;
-
-	m_push_traj_plan_time = 0.0;
-	m_push_trajs_planned = 0;
-	m_push_traj_plan_fails = 0;
-
-	m_attach_fails = 0;
-	m_attach_collides = 0;
-	m_kdl_chain_updates = 0;
-	m_planner_inits = 0;
+	m_stats["attach_fails"] = 0;
+	m_stats["attach_collides"] = 0;
 
 	/////////////////
 	// Robot Model //
@@ -206,7 +192,7 @@ bool Robot::Setup()
 	return true;
 }
 
-bool Robot::SaveData(int scene_id)
+bool Robot::SavePushData(int scene_id)
 {
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
@@ -218,24 +204,23 @@ bool Robot::SaveData(int scene_id)
 	if (!exists)
 	{
 		STATS << "UID,"
-				<< "GraspingTime,GraspingAttempts,GraspingFails,"
-				<< "OOIApproachTime,OOIApproachesP,OOIApproachFails,"
-				<< "OOIExtractTime,OOIExtractionsP,OOIExtractFails,"
-				<< "ObjsPushAttempted,PushSampleTime,PushesSampled,PushSampleFails,"
-				<< "PushSimTime,"
-				<< "PushPlanTime,PushPlans,PushPlanFails,"
-				<< "AttachFails,KDLUpdates,PlannerInits\n";
+				<< "PushesSampled,PushSampleFails,PushSampleTime,"
+				<< "PushSimTime,SuccessfulSims,"
+				<< "PushTrajPlanTime\n";
 	}
 
 	STATS << scene_id << ','
-			<< m_grasp_compute_time << ',' << m_grasp_compute_tries << ',' << m_grasp_compute_fails << ','
-			<< m_approach_plan_time << ',' << m_approaches_planned << ',' << m_approach_plan_fails << ','
-			<< m_extract_plan_time << ',' << m_extractions_planned << ',' << m_extract_plan_fails << ','
-			<< m_objs_push_attempts << ',' << m_push_sample_time << ',' << m_pushes_sampled << ',' << m_push_sample_fails << ','
-			<< m_push_sim_time << ','
-			<< m_push_traj_plan_time << ',' << m_push_trajs_planned << ',' << m_push_traj_plan_fails << ','
-			<< m_attach_fails << ',' << m_kdl_chain_updates << ',' << m_planner_inits << '\n';
+			<< m_stats["pushes_sampled"] << ',' << m_stats["push_sample_fails"] << ',' << m_stats["push_sample_time"] << ','
+			<< m_stats["push_sim_time"] << ',' << m_stats["push_successes"] << ','
+			<< m_stats["push_traj_plan_time"] << '\n';
 	STATS.close();
+
+	m_stats["pushes_sampled"] = 0;
+	m_stats["push_sample_fails"] = 0;
+	m_stats["push_sample_time"] = 0.0;
+	m_stats["push_sim_time"] = 0.0;
+	m_stats["push_successes"] = 0;
+	m_stats["push_traj_plan_time"] = 0.0;
 }
 
 bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
@@ -430,17 +415,13 @@ bool Robot::Plan(const Object& ooi)
 	SMPL_INFO("Planning to pregrasp state.");
 	if (!m_planner->solve(planning_scene, req, res))
 	{
-		m_stats = m_planner->getPlannerStats();
-		m_approach_plan_time += m_stats["initial solution planning time"];
-		++m_approach_plan_fails;
-
 		ROS_ERROR("Failed to plan.");
 		return false;
 	}
 	SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
-	m_stats = m_planner->getPlannerStats();
-	m_approach_plan_time += m_stats["initial solution planning time"];
-	++m_approaches_planned;
+
+	auto planner_stats = m_planner->getPlannerStats();
+	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
 
 	//////////////////
 	// Append grasp //
@@ -468,7 +449,7 @@ bool Robot::Plan(const Object& ooi)
 
 	if (!attachOOI(ooi))
 	{
-		++m_attach_fails;
+		++m_stats["attach_fails"];
 		return false;
 	}
 	else
@@ -476,7 +457,7 @@ bool Robot::Plan(const Object& ooi)
 		// ooi attached, but are we collision free with it grasped?
 		if (!m_cc_i->isStateValid(m_postgrasp_state))
 		{
-			++m_attach_collides;
+			++m_stats["attach_collides"];
 			return false;
 		}
 	}
@@ -500,17 +481,13 @@ bool Robot::Plan(const Object& ooi)
 	SMPL_INFO("Planning to home state with attached body.");
 	if (!m_planner->solve(planning_scene, req, res))
 	{
-		m_stats = m_planner->getPlannerStats();
-		m_extract_plan_time += m_stats["initial solution planning time"];
-		++m_extract_plan_fails;
-
 		ROS_ERROR("Failed to plan.");
 		return false;
 	}
 	SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
-	m_stats = m_planner->getPlannerStats();
-	m_extract_plan_time += m_stats["initial solution planning time"];
-	++m_extractions_planned;
+
+	planner_stats = m_planner->getPlannerStats();
+	m_stats["extract_plan_time"] = planner_stats["initial solution planning time"];
 
 	detachOOI();
 	m_start_state = orig_start;
@@ -545,7 +522,6 @@ bool Robot::ComputeGrasps(
 	const std::vector<double>& pregrasp_goal,
 	const Object& ooi)
 {
-	++m_grasp_compute_tries;
 	double start_time = GetTime();
 
 	m_pregrasp_state.clear();
@@ -578,9 +554,7 @@ bool Robot::ComputeGrasps(
 	// }
 	// SV_SHOW_INFO_NAMED(vis_name, markers);
 
-	if (tries == m_grasp_tries)
-	{
-		++m_grasp_compute_fails;
+	if (tries == m_grasp_tries)	{
 		return false;
 	}
 
@@ -623,15 +597,9 @@ bool Robot::ComputeGrasps(
 			// SV_SHOW_INFO_NAMED(vis_name, markers);
 
 			SMPL_INFO("Found postgrasp state!!!");
-			m_grasp_compute_time += GetTime() - start_time;
+			m_stats["planner_time"] += GetTime() - start_time;
 			success = true;
 		}
-		else {
-			++m_grasp_compute_fails;
-		}
-	}
-	else {
-		++m_grasp_compute_fails;
 	}
 
 	if (success)
@@ -771,8 +739,6 @@ void Robot::Step(int k)
 
 bool Robot::UpdateKDLRobot(int mode)
 {
-	++m_kdl_chain_updates;
-
 	if (mode == 0) {
 		m_robot_config.chain_tip_link = m_chain_tip_link;
 	}
@@ -805,7 +771,6 @@ bool Robot::UpdateKDLRobot(int mode)
 
 bool Robot::InitArmPlanner(bool interp)
 {
-	++m_planner_inits;
 	if (!m_planner_init) {
 		return initPlanner();
 	}
@@ -833,8 +798,6 @@ bool Robot::PlanPush(
 	int oid, const Trajectory* o_traj, const Object& o,
 	const pushplan::ObjectsPoses& rearranged, pushplan::ObjectsPoses& result)
 {
-	++m_objs_push_attempts;
-
 	if (m_pushes_per_object == -1) {
 		m_ph.getParam("robot/pushes", m_pushes_per_object);
 		m_ph.getParam("robot/plan_push_time", m_plan_push_time);
@@ -851,13 +814,13 @@ bool Robot::PlanPush(
 			++i;
 		}
 		else {
-			++m_push_sample_fails;
+			++m_stats["push_sample_fails"];
 		}
 	}
 	time_spent = GetTime() - start_time;
 	SMPL_INFO("Simulate %d pushes! Sampling took %f seconds.", i, time_spent);
-	m_pushes_sampled += i;
-	m_push_sample_time += time_spent;
+	m_stats["pushes_sampled"] = i;
+	m_stats["push_sample_time"] = time_spent;
 
 	if (i == 0) {
 		SMPL_INFO("No pushes found! Do nothing!");
@@ -885,11 +848,15 @@ bool Robot::PlanPush(
 
 	starts.header.stamp = ros::Time::now();
 	ends.header.stamp = ros::Time::now();
-	int pidx;
+
+	int pidx, successes;
+
 	start_time = GetTime();
-	m_sim->SimPushes(starts, ends, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx, rearranged, result);
+	m_sim->SimPushes(starts, ends, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx, successes, rearranged, result);
 	time_spent = GetTime() - start_time;
-	m_push_sim_time += time_spent;
+
+	m_stats["push_sim_time"] = time_spent;
+	m_stats["push_successes"] = successes;
 
 	if (pidx == -1) {
 		SMPL_WARN("Failed to find a good push for the object! Simulating took %f seconds.", time_spent);
@@ -921,18 +888,15 @@ bool Robot::PlanPush(
 	SMPL_INFO("Found push! Plan to push start! Simulating took %f seconds.", time_spent);
 	if (!m_planner->solve(planning_scene, req, res))
 	{
-		m_stats = m_planner->getPlannerStats();
-		m_push_traj_plan_time += m_stats["initial solution planning time"];
-		++m_push_traj_plan_fails;
-
 		ROS_ERROR("Failed to plan.");
 		ProcessObstacles(obs, true);
 		return false;
 	}
 	ProcessObstacles(obs, true);
-	m_stats = m_planner->getPlannerStats();
-	m_push_traj_plan_time += m_stats["initial solution planning time"];
-	++m_push_trajs_planned;
+
+	auto planner_stats = m_planner->getPlannerStats();
+	m_stats["push_traj_plan_time"] = planner_stats["initial solution planning time"];
+	m_stats["planner_time"] += planner_stats["initial solution planning time"];
 
 	trajectory_msgs::JointTrajectoryPoint push_end = ends.points.at(pidx);
 	push_end.time_from_start += res.trajectory.joint_trajectory.points.back().time_from_start;

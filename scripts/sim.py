@@ -569,6 +569,7 @@ class BulletSim:
 		robot_id = sim_data['robot_id']
 
 		num_pushes = len(req.starts.points)
+		successes = 0
 		best_idx = -1
 		best_dist = float('inf')
 		best_objs = self.getObjects(sim_id)
@@ -674,6 +675,7 @@ class BulletSim:
 			if (violation_flag):
 				continue # to next push
 			else:
+				successes += 1
 				oid_xyz, oid_rpy = self.sims[sim_id].getBasePositionAndOrientation(req.oid)
 				dist = np.linalg.norm(goal_pos - np.asarray(oid_xyz[:2]))
 				if (dist < best_dist):
@@ -686,6 +688,7 @@ class BulletSim:
 		output = SimPushesResponse()
 		output.res = res
 		output.idx = best_idx
+		output.successes = successes
 		output.objects = ObjectsPoses()
 		output.objects.poses = best_objs
 		return output

@@ -242,7 +242,8 @@ bool BulletSim::SimPushes(
 	const trajectory_msgs::JointTrajectory& starts,
 	const trajectory_msgs::JointTrajectory& ends,
 	int oid, float gx, float gy,
-	int& pidx, const pushplan::ObjectsPoses& rearranged,
+	int& pidx, int& successes,
+	const pushplan::ObjectsPoses& rearranged,
 	pushplan::ObjectsPoses& result)
 {
 	pushplan::SimPushes srv;
@@ -260,6 +261,7 @@ bool BulletSim::SimPushes(
 	}
 
 	pidx = srv.response.idx;
+	successes = srv.response.successes;
 	result = srv.response.objects;
 
 	return true;

@@ -92,6 +92,7 @@ public:
 	auto GetConflicts() const -> std::unordered_map<std::pair<int, int>, int, std::PairHash> {
 		return m_conflicts;
 	};
+	int NumConflicts() { return (int)m_conflicts.size(); };
 
 private:
 	Planner* m_planner = nullptr;

@@ -33,7 +33,7 @@ public:
 
 
 	bool Setup();
-	bool SaveData(int scene_id);
+	bool SavePushData(int scene_id);
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
 	bool Init();
 	bool RandomiseStart();
@@ -97,14 +97,17 @@ public:
 		}
 	}
 
-	double GraspPlanTime() {
-		return m_grasp_compute_time + m_push_traj_plan_time;
+	double TrajPlanTime() {
+		return m_stats["approach_plan_time"] + m_stats["extract_plan_time"];
+	}
+	double PlannerTime() {
+		return m_stats["planner_time"];
 	}
 	double SimTime() {
-		return m_push_sim_time;
+		return m_stats["push_sim_time"];
 	}
 	bool BadAttach() {
-		return (m_attach_fails > 0) || (m_attach_collides > 0);
+		return (m_stats["attach_fails"] > 0) || (m_stats["attach_collides"] > 0);
 	}
 
 private:
@@ -154,7 +157,6 @@ private:
 	moveit_msgs::Constraints m_goal;
 	std::string m_chain_tip_link;
 	trajectory_msgs::JointTrajectory m_traj;
-	std::map<std::string, double> m_stats;
 
 	int m_t, m_priority;
 	LatticeState m_current, m_init;
@@ -167,11 +169,7 @@ private:
 	int m_pushes_per_object, m_grasp_tries;
 	double m_plan_push_time, m_grasp_lift;
 
-	double m_grasp_compute_time, m_approach_plan_time, m_extract_plan_time;
-	int m_grasp_compute_tries, m_grasp_compute_fails, m_approach_plan_fails, m_approaches_planned, m_extract_plan_fails, m_extractions_planned;
-	double m_push_sample_time, m_push_sim_time, m_push_traj_plan_time;
-	int m_objs_push_attempts, m_pushes_sampled, m_push_sample_fails, m_push_trajs_planned, m_push_traj_plan_fails;
-	int m_attach_fails, m_attach_collides, m_kdl_chain_updates, m_planner_inits;
+	std::map<std::string, double> m_stats;
 
 	bool samplePush(const Trajectory* object, const std::vector<Object>& obs);
 
