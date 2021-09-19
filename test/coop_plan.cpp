@@ -137,6 +137,7 @@ int main(int argc, char** argv)
 				}
 			}
 			else {
+				violation |= 0x00000008;
 				ROS_ERROR("Planner terminated!!!");
 			}
 

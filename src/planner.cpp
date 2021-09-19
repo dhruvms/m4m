@@ -29,8 +29,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id)
 	m_stats["mapf_time"] = 0.0;
 	m_stats["first_order_interactions"] = 0;
 
-	m_stats["sim_time"] = 0.0;
-
 	m_ph.getParam("goal/plan_budget", m_plan_budget);
 	m_ph.getParam("goal/sim_budget", m_sim_budget);
 
@@ -127,8 +125,7 @@ bool Planner::Alive()
 		return false;
 	}
 
-	double sim_time = m_stats["sim_time"] + m_robot->SimTime();
-	if (sim_time > m_sim_budget) {
+	if (m_robot->SimTime() > m_sim_budget) {
 		return false;
 	}
 
@@ -218,7 +215,6 @@ bool Planner::TryExtract()
 		SMPL_ERROR("Failed to exec traj!");
 		success = false;
 	}
-	m_stats["sim_time"] += GetTime() - start_time;
 
 	m_sim->RemoveConstraint();
 
