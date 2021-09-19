@@ -422,6 +422,8 @@ class BulletSim:
 			controlMode=sim.VELOCITY_CONTROL,
 			targetVelocities=[0.0] * len(gripper_joints))
 		sim.stepSimulation()
+		arm_vels = get_joint_velocities(robot_id, arm_joints, sim=sim)
+		print("\n\t [ExecTraj] arm_vels = ", arm_vels)
 
 		self.disableCollisionsWithObjects(sim_id)
 		if (len(req.objects.poses) != 0):
@@ -604,6 +606,8 @@ class BulletSim:
 				controlMode=sim.VELOCITY_CONTROL,
 				targetVelocities=[0.0] * len(gripper_joints))
 			sim.stepSimulation()
+			arm_vels = get_joint_velocities(robot_id, arm_joints, sim=sim)
+			print("\n\t [SimPushes] arm_vels = ", arm_vels)
 
 			self.enableCollisionsWithObjects(sim_id)
 
