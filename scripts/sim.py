@@ -403,11 +403,10 @@ class BulletSim:
 		arm_joints = joints_from_names(robot_id, req.traj.joint_names, sim=sim)
 		# ee_link = link_from_name(sim_data['robot_id'], 'r_gripper_finger_dummy_planning_link')
 
-		# # ONLY FOR INITIAL TESTING
-		# self.disableCollisionsWithObjects(sim_id)
-		# for joint in get_joints(robot_id, sim=sim):
-		# 	sim.setCollisionFilterPair(robot_id, 1, joint, -1,
-		# 								enableCollision=0)
+		self.disableCollisionsWithObjects(sim_id)
+
+		if (len(req.objects.poses) != 0):
+			self.resetObjects(sim_id, req.objects.poses)
 
 		for jidx, jval in zip(arm_joints, curr_pose):
 			sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
@@ -425,9 +424,6 @@ class BulletSim:
 		# arm_vels = get_joint_velocities(robot_id, arm_joints, sim=sim)
 		# print("\n\t [ExecTraj] arm_vels = ", arm_vels)
 
-		self.disableCollisionsWithObjects(sim_id)
-		if (len(req.objects.poses) != 0):
-			self.resetObjects(sim_id, req.objects.poses)
 		self.enableCollisionsWithObjects(sim_id)
 
 		grasp_at = req.grasp_at
@@ -495,7 +491,8 @@ class BulletSim:
 			for i in range(int(duration)):
 				sim.stepSimulation()
 
-				action_interactions += self.checkInteractions(sim_id, objs_curr)
+				interactions, _ = self.checkInteractions(sim_id, objs_curr)
+				action_interactions += interactions
 				action_interactions = list(np.unique(np.array(action_interactions)))
 				action_interactions[:] = [idx for idx in action_interactions if idx != req.ooi]
 
@@ -531,7 +528,8 @@ class BulletSim:
 			for i in range(480):
 				sim.stepSimulation()
 
-				action_interactions += self.checkInteractions(sim_id, objs_curr)
+				interactions, _ = self.checkInteractions(sim_id, objs_curr)
+				action_interactions += interactions
 				action_interactions = list(np.unique(np.array(action_interactions)))
 				action_interactions[:] = [idx for idx in action_interactions if idx != req.ooi]
 
@@ -575,7 +573,7 @@ class BulletSim:
 		sim_data = self.sim_datas[sim_id]
 		robot_id = sim_data['robot_id']
 
-		num_pushes = len(req.starts.points)
+		num_pushes = len(req.pushes)
 		successes = 0
 		best_idx = -1
 		best_dist = float('inf')
@@ -586,11 +584,10 @@ class BulletSim:
 		arm_joints = joints_from_names(robot_id, PR2_GROUPS['right_arm'], sim=sim)
 		# arm_joints = joints_from_names(robot_id, req.traj.joint_names, sim=sim)
 		for pidx in range(num_pushes):
+			push_traj = req.pushes[pidx]
+
 			curr_timestep = 0
-			start_point = req.starts.points[pidx]
-			start_pose = np.asarray(start_point.positions)
-			end_point = req.ends.points[pidx]
-			end_pose = np.asarray(end_point.positions)
+			curr_pose = np.asarray(push_traj.points[0].positions)
 
 			self.disableCollisionsWithObjects(sim_id)
 
@@ -598,7 +595,7 @@ class BulletSim:
 			if (len(req.objects.poses) != 0):
 				self.resetObjects(sim_id, req.objects.poses)
 
-			for jidx, jval in zip(arm_joints, start_pose):
+			for jidx, jval in zip(arm_joints, curr_pose):
 				sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
 			for gjidx in gripper_joints:
 				sim.resetJointState(robot_id, gjidx, 0.3, targetVelocity=0.0)
@@ -616,38 +613,52 @@ class BulletSim:
 
 			self.enableCollisionsWithObjects(sim_id)
 
-			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 25
-			duration = time_diff * 240
-			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
-
-			sim.setJointMotorControlArray(
-					robot_id, arm_joints,
-					controlMode=sim.VELOCITY_CONTROL,
-					targetVelocities=target_vel)
-			sim.setJointMotorControlArray(
-					robot_id, gripper_joints,
-					controlMode=sim.POSITION_CONTROL,
-					targetPositions=[0.3]*len(gripper_joints))
-
-			objs_curr = self.getObjects(sim_id)
-			action_interactions = []
 			violation_flag = False
-			for i in range(int(duration)):
-				sim.stepSimulation()
+			cause = 0
+			robot_contacts = []
+			for point in push_traj.points[1:]:
+				sim.setJointMotorControlArray(
+						robot_id, gripper_joints,
+						controlMode=sim.POSITION_CONTROL,
+						targetPositions=[0.3]*len(gripper_joints))
 
-				action_interactions += self.checkInteractions(sim_id, objs_curr)
-				action_interactions = list(np.unique(np.array(action_interactions)))
+				prev_timestep = curr_timestep
+				curr_timestep = point.time_from_start.to_sec()
+				time_diff = (curr_timestep - prev_timestep) * 25
+				duration = time_diff * 240
+				prev_pose = curr_pose
+				curr_pose = np.asarray(point.positions)
+				target_vel = shortest_angle_diff(curr_pose, prev_pose)/time_diff
 
-				topple = self.checkPoseConstraints(sim_id)
-				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
-				table = self.checkTableCollision(sim_id)
-				velocity = self.checkVelConstraints(sim_id)
+				sim.setJointMotorControlArray(
+						robot_id, arm_joints,
+						controlMode=sim.VELOCITY_CONTROL,
+						targetVelocities=target_vel)
 
-				violation_flag = topple or immovable or table or velocity
+				objs_curr = self.getObjects(sim_id)
+				action_interactions = []
+				for i in range(int(duration)):
+					sim.stepSimulation()
+
+					interactions, contacts = self.checkInteractions(sim_id, objs_curr)
+					action_interactions += interactions
+					robot_contacts += contacts
+					action_interactions = list(np.unique(np.array(action_interactions)))
+
+					topple = self.checkPoseConstraints(sim_id)
+					immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
+					table = self.checkTableCollision(sim_id)
+					velocity = self.checkVelConstraints(sim_id)
+					contact_error = len(robot_contacts) > 1
+
+					violation_flag = topple or immovable or table or velocity or contact_error
+					if (violation_flag):
+						# cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity' + contact_error*'contact_error'
+						# print(cause)
+						break
+
 				if (violation_flag):
-					# cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
-					# print(cause)
-					break
+					break # stop simming this push
 
 			if (violation_flag):
 				continue # to next push
@@ -666,21 +677,25 @@ class BulletSim:
 			for i in range(480):
 				sim.stepSimulation()
 
-				action_interactions += self.checkInteractions(sim_id, objs_curr)
+				interactions, contacts = self.checkInteractions(sim_id, objs_curr)
+				action_interactions += interactions
+				robot_contacts += contacts
 				action_interactions = list(np.unique(np.array(action_interactions)))
 
 				topple = self.checkPoseConstraints(sim_id)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
 				table = self.checkTableCollision(sim_id)
 				velocity = self.checkVelConstraints(sim_id)
+				contact_error = len(robot_contacts) != 1
 
-				violation_flag = topple or immovable or table or velocity
+				violation_flag = topple or immovable or table or velocity or contact_error
 				if (violation_flag):
-					# cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity'
+					# cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity' + contact_error*'contact_error'
 					# print(cause)
 					break
 
 			self.enableCollisionsWithObjects(sim_id)
+
 			if (violation_flag):
 				continue # to next push
 			else:
@@ -818,12 +833,17 @@ class BulletSim:
 		table_id = self.sim_datas[sim_id]['table_id']
 
 		interactions = []
+		robot_contacts = []
 		for obj1 in objects:
 			obj1_id = obj1.id
 			if(obj1_id in table_id): # check id
 				continue
 			# (robot, obj1) contacts
 			contacts = self.sims[sim_id].getContactPoints(obj1_id, robot_id)
+			if any(pt[8] < CONTACT_THRESH for pt in contacts):
+				interactions.append(obj1_id)
+				robot_contacts.append(obj1_id)
+			contacts = tuple()
 
 			if(not self.sim_datas[sim_id]['objs'][obj1_id]['movable']):
 				for obj2 in objects:
@@ -836,7 +856,7 @@ class BulletSim:
 			if any(pt[8] < CONTACT_THRESH for pt in contacts):
 				interactions.append(obj1_id)
 
-		return interactions
+		return interactions, robot_contacts
 
 	def checkPoseConstraints(self, sim_id, grasp_at=-1, ooi=-1):
 		sim_data = self.sim_datas[sim_id]
