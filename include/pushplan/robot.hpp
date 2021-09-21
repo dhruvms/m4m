@@ -101,10 +101,10 @@ public:
 		return m_stats["approach_plan_time"] + m_stats["extract_plan_time"];
 	}
 	double PlannerTime() {
-		return m_stats["planner_time"];
+		return m_planner_time;
 	}
 	double SimTime() {
-		return m_stats["push_sim_time"];
+		return m_sim_time;
 	}
 	bool BadAttach() {
 		return (m_stats["attach_fails"] > 0) || (m_stats["attach_collides"] > 0);
@@ -170,6 +170,7 @@ private:
 	double m_plan_push_time, m_grasp_lift;
 
 	std::map<std::string, double> m_stats;
+	double m_planner_time, m_sim_time;
 
 	bool samplePush(const Trajectory* object, const std::vector<Object>& obs);
 

@@ -29,7 +29,6 @@ bool Robot::Setup()
 	// Stats //
 	///////////
 
-	m_stats["planner_time"] = 0.0;
 	m_stats["approach_plan_time"] = 0.0;
 	m_stats["extract_plan_time"] = 0.0;
 
@@ -42,6 +41,9 @@ bool Robot::Setup()
 
 	m_stats["attach_fails"] = 0;
 	m_stats["attach_collides"] = 0;
+
+	m_planner_time = 0.0;
+	m_sim_time = 0.0;
 
 	/////////////////
 	// Robot Model //
@@ -599,7 +601,7 @@ bool Robot::ComputeGrasps(
 			// SV_SHOW_INFO_NAMED(vis_name, markers);
 
 			SMPL_INFO("Found postgrasp state!!!");
-			m_stats["planner_time"] += GetTime() - start_time;
+			m_planner_time += GetTime() - start_time;
 			success = true;
 		}
 	}
@@ -858,6 +860,7 @@ bool Robot::PlanPush(
 	time_spent = GetTime() - start_time;
 
 	m_stats["push_sim_time"] = time_spent;
+	m_sim_time += time_spent;
 	m_stats["push_successes"] = successes;
 
 	if (pidx == -1) {
@@ -898,7 +901,7 @@ bool Robot::PlanPush(
 
 	auto planner_stats = m_planner->getPlannerStats();
 	m_stats["push_traj_plan_time"] = planner_stats["initial solution planning time"];
-	m_stats["planner_time"] += planner_stats["initial solution planning time"];
+	m_planner_time += planner_stats["initial solution planning time"];
 
 	trajectory_msgs::JointTrajectoryPoint push_end = ends.points.at(pidx);
 	push_end.time_from_start += res.trajectory.joint_trajectory.points.back().time_from_start;

@@ -28,6 +28,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id)
 	m_stats["robot_plan_time"] = 0.0;
 	m_stats["mapf_time"] = 0.0;
 	m_stats["first_order_interactions"] = 0;
+	m_plan_time = 0.0;
 
 	m_ph.getParam("goal/plan_budget", m_plan_budget);
 	m_ph.getParam("goal/sim_budget", m_sim_budget);
@@ -120,7 +121,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id)
 
 bool Planner::Alive()
 {
-	double plan_time = m_stats["mapf_time"] + m_robot->PlannerTime();
+	double plan_time = m_plan_time + m_robot->PlannerTime();
 	if (plan_time > m_plan_budget) {
 		return false;
 	}
@@ -158,10 +159,12 @@ bool Planner::Plan()
 		time_taken = GetTime() - start_time;
 		SMPL_WARN("Need to re-run WHCA*! Planning took %f seconds.", time_taken);
 		m_stats["mapf_time"] += time_taken;
+		m_plan_time += time_taken;
 		return false;
 	}
 	time_taken = GetTime() - start_time;
 	m_stats["mapf_time"] += time_taken;
+	m_plan_time += time_taken;
 	SMPL_INFO("Planning took %f seconds. (%d runs so far)", time_taken, m_stats["whca_attempts"]);
 
 	// m_cc->PrintConflicts();
