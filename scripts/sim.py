@@ -479,7 +479,7 @@ class BulletSim:
 
 			prev_timestep = curr_timestep
 			curr_timestep = point.time_from_start.to_sec()
-			time_diff = (curr_timestep - prev_timestep) * 50
+			time_diff = (curr_timestep - prev_timestep) * 25
 			duration = time_diff * 240
 			prev_pose = curr_pose
 			curr_pose = np.asarray(point.positions)
@@ -616,7 +616,7 @@ class BulletSim:
 
 			self.enableCollisionsWithObjects(sim_id)
 
-			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 50
+			time_diff = (end_point.time_from_start.to_sec() - start_point.time_from_start.to_sec()) * 25
 			duration = time_diff * 240
 			target_vel = shortest_angle_diff(end_pose, start_pose)/time_diff
 
