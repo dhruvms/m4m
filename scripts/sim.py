@@ -442,6 +442,11 @@ class BulletSim:
 				elif (point == req.traj.points[grasp_at+1]):
 					self.grasp(sim_id, False) # close gripper
 
+					if not self.grasped(req.ooi, sim_id):
+						cause = 99
+						violation_flag = True
+						break
+
 					if self.grasp_constraint is None:
 						obj_transform = sim.getBasePositionAndOrientation(req.ooi)
 						robot_link = link_from_name(sim_data['robot_id'], 'r_gripper_finger_dummy_planning_link', sim=sim)
@@ -911,6 +916,11 @@ class BulletSim:
 
 			# for i in range(240):
 			# 	sim.stepSimulation()
+
+	def grasped(self, ooi, sim_id):
+		robot_id = self.sim_datas[sim_id]['robot_id']
+		contacts = self.sims[sim_id].getContactPoints(ooi, robot_id)
+		return len(contacts) > 0
 
 	def getObjects(self, sim_id):
 		sim = self.sims[sim_id]
