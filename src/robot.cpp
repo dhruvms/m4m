@@ -942,7 +942,6 @@ Coord Robot::GetEECoord()
 
 bool Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 {
-	double deg5 = 0.0872665;
 	bool success = false;
 
 	// sample push_end via IK
@@ -957,11 +956,11 @@ bool Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 	double push_frac = (m_distD(m_rng) * 0.85) + 0.25;
 
 	// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise (from -10 to 10 degrees)
-	double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * deg5);
+	double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * DEG5);
 
 	// roll and pitch are noise (from 0 to 10 degrees)
-	double roll = (m_distD(m_rng) * 2 * deg5);
-	double pitch = (m_distD(m_rng) * 2 * deg5);
+	double roll = (m_distD(m_rng) * 2 * DEG5);
+	double pitch = (m_distD(m_rng) * 2 * DEG5);
 
 	// z is between 2.5 to 7.5cm above table height
 	double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.025;
@@ -1057,7 +1056,7 @@ void Robot::getRandomState(smpl::RobotState& s)
 
 bool Robot::reinitStartState()
 {
-	double x, y, deg5 = 0.0872665;
+	double x, y;
 	double xmin = m_cc->OutsideXMin(), xmax = m_cc->OutsideXMax() - 0.05;
 	double ymin = m_cc->OutsideYMin(), ymax = m_cc->OutsideYMax();
 
@@ -1071,8 +1070,8 @@ bool Robot::reinitStartState()
 		y = (m_distD(m_rng) * (ymax - ymin)) + ymin;
 		ee_pose = Eigen::Translation3d(x, y, m_table_z + 0.05) *
 					Eigen::AngleAxisd((m_distD(m_rng) * M_PI_2) - M_PI_4, Eigen::Vector3d::UnitZ()) *
-					Eigen::AngleAxisd(((2 * m_distD(m_rng)) - 1) * deg5, Eigen::Vector3d::UnitY()) *
-					Eigen::AngleAxisd(((2 * m_distD(m_rng)) - 1) * deg5, Eigen::Vector3d::UnitX());
+					Eigen::AngleAxisd(((2 * m_distD(m_rng)) - 1) * DEG5, Eigen::Vector3d::UnitY()) *
+					Eigen::AngleAxisd(((2 * m_distD(m_rng)) - 1) * DEG5, Eigen::Vector3d::UnitX());
 
 		if (m_rm->computeIKSearch(ee_pose, seed, s))
 		{

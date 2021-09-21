@@ -19,6 +19,7 @@ goal:
   yaw: 0.0
   plan_budget: 300.0
   sim_budget: 600.0
+  save: true
 
 robot:
   x: 0.0

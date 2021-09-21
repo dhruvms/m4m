@@ -1,5 +1,6 @@
 #include <pushplan/planner.hpp>
 #include <pushplan/helpers.hpp>
+#include <pushplan/constants.hpp>
 
 #include <smpl/debug/visualizer_ros.h>
 #include <ros/ros.h>
@@ -141,10 +142,13 @@ int main(int argc, char** argv)
 				ROS_ERROR("Planner terminated!!!");
 			}
 
-			SaveData(
-				scene_id,
-				mapf_calls, mapf_sucesses, not_lucky, not_rearranged,
-				dead, rearrange, violation);
+			if (SAVE)
+			{
+				SaveData(
+					scene_id,
+					mapf_calls, mapf_sucesses, not_lucky, not_rearranged,
+					dead, rearrange, violation);
+			}
 		}
 	}
 	else

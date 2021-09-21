@@ -10,6 +10,7 @@ int clutter::COST_MULT;
 double clutter::SEMI_MINOR;
 double clutter::R_MASS;
 double clutter::R_SPEED;
+bool clutter::SAVE;
 
 const std::vector<int> clutter::YCB_OBJECTS = {2, 3, 4, 5, 6, 10, 19, 24, 25, 35};
 const std::map<int, std::string> clutter::YCB_OBJECT_NAMES = {
@@ -45,3 +46,5 @@ const std::map<int, std::string> clutter::EXEC_TRAJ_FAIL = {
 	{4, "velocity constraint violation"},
 	{99, "grabbed wrong object"},
 };
+
+double clutter::DEG5 = 0.0872665;

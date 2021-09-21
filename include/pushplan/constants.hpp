@@ -18,12 +18,15 @@ extern int COST_MULT;
 extern double SEMI_MINOR;
 extern double R_MASS;
 extern double R_SPEED;
+extern bool SAVE;
 
 extern const std::vector<int> YCB_OBJECTS;
 extern const std::map<int, std::string> YCB_OBJECT_NAMES;
 extern const std::map<int, double> YCB_OBJECT_HEIGHTS;
 
 extern const std::map<int, std::string> EXEC_TRAJ_FAIL;
+
+extern double DEG5;
 
 } // namespace clutter
 

@@ -168,7 +168,9 @@ bool Planner::Plan()
 	m_cc->CleanupConflicts();
 	// m_cc->PrintConflicts();
 	m_stats["first_order_interactions"] = m_cc->NumConflicts();
-	savePlanData();
+	if (SAVE) {
+		savePlanData();
+	}
 
 	return true;
 }
@@ -408,7 +410,9 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 			// update positions of moved objects
 			updateAgentPositions(result, rearranged);
 		}
-		m_robot->SavePushData(m_scene_id);
+		if (SAVE) {
+			m_robot->SavePushData(m_scene_id);
+		}
 
 		// remove new obstacles
 		m_robot->ProcessObstacles(new_obstacles, true);
@@ -891,6 +895,7 @@ void Planner::setupGlobals()
 	m_ph.getParam("robot/semi_minor", SEMI_MINOR);
 	m_ph.getParam("robot/robot_obj_mass", R_MASS);
 	m_ph.getParam("robot/speed", R_SPEED);
+	m_ph.getParam("goal/save", SAVE);
 }
 
 int Planner::armId()
