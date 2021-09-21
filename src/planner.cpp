@@ -244,7 +244,9 @@ bool Planner::whcastar()
 	double start_time = GetTime(), total_time = 0.0, iter_time = 0.0;
 
 	int iter = 0;
-	writePlanState(iter);
+	if (SAVE) {
+		writePlanState(iter);
+	}
 
 	// // Add rearranged objects as obstacles for extraction planning
 	// std::vector<Object> extract_obs;
@@ -280,7 +282,9 @@ bool Planner::whcastar()
 		reinit();
 
 		++iter;
-		writePlanState(iter);
+		if (SAVE) {
+			writePlanState(iter);
+		}
 
 		iter_time = GetTime() - start_time;
 		if (iter_time > WHCA_PLANNING_TIME) {
@@ -316,7 +320,9 @@ bool Planner::whcastar()
 		reinit();
 
 		++iter;
-		writePlanState(iter);
+		if (SAVE) {
+			writePlanState(iter);
+		}
 
 		iter_time = GetTime() - start_time;
 		if (iter_time > WHCA_PLANNING_TIME) {
