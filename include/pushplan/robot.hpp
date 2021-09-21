@@ -226,6 +226,7 @@ private:
 	void createJointSpaceGoal(
 		const smpl::RobotState& pose,
 		moveit_msgs::MotionPlanRequest& req);
+	void addPathConstraint(moveit_msgs::Constraints& path_constraints);
 	bool getStateNearPose(
 		const Eigen::Affine3d& pose,
 		const smpl::RobotState& seed_state,

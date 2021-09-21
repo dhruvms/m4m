@@ -478,6 +478,8 @@ bool Robot::Plan(const Object& ooi)
 		orig_start.joint_state.position.begin() + 1, orig_start.joint_state.position.end());
 	createJointSpaceGoal(home, req);
 
+	addPathConstraint(req.path_constraints);
+
 	SMPL_INFO("Planning to home state with attached body.");
 	if (!m_planner->solve(planning_scene, req, res))
 	{
@@ -2056,6 +2058,30 @@ void Robot::createJointSpaceGoal(
 		req.goal_constraints[0].joint_constraints[jidx].tolerance_below = 0.0174533; // 1 degree
 		req.goal_constraints[0].joint_constraints[jidx].weight = 1.0;
 	}
+}
+
+void Robot::addPathConstraint(moveit_msgs::Constraints& path_constraints)
+{
+	path_constraints.position_constraints.resize(1);
+	path_constraints.orientation_constraints.resize(1);
+	path_constraints.position_constraints[0].header.frame_id = m_planning_frame;
+
+	path_constraints.position_constraints[0].constraint_region.primitives.resize(1);
+	path_constraints.position_constraints[0].constraint_region.primitive_poses.resize(1);
+	path_constraints.position_constraints[0].constraint_region.primitives[0].type = shape_msgs::SolidPrimitive::BOX;
+	path_constraints.position_constraints[0].constraint_region.primitive_poses[0].position.x = 0.0;
+	path_constraints.position_constraints[0].constraint_region.primitive_poses[0].position.y = 0.0;
+	path_constraints.position_constraints[0].constraint_region.primitive_poses[0].position.z = 0.0;
+
+	Eigen::Quaterniond q;
+	smpl::angles::from_euler_zyx(0.0, 0.0, 0.0, q);
+	tf::quaternionEigenToMsg(q, path_constraints.orientation_constraints[0].orientation);
+
+	// set tolerances
+	path_constraints.position_constraints[0].constraint_region.primitives[0].dimensions.resize(3, 0.0);
+	path_constraints.orientation_constraints[0].absolute_x_axis_tolerance = DEG5;
+	path_constraints.orientation_constraints[0].absolute_y_axis_tolerance = DEG5;
+	path_constraints.orientation_constraints[0].absolute_z_axis_tolerance = M_PI;
 }
 
 bool Robot::getStateNearPose(
