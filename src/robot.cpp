@@ -807,14 +807,58 @@ bool Robot::PlanPush(
 		m_ph.getParam("robot/plan_push_time", m_plan_push_time);
 	}
 
-	m_push_starts.clear();
-	m_push_ends.clear();
+	m_pushes.clear();
 	std::vector<Object> obs = {o};
 	int i = 0;
 	double start_time = GetTime(), time_spent;
 	while(((i == 0) && (GetTime() - start_time < 2 * m_plan_push_time)) || ((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time)))
 	{
-		if (samplePush(o_traj, obs)) {
+		smpl::RobotState push_start, push_end;
+		if (samplePush(o_traj, obs, push_start, push_end))
+		{
+			UpdateKDLRobot(0);
+			ProcessObstacles(obs);
+			InitArmPlanner(false);
+
+			moveit_msgs::MotionPlanRequest req;
+			moveit_msgs::MotionPlanResponse res;
+
+			m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
+			createJointSpaceGoal(push_start, req);
+			req.max_acceleration_scaling_factor = 1.0;
+			req.max_velocity_scaling_factor = 1.0;
+			req.num_planning_attempts = 1;
+			// req.path_constraints;
+			req.planner_id = "arastar.joint_distance.manip";
+			req.start_state = m_start_state;
+			// req.trajectory_constraints;
+			// req.workspace_parameters;
+
+			// completely unnecessary variable
+			moveit_msgs::PlanningScene planning_scene;
+			planning_scene.robot_state = m_start_state;
+
+			SMPL_INFO("Found push! Plan to push start!");
+			if (!m_planner->solve(planning_scene, req, res))
+			{
+				ROS_ERROR("Failed to plan.");
+				ProcessObstacles(obs, true);
+				return false;
+			}
+			ProcessObstacles(obs, true);
+
+			auto planner_stats = m_planner->getPlannerStats();
+			m_stats["push_traj_plan_time"] += planner_stats["initial solution planning time"];
+			m_planner_time += planner_stats["initial solution planning time"];
+
+			m_pushes.push_back(res.trajectory.joint_trajectory);
+
+			double push_time = profileAction(push_start, push_end);
+			trajectory_msgs::JointTrajectoryPoint push_end_pt = m_pushes.back().points.back();
+			push_end_pt.positions = push_end;
+			push_end_pt.time_from_start += ros::Duration(push_time);
+			m_pushes.back().points.push_back(push_end_pt);
+
 			++i;
 		}
 		else {
@@ -822,7 +866,7 @@ bool Robot::PlanPush(
 		}
 	}
 	time_spent = GetTime() - start_time;
-	SMPL_INFO("Simulate %d pushes! Sampling took %f seconds.", i, time_spent);
+	SMPL_INFO("Simulate %d pushes! Sampling took %f seconds total. Planning took %f seconds.", i, time_spent, m_stats["push_traj_plan_time"]);
 	m_stats["pushes_sampled"] = i;
 	m_stats["push_sample_time"] = time_spent;
 
@@ -831,32 +875,9 @@ bool Robot::PlanPush(
 		return false;
 	}
 
-	trajectory_msgs::JointTrajectory starts, ends;
-	auto& variable_names = m_rm->getPlanningJoints();
-	for (auto& var_name : variable_names) {
-		starts.joint_names.push_back(var_name);
-		ends.joint_names.push_back(var_name);
-	}
-	for (int j = 0; j < i; ++j) {
-		double push_time = profileAction(m_push_starts.at(j), m_push_ends.at(j));
-
-		trajectory_msgs::JointTrajectoryPoint p;
-		p.positions = m_push_starts.at(j);
-		p.time_from_start = ros::Duration(0.0);
-		starts.points.push_back(p);
-
-		p.positions = m_push_ends.at(j);
-		p.time_from_start = ros::Duration(push_time);
-		ends.points.push_back(p);
-	}
-
-	starts.header.stamp = ros::Time::now();
-	ends.header.stamp = ros::Time::now();
-
 	int pidx, successes;
-
 	start_time = GetTime();
-	m_sim->SimPushes(starts, ends, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx, successes, rearranged, result);
+	m_sim->SimPushes(m_pushes, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx, successes, rearranged, result);
 	time_spent = GetTime() - start_time;
 
 	m_stats["push_sim_time"] = time_spent;
@@ -868,46 +889,7 @@ bool Robot::PlanPush(
 		return false;
 	}
 
-	UpdateKDLRobot(0);
-	ProcessObstacles(obs);
-	InitArmPlanner(false);
-
-	moveit_msgs::MotionPlanRequest req;
-	moveit_msgs::MotionPlanResponse res;
-
-	m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
-	createJointSpaceGoal(m_push_starts.at(pidx), req);
-	req.max_acceleration_scaling_factor = 1.0;
-	req.max_velocity_scaling_factor = 1.0;
-	req.num_planning_attempts = 1;
-	// req.path_constraints;
-	req.planner_id = "arastar.joint_distance.manip";
-	req.start_state = m_start_state;
-	// req.trajectory_constraints;
-	// req.workspace_parameters;
-
-	// completely unnecessary variable
-	moveit_msgs::PlanningScene planning_scene;
-	planning_scene.robot_state = m_start_state;
-
-	SMPL_INFO("Found push! Plan to push start! Simulating took %f seconds.", time_spent);
-	if (!m_planner->solve(planning_scene, req, res))
-	{
-		ROS_ERROR("Failed to plan.");
-		ProcessObstacles(obs, true);
-		return false;
-	}
-	ProcessObstacles(obs, true);
-
-	auto planner_stats = m_planner->getPlannerStats();
-	m_stats["push_traj_plan_time"] = planner_stats["initial solution planning time"];
-	m_planner_time += planner_stats["initial solution planning time"];
-
-	trajectory_msgs::JointTrajectoryPoint push_end = ends.points.at(pidx);
-	push_end.time_from_start += res.trajectory.joint_trajectory.points.back().time_from_start;
-	m_traj = res.trajectory.joint_trajectory;
-	m_traj.points.push_back(push_end);
-
+	m_traj = m_pushes.at(pidx);
 	return true;
 }
 
@@ -945,12 +927,14 @@ Coord Robot::GetEECoord()
 	return ee_coord;
 }
 
-bool Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
+bool Robot::samplePush(
+	const Trajectory* object, const std::vector<Object>& obs,
+	smpl::RobotState& push_start, smpl::RobotState& push_end)
 {
 	bool success = false;
 
 	// sample push_end via IK
-	smpl::RobotState dummy, push_end, push_start;
+	smpl::RobotState dummy;
 	Eigen::Affine3d push_pose;
 
 	// sample robot link
@@ -1033,9 +1017,6 @@ bool Robot::samplePush(const Trajectory* object, const std::vector<Object>& obs)
 			marker.ns = vis_name;
 		}
 		SV_SHOW_INFO_NAMED(vis_name, markers);
-
-		m_push_starts.push_back(push_start);
-		m_push_ends.push_back(push_end);
 	}
 
 	return success;

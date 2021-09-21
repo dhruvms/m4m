@@ -239,16 +239,14 @@ bool BulletSim::ExecTraj(
 }
 
 bool BulletSim::SimPushes(
-	const trajectory_msgs::JointTrajectory& starts,
-	const trajectory_msgs::JointTrajectory& ends,
+	const std::vector<trajectory_msgs::JointTrajectory>& pushes,
 	int oid, float gx, float gy,
 	int& pidx, int& successes,
 	const pushplan::ObjectsPoses& rearranged,
 	pushplan::ObjectsPoses& result)
 {
 	pushplan::SimPushes srv;
-	srv.request.starts = starts;
-	srv.request.ends = ends;
+	srv.request.pushes = pushes;
 	srv.request.oid = oid;
 	srv.request.gx = gx;
 	srv.request.gy = gy;

@@ -165,14 +165,16 @@ private:
 	std::shared_ptr<CollisionChecker> m_cc;
 
 	std::shared_ptr<BulletSim> m_sim;
-	std::vector<smpl::RobotState> m_push_starts, m_push_ends;
+	std::vector<trajectory_msgs::JointTrajectory> m_pushes;
 	int m_pushes_per_object, m_grasp_tries;
 	double m_plan_push_time, m_grasp_lift;
 
 	std::map<std::string, double> m_stats;
 	double m_planner_time, m_sim_time;
 
-	bool samplePush(const Trajectory* object, const std::vector<Object>& obs);
+	bool samplePush(
+		const Trajectory* object, const std::vector<Object>& obs,
+		smpl::RobotState& push_start, smpl::RobotState& push_end);
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();

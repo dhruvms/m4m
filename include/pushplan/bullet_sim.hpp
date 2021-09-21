@@ -34,8 +34,7 @@ public:
 		const pushplan::ObjectsPoses& rearranged,
 		int grasp_at=-1, int ooi=-1);
 	bool SimPushes(
-		const trajectory_msgs::JointTrajectory& starts,
-		const trajectory_msgs::JointTrajectory& ends,
+		const std::vector<trajectory_msgs::JointTrajectory>& pushes,
 		int oid, float gx, float gy,
 		int& pidx, int& successes,
 		const pushplan::ObjectsPoses& rearranged,

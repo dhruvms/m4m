@@ -165,7 +165,7 @@ bool Planner::Plan()
 	time_taken = GetTime() - start_time;
 	m_stats["mapf_time"] += time_taken;
 	m_plan_time += time_taken;
-	SMPL_INFO("Planning took %f seconds. (%d runs so far)", time_taken, m_stats["whca_attempts"]);
+	SMPL_INFO("Planning took %f seconds. (%f runs so far)", time_taken, m_stats["whca_attempts"]);
 
 	// m_cc->PrintConflicts();
 	m_cc->CleanupConflicts();

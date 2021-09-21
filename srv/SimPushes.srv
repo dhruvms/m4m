@@ -1,5 +1,4 @@
-trajectory_msgs/JointTrajectory starts
-trajectory_msgs/JointTrajectory ends
+trajectory_msgs/JointTrajectory[] pushes
 int64 oid
 float64 gx
 float64 gy
