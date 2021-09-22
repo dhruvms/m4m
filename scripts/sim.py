@@ -438,11 +438,6 @@ class BulletSim:
 				elif (point == req.traj.points[grasp_at+1]):
 					self.grasp(sim_id, False) # close gripper
 
-					if not self.grasped(req.ooi, sim_id):
-						cause = 99
-						violation_flag = True
-						break
-
 					if self.grasp_constraint is None:
 						obj_transform = sim.getBasePositionAndOrientation(req.ooi)
 						robot_link = link_from_name(sim_data['robot_id'], 'r_gripper_finger_dummy_planning_link', sim=sim)
@@ -460,6 +455,12 @@ class BulletSim:
 										childFramePosition=[0., 0., 0.],
 										parentFrameOrientation=grasp_quat,
 										childFrameOrientation=sim.getQuaternionFromEuler([0., 0., 0.]))
+
+				# elif (point == req.traj.points[grasp_at+2]):
+				# 	if not self.grasped(req.ooi, sim_id):
+				# 		cause = 99
+				# 		violation_flag = True
+				# 		break
 
 				else:
 					if self.grasp_constraint is None:
@@ -517,6 +518,9 @@ class BulletSim:
 
 		# To simulate the scene after execution of the trajectory
 		if (not violation_flag):
+			if (grasp_at < 0):
+				self.disableCollisionsWithObjects(sim_id)
+
 			sim.setJointMotorControlArray(
 					robot_id, arm_joints,
 					controlMode=sim.VELOCITY_CONTROL,
@@ -550,6 +554,9 @@ class BulletSim:
 						# cause_str = 'traj violation: wrong object'
 					# print(cause_str)
 					break
+
+			if (grasp_at < 0):
+				self.enableCollisionsWithObjects(sim_id)
 
 			all_interactions += action_interactions
 			all_interactions = list(np.unique(np.array(all_interactions)))
@@ -644,12 +651,13 @@ class BulletSim:
 					action_interactions += interactions
 					robot_contacts += contacts
 					action_interactions = list(np.unique(np.array(action_interactions)))
+					robot_contacts = list(np.unique(np.array(robot_contacts)))
 
 					topple = self.checkPoseConstraints(sim_id)
 					immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
 					table = self.checkTableCollision(sim_id)
 					velocity = self.checkVelConstraints(sim_id)
-					contact_error = len(robot_contacts) > 1
+					contact_error = False # len(robot_contacts) > 1
 
 					violation_flag = topple or immovable or table or velocity or contact_error
 					if (violation_flag):
@@ -681,12 +689,13 @@ class BulletSim:
 				action_interactions += interactions
 				robot_contacts += contacts
 				action_interactions = list(np.unique(np.array(action_interactions)))
+				robot_contacts = list(np.unique(np.array(robot_contacts)))
 
 				topple = self.checkPoseConstraints(sim_id)
 				immovable = any([not sim_data['objs'][x]['movable'] for x in action_interactions])
 				table = self.checkTableCollision(sim_id)
 				velocity = self.checkVelConstraints(sim_id)
-				contact_error = len(robot_contacts) != 1
+				contact_error = False # len(robot_contacts) != 1
 
 				violation_flag = topple or immovable or table or velocity or contact_error
 				if (violation_flag):
@@ -940,6 +949,7 @@ class BulletSim:
 	def grasped(self, ooi, sim_id):
 		robot_id = self.sim_datas[sim_id]['robot_id']
 		contacts = self.sims[sim_id].getContactPoints(ooi, robot_id)
+		print(contacts)
 		return len(contacts) > 0
 
 	def getObjects(self, sim_id):
