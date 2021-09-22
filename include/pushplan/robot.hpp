@@ -18,6 +18,7 @@
 #include <moveit_msgs/RobotTrajectory.h>
 #include <moveit_msgs/Constraints.h>
 #include <ros/ros.h>
+#include <boost/optional.hpp>
 
 #include <string>
 #include <memory>
@@ -37,7 +38,7 @@ public:
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
 	bool Init();
 	bool RandomiseStart();
-	bool Plan(const Object& ooi);
+	bool Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacles=boost::none);
 
 	void ProfileTraj(Trajectory& traj);
 	bool ComputeGrasps(
@@ -75,6 +76,7 @@ public:
 
 	const LatticeState* GetCurrentState() const { return &m_current; };
 	const Trajectory* GetMoveTraj() const { return &m_move; };
+	void GetExecTraj(trajectory_msgs::JointTrajectory& traj) const { traj = m_exec; };
 
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
@@ -156,7 +158,7 @@ private:
 	std::vector<double> m_goal_vec;
 	moveit_msgs::Constraints m_goal;
 	std::string m_chain_tip_link;
-	trajectory_msgs::JointTrajectory m_traj;
+	trajectory_msgs::JointTrajectory m_traj, m_exec;
 
 	int m_t, m_priority;
 	LatticeState m_current, m_init;

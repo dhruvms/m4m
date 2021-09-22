@@ -386,8 +386,14 @@ bool Robot::attachOOI(const Object& ooi)
 	return true;
 }
 
-bool Robot::Plan(const Object& ooi)
+bool Robot::Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacles)
 {
+	if (obstacles != boost::none)
+	{
+		m_solve.clear();
+		ProcessObstacles(obstacles.get());
+	}
+
 	///////////////////
 	// Plan approach //
 	///////////////////
@@ -418,6 +424,9 @@ bool Robot::Plan(const Object& ooi)
 	if (!m_planner->solve(planning_scene, req, res))
 	{
 		ROS_ERROR("Failed to plan.");
+		if (obstacles != boost::none) {
+			ProcessObstacles(obstacles.get(), true);
+		}
 		return false;
 	}
 	SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
@@ -431,10 +440,13 @@ bool Robot::Plan(const Object& ooi)
 
 	m_traj = res.trajectory.joint_trajectory;
 	m_grasp_at = m_traj.points.size() - 1;
+	if (obstacles != boost::none) {
+		m_grasp_at += 1; // WTF IS THIS???
+	}
 
 	double grasp_time = profileAction(m_pregrasp_state, m_grasp_state);
 	double postgrasp_time = profileAction(m_grasp_state, m_postgrasp_state);
-	double retreat_time = profileAction(m_postgrasp_state, m_pregrasp_state);
+	// double retreat_time = profileAction(m_postgrasp_state, m_pregrasp_state);
 
 	trajectory_msgs::JointTrajectoryPoint p;
 	p.positions = m_grasp_state;
@@ -451,7 +463,12 @@ bool Robot::Plan(const Object& ooi)
 
 	if (!attachOOI(ooi))
 	{
-		++m_stats["attach_fails"];
+		if (obstacles != boost::none) {
+			ProcessObstacles(obstacles.get(), true);
+		}
+		else {
+			++m_stats["attach_fails"];
+		}
 		return false;
 	}
 	else
@@ -459,7 +476,12 @@ bool Robot::Plan(const Object& ooi)
 		// ooi attached, but are we collision free with it grasped?
 		if (!m_cc_i->isStateValid(m_postgrasp_state))
 		{
-			++m_stats["attach_collides"];
+			if (obstacles != boost::none) {
+				ProcessObstacles(obstacles.get(), true);
+			}
+			else {
+				++m_stats["attach_collides"];
+			}
 			return false;
 		}
 	}
@@ -486,6 +508,9 @@ bool Robot::Plan(const Object& ooi)
 	if (!m_planner->solve(planning_scene, req, res))
 	{
 		ROS_ERROR("Failed to plan.");
+		if (obstacles != boost::none) {
+			ProcessObstacles(obstacles.get(), true);
+		}
 		return false;
 	}
 	SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
@@ -519,6 +544,11 @@ bool Robot::Plan(const Object& ooi)
 	m_cc->UpdateTraj(m_priority, m_solve);
 
 	SMPL_INFO("Robot has complete plan! m_solve.size() = %d", m_solve.size());
+	if (obstacles != boost::none) {
+		m_exec = m_traj;
+		SMPL_INFO("m_exec.points.size() = %d", m_exec.points.size());
+		ProcessObstacles(obstacles.get(), true);
+	}
 	return true;
 }
 
