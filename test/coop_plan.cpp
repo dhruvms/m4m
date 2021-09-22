@@ -12,7 +12,7 @@ using namespace clutter;
 
 void SaveData(
 	int scene_id,
-	int mapf_calls, int mapf_sucesses, int not_lucky, int not_rearranged,
+	int mapf_calls, int mapf_sucesses, bool lucky, bool rearranged,
 	bool dead, bool rearrange, std::uint32_t violation)
 {
 	std::string filename(__FILE__);
@@ -32,7 +32,7 @@ void SaveData(
 
 	STATS << scene_id << ','
 			<< mapf_calls << ',' << mapf_sucesses << ','
-			<< not_lucky << ',' << not_rearranged << ','
+			<< lucky << ',' << rearranged << ','
 			<< dead << ',' << rearrange << ','
 			<< violation << '\n';
 	STATS.close();
@@ -96,8 +96,8 @@ int main(int argc, char** argv)
 				continue;
 			}
 
-			int mapf_calls = 0, mapf_sucesses = 0, not_lucky = 0, not_rearranged = 0;
-			bool dead = false, rearrange = true;
+			int mapf_calls = 0, mapf_sucesses = 0;
+			bool dead = false, rearrange = true, lucky = false, rearranged = false;
 			std::uint32_t violation;
 			do
 			{
@@ -106,22 +106,27 @@ int main(int argc, char** argv)
 				{
 					++mapf_sucesses;
 
-					ROS_WARN("Try extraction before rearrangement!");
+					ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
 					if (p.Alive() && p.TryExtract()) {
-						break;
+						lucky = true;
 					}
-					++not_lucky;
 
 					ROS_WARN("Try rearrangement!");
 					if (p.Alive()) {
 						rearrange = p.Rearrange();
 					}
 
-					ROS_WARN("Try extraction after rearrangement!");
+					ROS_WARN("Try extraction after rearrangement! Did we successfully rearrange?");
 					if (p.Alive() && p.TryExtract()) {
+						rearranged = true;
+					}
+
+					ROS_WARN("Try planning with all objects as obstacles! Are we done?");
+					if (p.Alive() & p.PlanExtract())
+					{
+						ROS_WARN("YAYAYAY! We did it!");
 						break;
 					}
-					++not_rearranged;
 				}
 			}
 			while (p.Alive() && rearrange);
@@ -146,7 +151,7 @@ int main(int argc, char** argv)
 			{
 				SaveData(
 					scene_id,
-					mapf_calls, mapf_sucesses, not_lucky, not_rearranged,
+					mapf_calls, mapf_sucesses, lucky, rearranged,
 					dead, rearrange, violation);
 			}
 		}
