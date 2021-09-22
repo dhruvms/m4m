@@ -26,6 +26,7 @@ public:
 	bool Init(const std::string& scene_file, int scene_id);
 
 	bool Plan();
+	bool PlanExtract();
 	bool SaveData();
 	bool Alive();
 	bool Rearrange();
@@ -55,7 +56,8 @@ private:
 	State m_ooi_gf;
 	std::vector<double> m_goal;
 
-	Trajectory m_exec;
+	trajectory_msgs::JointTrajectory m_exec;
+	Trajectory m_exec_interm;
 	std::vector<trajectory_msgs::JointTrajectory> m_rearrangements;
 	pushplan::ObjectsPoses m_rearranged;
 

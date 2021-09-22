@@ -147,12 +147,12 @@ bool Planner::Plan()
 	double start_time = GetTime(), time_taken;
 	if (whcastar())
 	{
-		m_exec.clear();
+		m_exec_interm.clear();
 
 		auto robot_traj = m_robot->GetMoveTraj();
-		m_exec.insert(m_exec.begin(), robot_traj->begin(), robot_traj->end());
-		SMPL_INFO("Exec trajj size = %d", m_exec.size());
-		m_robot->ProfileTraj(m_exec);
+		m_exec_interm.insert(m_exec_interm.begin(), robot_traj->begin(), robot_traj->end());
+		SMPL_INFO("Exec trajj size = %d", m_exec_interm.size());
+		m_robot->ProfileTraj(m_exec_interm);
 	}
 	else
 	{
@@ -176,6 +176,38 @@ bool Planner::Plan()
 	}
 
 	return true;
+}
+
+bool Planner::PlanExtract()
+{
+	// Add rearranged objects as obstacles for extraction planning
+	std::vector<Object> extract_obs;
+	for (const auto& o: m_rearranged.poses)
+	{
+		auto search = m_agent_map.find(o.id);
+		if (search != m_agent_map.end()) {
+			extract_obs.push_back(m_agents.at(m_agent_map[o.id]).GetObject()->back());
+		}
+	}
+	if (!m_robot->Plan(m_ooi.GetObject()->back(), extract_obs)) {
+		return false;
+	}
+
+	m_robot->GetExecTraj(m_exec);
+	SMPL_INFO("Exec traj size = %d", m_exec.points.size());
+
+	pushplan::ObjectsPoses rearranged = m_rearranged;
+	bool success = true;
+	double start_time = GetTime();
+	if (!m_sim->ExecTraj(m_exec, rearranged, m_robot->GraspAt(), m_ooi.GetID()))
+	{
+		SMPL_ERROR("Failed to exec traj!");
+		success = false;
+	}
+
+	m_sim->RemoveConstraint();
+
+	return success;
 }
 
 bool Planner::Rearrange()
@@ -206,12 +238,12 @@ std::uint32_t Planner::RunSim()
 
 bool Planner::TryExtract()
 {
-	if (!setupSim()) {
+	if (m_exec_interm.empty() || !setupSim()) {
 		return false;
 	}
 
 	moveit_msgs::RobotTrajectory to_exec;
-	m_robot->ConvertTraj(m_exec, to_exec);
+	m_robot->ConvertTraj(m_exec_interm, to_exec);
 	pushplan::ObjectsPoses rearranged = m_rearranged;
 	bool success = true;
 	double start_time = GetTime();
@@ -494,9 +526,7 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 	}
 	// if any rearrangement traj execuction failed, m_violation == 1
 
-	moveit_msgs::RobotTrajectory to_exec;
-	m_robot->ConvertTraj(m_exec, to_exec);
-	if (!m_sim->ExecTraj(to_exec.joint_trajectory, dummy, m_robot->GraspAt(), m_ooi.GetID()))
+	if (!m_sim->ExecTraj(m_exec, dummy, m_robot->GraspAt(), m_ooi.GetID()))
 	{
 		SMPL_ERROR("Failed to exec traj!");
 		m_violation |= 0x00000004;
