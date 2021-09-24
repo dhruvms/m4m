@@ -841,7 +841,7 @@ bool Robot::PlanPush(
 	std::vector<Object> obs = {o};
 	int i = 0;
 	double start_time = GetTime(), time_spent;
-	while(((i == 0) && (GetTime() - start_time < 2 * m_plan_push_time)) || ((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time)))
+	while((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time))
 	{
 		smpl::RobotState push_start, push_end;
 		if (samplePush(o_traj, obs, push_start, push_end))
@@ -884,10 +884,18 @@ bool Robot::PlanPush(
 			m_pushes.push_back(res.trajectory.joint_trajectory);
 
 			double push_time = profileAction(push_start, push_end);
-			trajectory_msgs::JointTrajectoryPoint push_end_pt = m_pushes.back().points.back();
-			push_end_pt.positions = push_end;
-			push_end_pt.time_from_start += ros::Duration(push_time);
-			m_pushes.back().points.push_back(push_end_pt);
+
+			// add push
+			trajectory_msgs::JointTrajectoryPoint push_pt = m_pushes.back().points.back();
+			push_pt.positions = push_end;
+			push_pt.time_from_start += ros::Duration(push_time);
+			m_pushes.back().points.push_back(push_pt);
+
+			// reset back to push start
+			push_pt = m_pushes.back().points.back();
+			push_pt.positions = push_start;
+			push_pt.time_from_start += ros::Duration(push_time);
+			m_pushes.back().points.push_back(push_pt);
 
 			++i;
 		}
@@ -1027,9 +1035,14 @@ bool Robot::samplePush(
 			// }
 			// SV_SHOW_INFO_NAMED(vis_name, markers);
 
-			success = true;
+			ProcessObstacles(obs, true);
+			if (m_cc_i->isStateToStateValid(push_start, push_end)) {
+				success = true;
+			}
 		}
-		ProcessObstacles(obs, true);
+		else {
+			ProcessObstacles(obs, true);
+		}
 	}
 
 	if (success)
