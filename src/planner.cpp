@@ -167,9 +167,9 @@ bool Planner::Plan()
 	m_plan_time += time_taken;
 	SMPL_INFO("Planning took %f seconds. (%f runs so far)", time_taken, m_stats["whca_attempts"]);
 
-	// m_cc->PrintConflicts();
+	m_cc->PrintConflicts();
 	m_cc->CleanupConflicts();
-	// m_cc->PrintConflicts();
+	m_cc->PrintConflicts();
 	m_stats["first_order_interactions"] = m_cc->NumConflicts();
 	if (SAVE) {
 		savePlanData();
