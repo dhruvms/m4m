@@ -111,8 +111,8 @@ int main(int argc, char** argv)
 						lucky = true;
 					}
 
-					ROS_WARN("Try rearrangement!");
 					if (p.Alive()) {
+						ROS_WARN("Try rearrangement!");
 						rearrange = p.Rearrange();
 					}
 
@@ -129,7 +129,7 @@ int main(int argc, char** argv)
 					}
 				}
 			}
-			while (p.Alive() && rearrange);
+			while (p.Alive());
 			dead = !p.Alive();
 
 			if (p.Alive()) {
