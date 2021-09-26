@@ -18,7 +18,7 @@ goal:
   pitch: 0.0
   yaw: 0.0
   plan_budget: 300.0
-  sim_budget: 600.0
+  sim_budget: 900.0
   save: true
 
 robot:
