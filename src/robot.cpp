@@ -423,7 +423,7 @@ bool Robot::Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacl
 	SMPL_INFO("Planning to pregrasp state.");
 	if (!m_planner->solve(planning_scene, req, res))
 	{
-		ROS_ERROR("Failed to plan.");
+		ROS_ERROR("Failed to plan to pregrasp state.");
 		if (obstacles != boost::none) {
 			ProcessObstacles(obstacles.get(), true);
 		}
@@ -469,6 +469,7 @@ bool Robot::Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacl
 		else {
 			++m_stats["attach_fails"];
 		}
+		ROS_ERROR("Failed to attach OOI.");
 		return false;
 	}
 	else
@@ -482,6 +483,7 @@ bool Robot::Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacl
 			else {
 				++m_stats["attach_collides"];
 			}
+			ROS_ERROR("Postgrasp state is in collision with attached OOI.");
 			return false;
 		}
 	}
@@ -507,7 +509,7 @@ bool Robot::Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacl
 	SMPL_INFO("Planning to home state with attached body.");
 	if (!m_planner->solve(planning_scene, req, res))
 	{
-		ROS_ERROR("Failed to plan.");
+		ROS_ERROR("Failed to plan to home state with attached body.");
 		if (obstacles != boost::none) {
 			ProcessObstacles(obstacles.get(), true);
 		}
