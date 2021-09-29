@@ -518,9 +518,6 @@ class BulletSim:
 
 		# To simulate the scene after execution of the trajectory
 		if (not violation_flag):
-			if (grasp_at < 0):
-				self.disableCollisionsWithObjects(sim_id)
-
 			sim.setJointMotorControlArray(
 					robot_id, arm_joints,
 					controlMode=sim.VELOCITY_CONTROL,
@@ -554,9 +551,6 @@ class BulletSim:
 						# cause_str = 'traj violation: wrong object'
 					# print(cause_str)
 					break
-
-			if (grasp_at < 0):
-				self.enableCollisionsWithObjects(sim_id)
 
 			all_interactions += action_interactions
 			all_interactions = list(np.unique(np.array(all_interactions)))
@@ -593,8 +587,8 @@ class BulletSim:
 		for pidx in range(num_pushes):
 			push_traj = req.pushes[pidx]
 
-			curr_timestep = 0
-			curr_pose = np.asarray(push_traj.points[0].positions)
+			curr_timestep = push_traj.points[-3].time_from_start.to_sec()
+			curr_pose = np.asarray(push_traj.points[-3].positions)
 
 			self.disableCollisionsWithObjects(sim_id)
 
@@ -623,7 +617,7 @@ class BulletSim:
 			violation_flag = False
 			cause = 0
 			robot_contacts = []
-			for point in push_traj.points[1:]:
+			for point in push_traj.points[-2:]:
 				sim.setJointMotorControlArray(
 						robot_id, gripper_joints,
 						controlMode=sim.POSITION_CONTROL,
@@ -672,8 +666,6 @@ class BulletSim:
 				continue # to next push
 
 			# To simulate the scene after execution of the trajectory
-			self.disableCollisionsWithObjects(sim_id)
-
 			sim.setJointMotorControlArray(
 					robot_id, arm_joints,
 					controlMode=sim.VELOCITY_CONTROL,
@@ -702,8 +694,6 @@ class BulletSim:
 					# cause = 'push violation: ' + topple*'topple' + immovable*'immovable' + table*'table' + velocity*'velocity' + contact_error*'contact_error'
 					# print(cause)
 					break
-
-			self.enableCollisionsWithObjects(sim_id)
 
 			if (violation_flag):
 				continue # to next push
