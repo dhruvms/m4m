@@ -513,6 +513,8 @@ bool Robot::Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacl
 		if (obstacles != boost::none) {
 			ProcessObstacles(obstacles.get(), true);
 		}
+		detachOOI();
+		m_start_state = orig_start;
 		return false;
 	}
 	SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
