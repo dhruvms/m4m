@@ -400,6 +400,7 @@ bool Robot::Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacl
 
 	detachOOI();
 	UpdateKDLRobot(0);
+	// setGripper(false); // closed
 	InitArmPlanner(true);
 
 	moveit_msgs::MotionPlanRequest req;
@@ -461,6 +462,7 @@ bool Robot::Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacl
 	// Plan extraction //
 	/////////////////////
 
+	// setGripper(true); // open
 	if (!attachOOI(ooi))
 	{
 		if (obstacles != boost::none) {
@@ -1196,13 +1198,13 @@ bool Robot::readRobotModelConfig(const ros::NodeHandle &nh)
 		return false;
 	}
 
-	std::string planning_joint_list;
-	if (!nh.getParam("planning_joints", planning_joint_list)) {
+	std::string config_field;
+	if (!nh.getParam("planning_joints", config_field)) {
 		ROS_ERROR("Failed to read 'planning_joints' from the param server");
 		return false;
 	}
 
-	std::stringstream joint_name_stream(planning_joint_list);
+	std::stringstream joint_name_stream(config_field);
 	while (joint_name_stream.good() && !joint_name_stream.eof()) {
 		std::string jname;
 		joint_name_stream >> jname;
@@ -1212,15 +1214,15 @@ bool Robot::readRobotModelConfig(const ros::NodeHandle &nh)
 		m_robot_config.planning_joints.push_back(jname);
 	}
 
-	std::string push_link_list;
-	if (!nh.getParam("push_links", push_link_list)) {
+	config_field.clear();
+	if (!nh.getParam("push_links", config_field)) {
 		ROS_ERROR("Failed to read 'push_links' from the param server");
 		return false;
 	}
 
 	joint_name_stream.str("");
 	joint_name_stream.clear();
-	joint_name_stream.str(push_link_list);
+	joint_name_stream.str(config_field);
 	while (joint_name_stream.good() && !joint_name_stream.eof()) {
 		std::string jname;
 		joint_name_stream >> jname;
@@ -1228,6 +1230,24 @@ bool Robot::readRobotModelConfig(const ros::NodeHandle &nh)
 			continue;
 		}
 		m_robot_config.push_links.push_back(jname);
+	}
+
+	config_field.clear();
+	if (!nh.getParam("gripper_joints", config_field)) {
+		ROS_ERROR("Failed to read 'gripper_joints' from the param server");
+		return false;
+	}
+
+	joint_name_stream.str("");
+	joint_name_stream.clear();
+	joint_name_stream.str(config_field);
+	while (joint_name_stream.good() && !joint_name_stream.eof()) {
+		std::string jname;
+		joint_name_stream >> jname;
+		if (jname.empty()) {
+			continue;
+		}
+		m_robot_config.gripper_joints.push_back(jname);
 	}
 
 	// only required for generic kdl robot model?
@@ -1350,6 +1370,30 @@ bool Robot::setReferenceStartState()
 	setCollisionRobotState();
 
 	return true;
+}
+
+bool Robot::setGripper(bool open)
+{
+	smpl::urdf::RobotState reference_state;
+	InitRobotState(&reference_state, &m_rm->m_robot_model);
+	for (auto i = 0; i < m_robot_config.gripper_joints.size(); ++i) {
+		auto* var = GetVariable(&m_rm->m_robot_model, &m_robot_config.gripper_joints[i]);
+		if (var == NULL) {
+			ROS_WARN("Failed to do the thing");
+			continue;
+		}
+		// ROS_INFO("Set joint %s to %f", m_start_state.joint_state.name[i].c_str(), m_start_state.joint_state.position[i]);
+		double pos = open ? 0.5 : 0.0; // from gripper.urdf.xacro, limit is actually 0.548
+		SetVariablePosition(&reference_state, var, pos);
+
+		// Set state in the collision scene here...
+		auto& joint_name = m_robot_config.gripper_joints[i];
+		if (!m_cc_i->setJointPosition(joint_name, pos)) {
+			ROS_ERROR("Failed to set position of joint '%s' to %f", joint_name.c_str(), pos);
+			return false;
+		}
+	}
+	SetReferenceState(m_rm.get(), GetVariablePositions(&reference_state));
 }
 
 bool Robot::readResolutions(std::vector<double>& resolutions)

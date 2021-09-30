@@ -189,6 +189,7 @@ private:
 	bool setupRobotModel();
 	bool readStartState();
 	bool setReferenceStartState();
+	bool setGripper(bool open);
 	bool readResolutions(std::vector<double>& resolutions);
 
 	void initObjects();
