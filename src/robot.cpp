@@ -156,7 +156,7 @@ bool Robot::Setup()
 	m_coord_deltas = std::move(deltas);
 
 	// setup planar approx
-	m_priority = 1;
+	m_priority = 0;
 	m_grasp_at = -1;
 	m_mass = R_MASS;
 	m_b = SEMI_MINOR;

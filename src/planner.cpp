@@ -301,7 +301,7 @@ bool Planner::whcastar()
 	reinit();
 	while (!m_robot->AtGrasp())
 	{
-		if (!m_ooi.Search(0)) {
+		if (!m_ooi.Search(1)) {
 			return false;
 		}
 		int robin = 2;
@@ -339,7 +339,7 @@ bool Planner::whcastar()
 	reinit();
 	while (!m_robot->AtEnd())
 	{
-		if (!m_ooi.Search(0)) {
+		if (!m_ooi.Search(1)) {
 			return false;
 		}
 		int robin = 2;
@@ -543,10 +543,10 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 const std::vector<Object>* Planner::GetObject(const LatticeState& s, int priority)
 {
 	if (priority == 0) {
-		return m_ooi.GetObject(s);
+		return m_robot->GetObject(s);
 	}
 	else if (priority == 1) {
-		return m_robot->GetObject(s);
+		return m_ooi.GetObject(s);
 	}
 	else {
 		return m_agents.at(m_priorities.at(priority-2)).GetObject(s);

@@ -166,7 +166,7 @@ bool CollisionChecker::UpdateConflicts(
 				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs))
 				{
 					int id1 = o1.id, id2 = a2_objs->back().id;
-					if (p == 1) {
+					if (p == 0) {
 						id2 = 100;
 					}
 					updateConflicts(id1, priority, id2, p, s.t);
@@ -473,21 +473,21 @@ bool CollisionChecker::updateConflicts(
 	int id1, int p1,
 	int id2, int p2, int t)
 {
-	if (p1 == 0 || p2 == 0) {
+	if (p1 == 1 || p2 == 1) {
 		return false;
 	}
 
 	auto key = std::make_pair(id1, id2);
 	auto search = m_conflicts.find(key);
-    if (search != m_conflicts.end())
-    {
-        if (search->second > t) {
-        	m_conflicts[key] = t;
-        }
-    }
-    else {
-        m_conflicts.emplace(key, t);
-    }
+	if (search != m_conflicts.end())
+	{
+		if (search->second > t) {
+			m_conflicts[key] = t;
+		}
+	}
+	else {
+		m_conflicts.emplace(key, t);
+	}
 }
 
 void CollisionChecker::cleanupChildren(std::vector<int>& check)
