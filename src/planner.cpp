@@ -627,14 +627,14 @@ void Planner::updateAgentPositions(
 	{
 		auto search = m_agent_map.find(o.id);
 		if (search != m_agent_map.end()) {
-			auto orig_obj = m_agents.at(m_agent_map[o.id]).GetObject()->back();
-			if (EuclideanDist(o.xyz, {orig_obj.o_x, orig_obj.o_y, orig_obj.o_z}) < RES)
-			{
-				SMPL_DEBUG("Object %d did not move > %f cm.", o.id, RES);
-				continue;
-			}
+			// auto orig_obj = m_agents.at(m_agent_map[o.id]).GetObject()->back();
+			// if (EuclideanDist(o.xyz, {orig_obj.o_x, orig_obj.o_y, orig_obj.o_z}) < RES)
+			// {
+			// 	SMPL_DEBUG("Object %d did not move > %f cm.", o.id, RES);
+			// 	continue;
+			// }
 
-			SMPL_DEBUG("Object %d did moved > %f cm.", o.id, RES);
+			// SMPL_DEBUG("Object %d did moved > %f cm.", o.id, RES);
 			m_agents.at(m_agent_map[o.id]).SetObjectPose(o.xyz, o.rpy);
 			bool exist = false;
 			for (auto& p: rearranged.poses)
