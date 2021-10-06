@@ -106,20 +106,20 @@ int main(int argc, char** argv)
 				{
 					++mapf_sucesses;
 
-					ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
-					if (p.Alive() && p.TryExtract()) {
-						lucky = true;
-					}
+					// ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
+					// if (p.Alive() && p.TryExtract()) {
+					// 	lucky = true;
+					// }
 
 					if (p.Alive()) {
 						ROS_WARN("Try rearrangement!");
 						rearrange = p.Rearrange();
 					}
 
-					ROS_WARN("Try extraction after rearrangement! Did we successfully rearrange?");
-					if (p.Alive() && p.TryExtract()) {
-						rearranged = true;
-					}
+					// ROS_WARN("Try extraction after rearrangement! Did we successfully rearrange?");
+					// if (p.Alive() && p.TryExtract()) {
+					// 	rearranged = true;
+					// }
 
 					ROS_WARN("Try planning with all objects as obstacles! Are we done?");
 					if (p.Alive() & p.PlanExtract())
