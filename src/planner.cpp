@@ -393,7 +393,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		}
 	}
 
-	while (!conflicts.empty())
+	// while (!conflicts.empty())
 	{
 		auto i = conflicts.begin();
 		for (auto iter = conflicts.begin(); iter != conflicts.end(); ++iter)
@@ -668,7 +668,7 @@ bool Planner::setupProblem()
 	m_ooi.Init();
 
 	m_robot->Init();
-	if (!m_robot->RandomiseStart()) {
+	if (m_exec_interm.empty() && !m_robot->RandomiseStart()) {
 		return false;
 	}
 
