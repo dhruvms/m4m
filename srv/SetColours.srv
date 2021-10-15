@@ -1,5 +1,0 @@
-int64 sim_id
-int64[] ids
-int64[] type
----
-bool res

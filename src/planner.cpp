@@ -196,7 +196,7 @@ bool Planner::PlanExtract()
 	m_robot->GetExecTraj(m_exec);
 	SMPL_INFO("Exec traj size = %d", m_exec.points.size());
 
-	pushplan::ObjectsPoses rearranged = m_rearranged;
+	comms::ObjectsPoses rearranged = m_rearranged;
 	bool success = true;
 	double start_time = GetTime();
 	if (!m_sim->ExecTraj(m_exec, rearranged, m_robot->GraspAt(), m_ooi.GetID()))
@@ -244,7 +244,7 @@ bool Planner::TryExtract()
 
 	moveit_msgs::RobotTrajectory to_exec;
 	m_robot->ConvertTraj(m_exec_interm, to_exec);
-	pushplan::ObjectsPoses rearranged = m_rearranged;
+	comms::ObjectsPoses rearranged = m_rearranged;
 	bool success = true;
 	double start_time = GetTime();
 	if (!m_sim->ExecTraj(to_exec.joint_trajectory, rearranged, m_robot->GraspAt(), m_ooi.GetID()))
@@ -383,7 +383,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		return false;
 	}
 
-	pushplan::ObjectsPoses rearranged = m_rearranged;
+	comms::ObjectsPoses rearranged = m_rearranged;
 	std::vector<int> rearranged_ids;
 	for (const auto& o: m_rearranged.poses)
 	{
@@ -444,7 +444,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		// plan to push location
 		// m_robot->PlanPush creates the planner internally, because it might
 		// change KDL chain during the process
-		pushplan::ObjectsPoses result;
+		comms::ObjectsPoses result;
 		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back(), rearranged, result)) {
 			m_rearrangements.push_back(m_robot->GetLastPlan());
 
@@ -516,7 +516,7 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 
 	m_violation = 0x00000000;
 
-	pushplan::ObjectsPoses dummy;
+	comms::ObjectsPoses dummy;
 	for (const auto& traj: m_rearrangements) {
 		if (!m_sim->ExecTraj(traj, dummy))
 		{
@@ -620,8 +620,8 @@ void Planner::step_agents(int k)
 }
 
 void Planner::updateAgentPositions(
-	const pushplan::ObjectsPoses& result,
-	pushplan::ObjectsPoses& rearranged)
+	const comms::ObjectsPoses& result,
+	comms::ObjectsPoses& rearranged)
 {
 	for (const auto& o: result.poses)
 	{

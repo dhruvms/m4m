@@ -4,7 +4,7 @@
 #include <pushplan/types.hpp>
 #include <pushplan/collision_checker.hpp>
 #include <pushplan/bullet_sim.hpp>
-#include <pushplan/ObjectsPoses.h>
+#include <comms/ObjectsPoses.h>
 
 #include <smpl/console/console.h>
 #include <smpl/ros/planner_interface.h>
@@ -62,8 +62,8 @@ public:
 	void SetPushGoal(const std::vector<double>& push);
 	bool PlanPush(
 		int oid, const Trajectory* o_traj, const Object& o,
-		const pushplan::ObjectsPoses& rearranged,
-		pushplan::ObjectsPoses& result);
+		const comms::ObjectsPoses& rearranged,
+		comms::ObjectsPoses& result);
 	trajectory_msgs::JointTrajectory GetLastPlan() {
 		SMPL_INFO("rearrangmenet traj size = %d", m_traj.points.size());
 		return m_traj;

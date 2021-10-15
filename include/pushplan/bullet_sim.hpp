@@ -1,7 +1,7 @@
 #ifndef BULLET_SIM_HPP
 #define BULLET_SIM_HPP
 
-#include <pushplan/ObjectsPoses.h>
+#include <comms/ObjectsPoses.h>
 
 #include <sensor_msgs/JointState.h>
 #include <trajectory_msgs/JointTrajectory.h>
@@ -31,14 +31,14 @@ public:
 	bool SetColours(int ooi);
 	bool ExecTraj(
 		const trajectory_msgs::JointTrajectory& traj,
-		const pushplan::ObjectsPoses& rearranged,
+		const comms::ObjectsPoses& rearranged,
 		int grasp_at=-1, int ooi=-1);
 	bool SimPushes(
 		const std::vector<trajectory_msgs::JointTrajectory>& pushes,
 		int oid, float gx, float gy,
 		int& pidx, int& successes,
-		const pushplan::ObjectsPoses& rearranged,
-		pushplan::ObjectsPoses& result);
+		const comms::ObjectsPoses& rearranged,
+		comms::ObjectsPoses& result);
 	bool RemoveConstraint();
 
 private:

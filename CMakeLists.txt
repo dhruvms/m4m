@@ -24,42 +24,15 @@ find_package(catkin REQUIRED COMPONENTS
 	std_msgs
 	sensor_msgs
 	trajectory_msgs
-	message_generation
+	comms
 )
 find_package(smpl REQUIRED)
-
-add_message_files(
-   FILES
-   ObjectPose.msg
-   ObjectsPoses.msg
-)
-
-add_service_files(
-	FILES
-	AddObject.srv
-	AddYCBObject.srv
-	AddRobot.srv
-	ResetSimulation.srv
-	CheckScene.srv
-	ResetScene.srv
-	ResetArm.srv
-	SetRobotState.srv
-	SetColours.srv
-	ExecTraj.srv
-	SimPushes.srv
-)
-
-generate_messages(
-	DEPENDENCIES
-	std_msgs
-	sensor_msgs
-	trajectory_msgs
-)
+find_package(comms REQUIRED)
 
 catkin_package(
 	CATKIN_DEPENDS
 	std_msgs
-	message_runtime
+   comms
 )
 
 include_directories(SYSTEM ${catkin_INCLUDE_DIRS})

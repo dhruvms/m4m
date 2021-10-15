@@ -11,18 +11,18 @@ import pybullet as p
 import pybullet_data
 from pybullet_utils import bullet_client as bc
 
-from pushplan.srv import AddObject, AddObjectResponse
-from pushplan.srv import AddYCBObject, AddYCBObjectResponse
-from pushplan.srv import ResetSimulation, ResetSimulationResponse
-from pushplan.srv import AddRobot, AddRobotResponse
-from pushplan.srv import SetRobotState, SetRobotStateResponse
-from pushplan.srv import ResetArm, ResetArmResponse
-from pushplan.srv import CheckScene, CheckSceneResponse
-from pushplan.srv import ResetScene, ResetSceneResponse, ResetSceneRequest
-from pushplan.srv import SetColours, SetColoursResponse
-from pushplan.srv import ExecTraj, ExecTrajResponse
-from pushplan.srv import SimPushes, SimPushesResponse
-from pushplan.msg import ObjectPose, ObjectsPoses
+from comms.srv import AddObject, AddObjectResponse
+from comms.srv import AddYCBObject, AddYCBObjectResponse
+from comms.srv import ResetSimulation, ResetSimulationResponse
+from comms.srv import AddRobot, AddRobotResponse
+from comms.srv import SetRobotState, SetRobotStateResponse
+from comms.srv import ResetArm, ResetArmResponse
+from comms.srv import CheckScene, CheckSceneResponse
+from comms.srv import ResetScene, ResetSceneResponse, ResetSceneRequest
+from comms.srv import SetColours, SetColoursResponse
+from comms.srv import ExecTraj, ExecTrajResponse
+from comms.srv import SimPushes, SimPushesResponse
+from comms.msg import ObjectPose, ObjectsPoses
 
 from utils import *
 

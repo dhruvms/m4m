@@ -6,7 +6,7 @@
 #include <pushplan/collision_checker.hpp>
 #include <pushplan/robot.hpp>
 #include <pushplan/bullet_sim.hpp>
-#include <pushplan/ObjectsPoses.h>
+#include <comms/ObjectsPoses.h>
 
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
@@ -59,7 +59,7 @@ private:
 	trajectory_msgs::JointTrajectory m_exec;
 	Trajectory m_exec_interm;
 	std::vector<trajectory_msgs::JointTrajectory> m_rearrangements;
-	pushplan::ObjectsPoses m_rearranged;
+	comms::ObjectsPoses m_rearranged;
 
 	std::vector<size_t> m_priorities;
 
@@ -83,8 +83,8 @@ private:
 
 	bool setupProblem();
 	void updateAgentPositions(
-		const pushplan::ObjectsPoses& result,
-		pushplan::ObjectsPoses& rearranged);
+		const comms::ObjectsPoses& result,
+		comms::ObjectsPoses& rearranged);
 	int cleanupLogs();
 
 	void parse_scene(std::vector<Object>& obstacles);

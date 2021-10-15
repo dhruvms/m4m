@@ -1,1 +1,0 @@
-ObjectPose[] poses

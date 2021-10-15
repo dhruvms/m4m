@@ -1,4 +1,0 @@
-int64 sim_id
-int64 arm
----
-int64[] ids

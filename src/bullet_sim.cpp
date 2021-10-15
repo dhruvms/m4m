@@ -1,17 +1,19 @@
 #include <pushplan/bullet_sim.hpp>
 #include <pushplan/constants.hpp>
-#include <pushplan/ResetSimulation.h>
-#include <pushplan/AddObject.h>
-#include <pushplan/AddYCBObject.h>
-#include <pushplan/AddRobot.h>
-#include <pushplan/SetRobotState.h>
-#include <pushplan/ResetArm.h>
-#include <pushplan/CheckScene.h>
-#include <pushplan/ResetScene.h>
-#include <pushplan/SetColours.h>
-#include <pushplan/ExecTraj.h>
-#include <pushplan/SimPushes.h>
+#include <comms/ResetSimulation.h>
+#include <comms/AddObject.h>
+#include <comms/AddYCBObject.h>
+#include <comms/AddRobot.h>
+#include <comms/SetRobotState.h>
+#include <comms/ResetArm.h>
+#include <comms/CheckScene.h>
+#include <comms/ResetScene.h>
+#include <comms/SetColours.h>
+#include <comms/ExecTraj.h>
+#include <comms/SimPushes.h>
+#include <comms/PoseStampedArray.h>
 
+#include <smpl/angles.h>
 #include <smpl/console/console.h>
 
 #include <cstdio>
@@ -74,7 +76,7 @@ m_robot_id(-1), m_tables(-1)
 
 bool BulletSim::SetRobotState(const sensor_msgs::JointState& msg)
 {
-	pushplan::SetRobotState srv;
+	comms::SetRobotState srv;
 	srv.request.state = msg;
 
 	if (!m_services.at(m_servicemap["set_robot_state"]).call(srv))
@@ -89,7 +91,7 @@ bool BulletSim::SetRobotState(const sensor_msgs::JointState& msg)
 
 bool BulletSim::ResetArm(const int& arm)
 {
-	pushplan::ResetArm srv;
+	comms::ResetArm srv;
 	srv.request.arm = arm;
 
 	if (!m_services.at(m_servicemap["reset_arm"]).call(srv))
@@ -105,7 +107,7 @@ bool BulletSim::CheckScene(const int& arm, int& count)
 {
 	count = 0;
 
-	pushplan::CheckScene srv;
+	comms::CheckScene srv;
 	srv.request.arm = arm;
 	srv.request.sim_id = -1; // add to all simulator instances
 
@@ -144,7 +146,7 @@ bool BulletSim::CheckScene(const int& arm, int& count)
 
 bool BulletSim::ResetScene()
 {
-	pushplan::ResetScene srv;
+	comms::ResetScene srv;
 	srv.request.req = true;
 	srv.request.sim_id = -1; // add to all simulator instances
 
@@ -159,7 +161,7 @@ bool BulletSim::ResetScene()
 
 bool BulletSim::SetColours(int ooi)
 {
-	pushplan::SetColours srv;
+	comms::SetColours srv;
 	srv.request.sim_id = -1; // add to all simulator instances
 
 	for (auto itr = m_immov_ids.begin();
@@ -206,10 +208,10 @@ bool BulletSim::SetColours(int ooi)
 
 bool BulletSim::ExecTraj(
 	const trajectory_msgs::JointTrajectory& traj,
-	const pushplan::ObjectsPoses& rearranged,
+	const comms::ObjectsPoses& rearranged,
 	int grasp_at, int ooi)
 {
-	pushplan::ExecTraj srv;
+	comms::ExecTraj srv;
 	srv.request.traj = traj;
 	srv.request.objects = rearranged;
 	srv.request.grasp_at = grasp_at;
@@ -242,10 +244,10 @@ bool BulletSim::SimPushes(
 	const std::vector<trajectory_msgs::JointTrajectory>& pushes,
 	int oid, float gx, float gy,
 	int& pidx, int& successes,
-	const pushplan::ObjectsPoses& rearranged,
-	pushplan::ObjectsPoses& result)
+	const comms::ObjectsPoses& rearranged,
+	comms::ObjectsPoses& result)
 {
-	pushplan::SimPushes srv;
+	comms::SimPushes srv;
 	srv.request.pushes = pushes;
 	srv.request.oid = oid;
 	srv.request.gx = gx;
@@ -267,7 +269,7 @@ bool BulletSim::SimPushes(
 
 bool BulletSim::RemoveConstraint()
 {
-	pushplan::ResetSimulation srv;
+	comms::ResetSimulation srv;
 	srv.request.req = true;
 
 	return m_services.at(m_servicemap["remove_constraint"]).call(srv);
@@ -296,7 +298,7 @@ bool BulletSim::setupObjectsFromFile(
 
 bool BulletSim::addRobot(int replay_id, const std::string& suffix)
 {
-	pushplan::AddRobot srv;
+	comms::AddRobot srv;
 
 	if (replay_id < 0)
 	{
@@ -365,7 +367,7 @@ bool BulletSim::setupPrimitiveObjectsFromFile(int replay_id, const std::string& 
 					std::string split;
 
 					int count = 0;
-					pushplan::AddObject srv;
+					comms::AddObject srv;
 					while (ss.good())
 					{
 						getline(ss, split, ',');
@@ -476,7 +478,7 @@ bool BulletSim::setupYCBObjectsFromFile(int replay_id, const std::string& suffix
 					std::string split;
 
 					int count = 0;
-					pushplan::AddYCBObject srv;
+					comms::AddYCBObject srv;
 					while (ss.good())
 					{
 						getline(ss, split, ',');
@@ -569,7 +571,7 @@ void BulletSim::setupTableFromFile(int replay_id, const std::string& suffix)
 					std::string split;
 
 					int count = 0;
-					pushplan::AddObject srv;
+					comms::AddObject srv;
 					while (ss.good())
 					{
 						getline(ss, split, ',');
@@ -642,7 +644,7 @@ bool BulletSim::setupPrimitiveObjects()
 	m_nh.param("objects/y_size", ylim, 1.0);
 	m_nh.param("objects/z_size", zlim, 1.0);
 
-	pushplan::AddObject srv;
+	comms::AddObject srv;
 	while (immov_added < m_num_immov || mov_added < m_num_mov)
 	{
 		srv.request.shape = m_distI(m_rng);
@@ -745,7 +747,7 @@ bool BulletSim::setupYCBObjects()
 	int N = ycb_objs.size();
 	int immov_added = 0, mov_added = 0, total_added = 0;
 
-	pushplan::AddYCBObject srv;
+	comms::AddYCBObject srv;
 	while (immov_added < m_num_immov || mov_added < m_num_mov)
 	{
 		srv.request.sim_id = -1; // add to all simulator instances
@@ -857,7 +859,7 @@ bool BulletSim::setupTables()
 {
 	auto objs = m_immov.size();
 
-	pushplan::AddObject srv;
+	comms::AddObject srv;
 	for (int i = 0; i < objs; ++i)
 	{
 		srv.request.shape = m_immov_ids.at(i).second;
@@ -955,7 +957,7 @@ bool BulletSim::readTables(const std::string& filename)
 
 bool BulletSim::resetSimulation()
 {
-	pushplan::ResetSimulation srv;
+	comms::ResetSimulation srv;
 	srv.request.req = true;
 
 	if (!m_services.at(m_servicemap["reset_simulation"]).call(srv))
@@ -973,51 +975,51 @@ void BulletSim::setupServices()
 
 	m_servicemap["add_object"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::AddObject>("/add_object"));
+			m_ph.serviceClient<comms::AddObject>("/add_object"));
 
 	m_servicemap["add_ycb_object"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::AddYCBObject>("/add_ycb_object"));
+			m_ph.serviceClient<comms::AddYCBObject>("/add_ycb_object"));
 
 	m_servicemap["add_robot"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::AddRobot>("/add_robot"));
+			m_ph.serviceClient<comms::AddRobot>("/add_robot"));
 
 	m_servicemap["set_robot_state"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::SetRobotState>("/set_robot_state"));
+			m_ph.serviceClient<comms::SetRobotState>("/set_robot_state"));
 
 	m_servicemap["reset_arm"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::ResetArm>("/reset_arm"));
+			m_ph.serviceClient<comms::ResetArm>("/reset_arm"));
 
 	m_servicemap["check_scene"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::CheckScene>("/check_scene"));
+			m_ph.serviceClient<comms::CheckScene>("/check_scene"));
 
 	m_servicemap["reset_scene"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::ResetScene>("/reset_scene"));
+			m_ph.serviceClient<comms::ResetScene>("/reset_scene"));
 
 	m_servicemap["set_colours"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::SetColours>("/set_colours"));
+			m_ph.serviceClient<comms::SetColours>("/set_colours"));
 
 	m_servicemap["reset_simulation"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::ResetSimulation>("/reset_simulation"));
+			m_ph.serviceClient<comms::ResetSimulation>("/reset_simulation"));
 
 	m_servicemap["exec_traj"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::ExecTraj>("/exec_traj"));
+			m_ph.serviceClient<comms::ExecTraj>("/exec_traj"));
 
 	m_servicemap["sim_pushes"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::SimPushes>("/sim_pushes"));
+			m_ph.serviceClient<comms::SimPushes>("/sim_pushes"));
 
 	m_servicemap["remove_constraint"] = m_services.size();
 	m_services.push_back(
-			m_nh.serviceClient<pushplan::ResetSimulation>("/remove_constraint"));
+			m_ph.serviceClient<comms::ResetSimulation>("/remove_constraint"));
 }
 
 bool BulletSim::removeObject(const int& id)

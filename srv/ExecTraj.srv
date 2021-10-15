@@ -1,9 +1,0 @@
-trajectory_msgs/JointTrajectory traj
-ObjectsPoses objects
-int64 grasp_at
-int64 ooi
----
-bool violation
-int64 cause
-int64[] interactions
-ObjectsPoses objects

@@ -836,7 +836,7 @@ void Robot::SetPushGoal(const std::vector<double>& push)
 
 bool Robot::PlanPush(
 	int oid, const Trajectory* o_traj, const Object& o,
-	const pushplan::ObjectsPoses& rearranged, pushplan::ObjectsPoses& result)
+	const comms::ObjectsPoses& rearranged, comms::ObjectsPoses& result)
 {
 	if (m_pushes_per_object == -1) {
 		m_ph.getParam("robot/pushes", m_pushes_per_object);
