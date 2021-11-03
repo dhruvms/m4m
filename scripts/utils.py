@@ -4,7 +4,7 @@ from collections import namedtuple
 
 PR2_URDF = '../config/urdf/pr2_description/pr2.urdf'
 CLEARANCE = 0.0
-GUI = False
+GUI = True
 CLIENT = 0
 TABLE_COLOUR = [0.5, 0.5, 0.5]
 STATIC_COLOUR = [0.698, 0.133, 0.133]
@@ -21,11 +21,17 @@ YCB_OBJECTS = {
 	4: '004_sugar_box',
 	5: '005_tomato_soup_can',
 	6: '006_mustard_bottle',
+	7: '007_tuna_fish_can',
+	8: '008_pudding_box',
+	9: '009_gelatin_box',
 	10: '010_potted_meat_can',
+	11: '011_banana',
 	19: '019_pitcher_base',
+	21: '021_bleach_cleanser',
 	24: '024_bowl',
 	25: '025_mug',
 	35: '035_power_drill',
+	36: '036_wood_block'
 }
 
 #######

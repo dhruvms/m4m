@@ -86,6 +86,8 @@ bool Robot::Setup()
 		return false;
 	}
 
+	ROS_WARN("Robot model setup!");
+
 	//////////////////////////////////
 	// Initialize Collision Checker //
 	//////////////////////////////////
@@ -98,6 +100,8 @@ bool Robot::Setup()
 		return false;
 	}
 	m_cc_i->setWorldToModelTransform(Eigen::Affine3d::Identity());
+
+	ROS_WARN("Collision checker setup!");
 
 	// Read in start state from file and update the scene...
 	// Start state is also required by the planner...
@@ -114,6 +118,8 @@ bool Robot::Setup()
 		ROS_ERROR("Failed to set start state!");
 		return false;
 	}
+
+	ROS_WARN("Start state set!");
 
 	// from smpl::ManipLattice
 	m_min_limits.resize(m_rm->jointVariableCount());
@@ -173,7 +179,10 @@ bool Robot::Setup()
 	m_link_w = smpl::urdf::GetLink(&m_rm->m_robot_model, m_wrist.c_str());
 	m_link_t = smpl::urdf::GetLink(&m_rm->m_robot_model, m_tip.c_str());
 
+	ROS_WARN("Variables init!");
+
 	initObjects();
+	ROS_WARN("Objects init!");
 
 	smpl::RobotState dummy;
 	dummy.insert(dummy.begin(),
@@ -184,6 +193,7 @@ bool Robot::Setup()
 		ROS_ERROR("Failed to reinit start state!");
 		return false;
 	}
+	ROS_WARN("Start state re-init!");
 
 	m_planner_init = false;
 	m_pushes_per_object = -1;

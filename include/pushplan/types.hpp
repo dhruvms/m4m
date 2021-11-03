@@ -53,7 +53,7 @@ struct Object
 	double o_roll, o_pitch, o_yaw;
 	double x_size, y_size, z_size;
 	double mass, mu;
-	bool movable, locked;
+	bool movable, locked, ycb;
 };
 
 class Search

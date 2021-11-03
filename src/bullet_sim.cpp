@@ -66,6 +66,7 @@ m_robot_id(-1), m_tables(-1)
 		m_nh.getParam("/fridge", fridge);
 		m_tables = fridge ? 5 : 1;
 		setupObjectsFromFile(ycb, replay_id, suffix);
+		m_num_immov -= m_tables;
 	}
 
 	// load robot into sim
@@ -947,6 +948,10 @@ bool BulletSim::readTables(const std::string& filename)
 			}
 		}
 		m_immov[i][11] = 0.0; // YCB flag for primitive object = false
+
+		if (fscanf(fCfg, "%s", sTemp)) {
+			ROS_DEBUG("Finished reading object %s", sTemp);
+		}
 	}
 	fclose(fCfg);
 
@@ -975,51 +980,51 @@ void BulletSim::setupServices()
 
 	m_servicemap["add_object"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::AddObject>("/add_object"));
+			m_nh.serviceClient<comms::AddObject>("/add_object"));
 
 	m_servicemap["add_ycb_object"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::AddYCBObject>("/add_ycb_object"));
+			m_nh.serviceClient<comms::AddYCBObject>("/add_ycb_object"));
 
 	m_servicemap["add_robot"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::AddRobot>("/add_robot"));
+			m_nh.serviceClient<comms::AddRobot>("/add_robot"));
 
 	m_servicemap["set_robot_state"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::SetRobotState>("/set_robot_state"));
+			m_nh.serviceClient<comms::SetRobotState>("/set_robot_state"));
 
 	m_servicemap["reset_arm"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::ResetArm>("/reset_arm"));
+			m_nh.serviceClient<comms::ResetArm>("/reset_arm"));
 
 	m_servicemap["check_scene"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::CheckScene>("/check_scene"));
+			m_nh.serviceClient<comms::CheckScene>("/check_scene"));
 
 	m_servicemap["reset_scene"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::ResetScene>("/reset_scene"));
+			m_nh.serviceClient<comms::ResetScene>("/reset_scene"));
 
 	m_servicemap["set_colours"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::SetColours>("/set_colours"));
+			m_nh.serviceClient<comms::SetColours>("/set_colours"));
 
 	m_servicemap["reset_simulation"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::ResetSimulation>("/reset_simulation"));
+			m_nh.serviceClient<comms::ResetSimulation>("/reset_simulation"));
 
 	m_servicemap["exec_traj"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::ExecTraj>("/exec_traj"));
+			m_nh.serviceClient<comms::ExecTraj>("/exec_traj"));
 
 	m_servicemap["sim_pushes"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::SimPushes>("/sim_pushes"));
+			m_nh.serviceClient<comms::SimPushes>("/sim_pushes"));
 
 	m_servicemap["remove_constraint"] = m_services.size();
 	m_services.push_back(
-			m_ph.serviceClient<comms::ResetSimulation>("/remove_constraint"));
+			m_nh.serviceClient<comms::ResetSimulation>("/remove_constraint"));
 }
 
 bool BulletSim::removeObject(const int& id)

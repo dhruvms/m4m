@@ -41,6 +41,19 @@ public:
 		comms::ObjectsPoses& result);
 	bool RemoveConstraint();
 
+	const std::vector<std::vector<double>>* GetImmovableObjs() const {
+		return &m_immov;
+	};
+	const std::vector<std::vector<double>>* GetMovableObjs() const {
+		return &m_mov;
+	};
+	const std::vector<std::pair<int, int>>* GetImmovableObjIDs() const {
+		return &m_immov_ids;
+	};
+	const std::vector<std::pair<int, int>>* GetMovableObjIDs() const {
+		return &m_mov_ids;
+	};
+
 private:
 	int m_num_immov, m_num_mov, m_robot_id, m_tables;
 

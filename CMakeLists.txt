@@ -32,7 +32,7 @@ find_package(comms REQUIRED)
 catkin_package(
 	CATKIN_DEPENDS
 	std_msgs
-   comms
+	comms
 )
 
 include_directories(SYSTEM ${catkin_INCLUDE_DIRS})

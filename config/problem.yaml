@@ -52,3 +52,5 @@ objects:
   x_size: 0.08
   y_size: 0.08
   z_size: 0.2
+  num_immov: 5
+  num_mov: 5

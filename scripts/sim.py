@@ -160,7 +160,7 @@ class BulletSim:
 			rpy = [req.o_r, req.o_p, req.o_yaw]
 
 			filename = os.path.dirname(os.path.abspath(__file__)) + '/'
-			filename += '../env/ycb/{object}/urdf/{object}_tsdf.urdf'.format(object=YCB_OBJECTS[obj_id])
+			filename += '../dat/ycb/{object}/urdf/{object}_tsdf.urdf'.format(object=YCB_OBJECTS[obj_id])
 
 			body_id = sim.loadURDF(
 							fileName=filename,
@@ -175,6 +175,7 @@ class BulletSim:
 							}
 
 			aabb = sim.getAABB(body_id, -1)
+
 			lower_limits = [x - CLEARANCE for x in aabb[0]]
 			upper_limits = [x + CLEARANCE for x in aabb[1]]
 
@@ -182,7 +183,7 @@ class BulletSim:
 			table_id = sim_data['table_id']
 
 			overlaps = sim.getOverlappingObjects(lower_limits, upper_limits)
-			if (obj_id <= table_id[-1]):
+			if (body_id <= table_id[-1]):
 				intersects = [oid != ground_plane_id and oid not in table_id and oid != body_id for (oid, link) in overlaps]
 			else:
 				intersects = [oid != ground_plane_id and oid != table_id[0] and oid != body_id for (oid, link) in overlaps]

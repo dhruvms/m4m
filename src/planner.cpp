@@ -19,10 +19,23 @@
 namespace clutter
 {
 
-bool Planner::Init(const std::string& scene_file, int scene_id)
+bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 {
 	m_scene_file = scene_file;
 	m_scene_id = scene_id;
+
+	std::string tables;
+	int num_immov, num_mov;
+
+	m_ph.getParam("object_filename", tables);
+	m_ph.getParam("objects/num_immov", num_immov);
+	m_ph.getParam("objects/num_mov", num_mov);
+	m_sim = std::make_shared<BulletSim>(
+				tables, ycb,
+				m_scene_id, std::string(),
+				num_immov, num_mov);
+
+	m_robot = std::make_unique<Robot>();
 
 	m_stats["whca_attempts"] = 0;
 	m_stats["robot_plan_time"] = 0.0;
@@ -36,10 +49,16 @@ bool Planner::Init(const std::string& scene_file, int scene_id)
 	setupGlobals();
 
 	m_agents.clear();
-	std::vector<Object> all_obstacles, pruned_obstacles;
-	parse_scene(all_obstacles);
-	pruned_obstacles = all_obstacles;
 
+	std::vector<Object> all_obstacles, pruned_obstacles;
+	if (m_scene_id < 0)	{ // init agents from simulator
+		init_agents(ycb, all_obstacles);
+	}
+	else {
+		parse_scene(all_obstacles); // TODO: relax ycb = false assumption
+	}
+
+	pruned_obstacles = all_obstacles;
 	// only keep the base of the fridge shelf
 	if (FRIDGE)
 	{
@@ -65,8 +84,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id)
 	m_ooi_gf = m_cc->GetRandomStateOutside(&m_ooi.GetObject()->back());
 	ContToDisc(m_ooi_gf, m_ooi_g);
 
-	m_robot = std::make_unique<Robot>();
-
 	m_ooi.SetCC(m_cc);
 	m_robot->SetCC(m_cc);
 	for (auto& a: m_agents) {
@@ -82,6 +99,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id)
 	for (auto& a: m_agents) {
 		a.Setup();
 	}
+	ROS_INFO("Agents setup!");
 
 	if (!m_robot->ProcessObstacles(all_obstacles))
 	{
@@ -108,11 +126,8 @@ bool Planner::Init(const std::string& scene_file, int scene_id)
 	m_animate = m_nh.advertiseService("anim_soln", &Planner::animateSolution, this);
 	m_rearrange = m_nh.advertiseService("rearrange", &Planner::rearrange, this);
 
-	m_sim = std::make_shared<BulletSim>(
-				std::string(), false,
-				m_scene_id, std::string(),
-				-1, -1);
 	setupSim();
+	ROS_INFO("Sim setup!");
 
 	m_robot->SetSim(m_sim);
 
@@ -694,6 +709,121 @@ int Planner::cleanupLogs()
 	return system(command.c_str());
 }
 
+void Planner::init_agents(
+	bool ycb, std::vector<Object>& obstacles)
+{
+	auto mov_objs = m_sim->GetMovableObjs();
+	auto mov_obj_ids = m_sim->GetMovableObjIDs();
+	auto immov_objs = m_sim->GetImmovableObjs();
+	auto immov_obj_ids = m_sim->GetImmovableObjIDs();
+
+	m_num_objs = mov_objs->size() + immov_objs->size();
+	m_agents.clear();
+	m_agent_map.clear();
+	obstacles.clear();
+
+	int tables = FRIDGE ? 5 : 1;
+	bool ooi_set = false;
+	Object o;
+	for (size_t i = 0; i < immov_objs->size(); ++i)
+	{
+		o.id = immov_obj_ids->at(i).first;
+		o.type = i == 0 ? -1 : 0; // table or immovable
+		o.o_x = immov_objs->at(i).at(0);
+		o.o_y = immov_objs->at(i).at(1);
+		o.o_z = immov_objs->at(i).at(2);
+		o.o_roll = immov_objs->at(i).at(3);
+		o.o_pitch = immov_objs->at(i).at(4);
+		o.o_yaw = immov_objs->at(i).at(5);
+
+		if (ycb)
+		{
+			auto itr = YCB_OBJECT_DIMS.find(o.shape);
+			if (itr != YCB_OBJECT_DIMS.end())
+			{
+				o.x_size = itr->second.at(0);
+				o.y_size = itr->second.at(1);
+				o.z_size = itr->second.at(2);
+			}
+		}
+		else
+		{
+			o.x_size = immov_objs->at(i).at(6);
+			o.y_size = immov_objs->at(i).at(7);
+			o.z_size = immov_objs->at(i).at(8);
+		}
+		o.movable = false;
+		o.shape = immov_obj_ids->at(i).second;
+		if (ycb && i >= tables) {
+			o.shape = o.x_size == o.y_size ? 2 : 0;
+			if (immov_obj_ids->at(i).second == 36) {
+				o.shape = 0; // YCB wood block is a cuboid
+			}
+		}
+		o.mass = i == 0 ? 0 : -1;
+		o.locked = i == 0 ? true : false;
+		o.mu = -1;
+		o.ycb = i >= tables ? ycb : false;
+
+		if (!ooi_set && i >= tables)
+		{
+			m_ooi.SetObject(o);
+			m_goal.clear();
+			m_goal = {o.o_x, o.o_y, obstacles.at(0).o_z + obstacles.at(0).z_size + 0.05, 0.0, 0.0, 0.0};
+
+			ooi_set = true;
+			continue;
+		}
+
+		obstacles.push_back(o);
+	}
+
+	for (size_t i = 0; i < mov_objs->size(); ++i)
+	{
+		o.id = mov_obj_ids->at(i).first;
+		o.type = 1; // movable
+		o.o_x = mov_objs->at(i).at(0);
+		o.o_y = mov_objs->at(i).at(1);
+		o.o_z = mov_objs->at(i).at(2);
+		o.o_roll = mov_objs->at(i).at(3);
+		o.o_pitch = mov_objs->at(i).at(4);
+		o.o_yaw = mov_objs->at(i).at(5);
+
+		if (ycb)
+		{
+			auto itr = YCB_OBJECT_DIMS.find(o.shape);
+			if (itr != YCB_OBJECT_DIMS.end())
+			{
+				o.x_size = itr->second.at(0);
+				o.y_size = itr->second.at(1);
+				o.z_size = itr->second.at(2);
+			}
+		}
+		else
+		{
+			o.x_size = mov_objs->at(i).at(6);
+			o.y_size = mov_objs->at(i).at(7);
+			o.z_size = mov_objs->at(i).at(8);
+		}
+		o.movable = true;
+		o.shape = immov_obj_ids->at(i).second;
+		if (ycb) {
+			o.shape = o.x_size == o.y_size ? 2 : 0;
+			if (immov_obj_ids->at(i).second == 36) {
+				o.shape = 0; // YCB wood block is a cuboid
+			}
+		}
+		o.mass = i == 0 ? 0 : -1;
+		o.locked = false;
+		o.mu = -1;
+		o.ycb = i >= tables ? ycb : false;
+
+		Agent r(o);
+		m_agents.push_back(std::move(r));
+		m_agent_map[o.id] = m_agents.size() - 1;
+	}
+}
+
 void Planner::parse_scene(std::vector<Object>& obstacles)
 {
 	std::ifstream SCENE;
@@ -708,12 +838,12 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 			if (line.compare("O") == 0)
 			{
 				getline(SCENE, line);
-				m_num_agents = std::stoi(line);
+				m_num_objs = std::stoi(line);
 				m_agents.clear();
 				m_agent_map.clear();
 				obstacles.clear();
 
-				for (int i = 0; i < m_num_agents; ++i)
+				for (int i = 0; i < m_num_objs; ++i)
 				{
 					Object o;
 
@@ -746,6 +876,7 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 							case 13: o.mu = std::stof(split); break;
 							case 14: o.movable = (split.compare("True") == 0); break;
 						}
+						o.ycb = false;
 						count++;
 					}
 					if (o.movable) {
