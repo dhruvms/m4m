@@ -393,7 +393,8 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		}
 	}
 
-	// while (!conflicts.empty())
+	bool push_found = false;
+	while (!push_found && !conflicts.empty())
 	{
 		auto i = conflicts.begin();
 		for (auto iter = conflicts.begin(); iter != conflicts.end(); ++iter)
@@ -445,7 +446,10 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		// m_robot->PlanPush creates the planner internally, because it might
 		// change KDL chain during the process
 		comms::ObjectsPoses result;
-		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back(), rearranged, result)) {
+
+		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back(), rearranged, result))
+		{
+			push_found = true;
 			m_rearrangements.push_back(m_robot->GetLastPlan());
 
 			// update positions of moved objects
