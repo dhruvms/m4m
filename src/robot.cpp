@@ -230,12 +230,45 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 {
 	for (const auto& obs: obstacles)
 	{
-		moveit_msgs::CollisionObject obj_msg;
-		if (!getCollisionObjectMsg(obs, obj_msg, remove)) {
-			return false;
+		if (!obs.ycb)
+		{
+			moveit_msgs::CollisionObject obj_msg;
+			if (!getCollisionObjectMsg(obs, obj_msg, remove)) {
+				return false;
+			}
+			if (!processCollisionObjectMsg(obj_msg)) {
+				return false;
+			}
 		}
-		if (!processCollisionObjectMsg(obj_msg)) {
-			return false;
+		else
+		{
+			std::string stl_mesh(__FILE__);
+			auto found = stl_mesh.find_last_of("/\\");
+			stl_mesh = stl_mesh.substr(0, found + 1) + "../dat/ycb/?/tsdf/nontextured.stl";
+
+			auto itr = YCB_OBJECT_NAMES.find(obs.shape);
+			std::string object_name(itr->second);
+			found = stl_mesh.find_last_of("?");
+			stl_mesh.insert(found, object_name);
+			found = stl_mesh.find_last_of("?");
+			stl_mesh.erase(found, 1);
+			stl_mesh.insert(0, "file://");
+
+			geometry_msgs::Pose pose;
+			pose.position.x = obs.o_x;
+			pose.position.y = obs.o_y;
+			pose.position.z = obs.o_z;
+
+			Eigen::Quaterniond q;
+			smpl::angles::from_euler_zyx(
+					obs.o_yaw, obs.o_pitch, obs.o_roll, q);
+			geometry_msgs::Quaternion orientation;
+			tf::quaternionEigenToMsg(q, orientation);
+			pose.orientation = orientation;
+
+			if (!processSTLMesh(obs.id, pose, stl_mesh, remove)) {
+				return false;
+			}
 		}
 	}
 
@@ -330,7 +363,8 @@ bool Robot::attachOOI(const Object& ooi)
 	{
 		for (size_t sidx = 0; sidx < ooi_co->shapes.size(); ++sidx)
 		{
-
+			auto transform = Eigen::Affine3d::Identity();
+			transform.translation().x() += 0.2;
 			switch (ooi_co->shapes.at(sidx)->type)
 			{
 				case smpl::collision::ShapeType::Box:
@@ -348,6 +382,17 @@ bool Robot::attachOOI(const Object& ooi)
 					break;
 				}
 				case smpl::collision::ShapeType::Mesh:
+				{
+					shapes::ShapeConstPtr ao_shape = MakeROSShape(ooi_co->shapes.at(sidx));
+					shapes.push_back(std::move(ao_shape));
+
+					auto itr = YCB_OBJECT_DIMS.find(ooi.shape);
+					if (itr != YCB_OBJECT_DIMS.end()) {
+						transform.translation().z() -= (m_grasp_z - m_table_z);
+					}
+
+					break;
+				}
 				case smpl::collision::ShapeType::Sphere:
 				case smpl::collision::ShapeType::Cone:
 				case smpl::collision::ShapeType::Plane:
@@ -358,8 +403,6 @@ bool Robot::attachOOI(const Object& ooi)
 					return false;
 				}
 			}
-			auto transform = Eigen::Affine3d::Identity();
-			transform.translation().x() += 0.2;
 			transforms.push_back(transform);
 		}
 	}
@@ -1675,6 +1718,73 @@ bool Robot::processCollisionObjectMsg(
 	else {
 		return false;
 	}
+}
+
+bool Robot::processSTLMesh(
+	const int& id, const geometry_msgs::Pose& pose,
+	const std::string& stl_mesh, bool remove, bool movable)
+{
+	if (remove)
+	{
+		// find the collision object with this name
+		auto* _object = findCollisionObject(std::to_string(id));
+		if (!_object) {
+			return false;
+		}
+
+		// remove from collision space
+		if (!m_cc_i->removeObject(_object)) {
+			return false;
+		}
+
+		// remove all collision shapes belonging to this object
+		auto belongs_to_object = [_object](const std::unique_ptr<smpl::collision::CollisionShape>& shape) {
+			auto is_shape = [&shape](const smpl::collision::CollisionShape* s) {
+				return s == shape.get();
+			};
+			auto it = std::find_if(
+					begin(_object->shapes), end(_object->shapes), is_shape);
+			return it != end(_object->shapes);
+		};
+
+		auto rit = std::remove_if(
+				begin(m_collision_shapes), end(m_collision_shapes),
+				belongs_to_object);
+		m_collision_shapes.erase(rit, end(m_collision_shapes));
+
+		// remove the object itself
+		auto is_object = [_object](const std::unique_ptr<smpl::collision::CollisionObject>& object) {
+			return object.get() == _object;
+		};
+		auto rrit = std::remove_if(
+				begin(m_collision_objects), end(m_collision_objects), is_object);
+		m_collision_objects.erase(rrit, end(m_collision_objects));
+
+		return true;
+	}
+
+	smpl::collision::MeshShape* shape = ConvertSTLToMeshShape(stl_mesh);
+	if (!shape) {
+		ROS_ERROR("Could not convert STL to mesh.");
+		return false;
+	}
+
+	Eigen::Affine3d transform;
+	tf::poseMsgToEigen(pose, transform);
+
+	std::vector<smpl::collision::CollisionShape*> shapes;
+	smpl::collision::AlignedVector<Eigen::Affine3d> shape_poses;
+
+	shapes.push_back(shape);
+	shape_poses.push_back(transform);
+
+	auto co = smpl::make_unique<smpl::collision::CollisionObject>();
+	co->id = std::to_string(id);
+	co->shapes = std::move(shapes);
+	co->shape_poses = std::move(shape_poses);
+
+	m_collision_objects.push_back(std::move(co));
+	return m_cc_i->insertObject(m_collision_objects.back().get());
 }
 
 bool Robot::addCollisionObjectMsg(

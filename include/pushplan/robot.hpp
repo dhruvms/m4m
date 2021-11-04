@@ -169,7 +169,7 @@ private:
 	std::shared_ptr<BulletSim> m_sim;
 	std::vector<trajectory_msgs::JointTrajectory> m_pushes;
 	int m_pushes_per_object, m_grasp_tries;
-	double m_plan_push_time, m_grasp_lift;
+	double m_plan_push_time, m_grasp_lift, m_grasp_z;
 
 	std::map<std::string, double> m_stats;
 	double m_planner_time, m_sim_time;
@@ -207,6 +207,9 @@ private:
 		bool remove);
 	bool processCollisionObjectMsg(
 		const moveit_msgs::CollisionObject& object, bool movable=false);
+	bool processSTLMesh(
+		const int& id, const geometry_msgs::Pose& pose,
+		const std::string& stl_mesh, bool remove, bool movable=false);
 
 	bool addCollisionObjectMsg(
 		const moveit_msgs::CollisionObject& object, bool movable);
