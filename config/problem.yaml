@@ -54,3 +54,4 @@ objects:
   z_size: 0.2
   num_immov: 5
   num_mov: 5
+  ycb: false
