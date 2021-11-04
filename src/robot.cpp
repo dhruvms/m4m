@@ -86,8 +86,6 @@ bool Robot::Setup()
 		return false;
 	}
 
-	ROS_WARN("Robot model setup!");
-
 	//////////////////////////////////
 	// Initialize Collision Checker //
 	//////////////////////////////////
@@ -100,8 +98,6 @@ bool Robot::Setup()
 		return false;
 	}
 	m_cc_i->setWorldToModelTransform(Eigen::Affine3d::Identity());
-
-	ROS_WARN("Collision checker setup!");
 
 	// Read in start state from file and update the scene...
 	// Start state is also required by the planner...
@@ -118,8 +114,6 @@ bool Robot::Setup()
 		ROS_ERROR("Failed to set start state!");
 		return false;
 	}
-
-	ROS_WARN("Start state set!");
 
 	// from smpl::ManipLattice
 	m_min_limits.resize(m_rm->jointVariableCount());
@@ -179,21 +173,18 @@ bool Robot::Setup()
 	m_link_w = smpl::urdf::GetLink(&m_rm->m_robot_model, m_wrist.c_str());
 	m_link_t = smpl::urdf::GetLink(&m_rm->m_robot_model, m_tip.c_str());
 
-	ROS_WARN("Variables init!");
-
 	initObjects();
-	ROS_WARN("Objects init!");
 
 	smpl::RobotState dummy;
 	dummy.insert(dummy.begin(),
 		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
 	m_rm->computeFK(dummy); // for reasons unknown
-	if (!reinitStartState())
-	{
-		ROS_ERROR("Failed to reinit start state!");
-		return false;
-	}
-	ROS_WARN("Start state re-init!");
+	// if (!reinitStartState())
+	// {
+	// 	ROS_ERROR("Failed to reinit start state!");
+	// 	return false;
+	// }
+	// ROS_WARN("Start state re-init!");
 
 	m_planner_init = false;
 	m_pushes_per_object = -1;
@@ -586,16 +577,21 @@ bool Robot::ComputeGrasps(
 	Eigen::Affine3d ee_pose;
 	do
 	{
-		double z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
-		ee_pose = Eigen::Translation3d(ooi.o_x + 0.025 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.025 * std::sin(pregrasp_goal[5]), z) *
+		m_grasp_z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
+		ee_pose = Eigen::Translation3d(ooi.o_x + 0.025 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.025 * std::sin(pregrasp_goal[5]), m_grasp_z) *
 						Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
 	}
 	while (!getStateNearPose(ee_pose, ee_state, m_grasp_state, 5) && ++tries < m_grasp_tries);
-	// auto* vis_name = "grasp_pose";
-	// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
-	// 	ee_pose, m_grid_i->getReferenceFrame(), vis_name));
+
+	auto* vis_name = "grasp_pose";
+	SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+		ee_pose, m_grid_i->getReferenceFrame(), vis_name));
+
+	if (tries == m_grasp_tries)	{
+		return false;
+	}
 
 	// vis_name = "grasp_state";
 	// auto markers = m_cc_i->getCollisionModelVisualization(m_grasp_state);
@@ -603,10 +599,6 @@ bool Robot::ComputeGrasps(
 	// 	marker.ns = vis_name;
 	// }
 	// SV_SHOW_INFO_NAMED(vis_name, markers);
-
-	if (tries == m_grasp_tries)	{
-		return false;
-	}
 
 	SMPL_INFO("Found grasp state!!");
 
