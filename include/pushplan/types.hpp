@@ -54,6 +54,20 @@ struct Object
 	double x_size, y_size, z_size;
 	double mass, mu;
 	bool movable, locked, ycb;
+
+	int Shape() const
+	{
+		if (!ycb) {
+			return shape;
+		}
+		else {
+			if (shape == 36) {
+				return 0;
+			}
+			int s = x_size == y_size ? 2 : 0;
+			return s;
+		}
+	}
 };
 
 class Search
