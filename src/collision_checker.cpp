@@ -88,7 +88,7 @@ bool CollisionChecker::IsStateValid(
 	bool rect_o1 = false;
 
 	// preprocess rectangle once only
-	if (o1.shape == 0)
+	if (o1.Shape() == 0)
 	{
 		GetRectObjAtPt(o1_loc, o1, o1_rect);
 		rect_o1 = true;
@@ -121,7 +121,7 @@ bool CollisionChecker::OOICollision(const Object& o)
 	bool rect_o = false, rect_ooi = false;
 
 	// preprocess rectangle once only
-	if (o.shape == 0)
+	if (o.Shape() == 0)
 	{
 		GetRectObjAtPt(o_loc, o, o_rect);
 		rect_o = true;
@@ -148,7 +148,7 @@ bool CollisionChecker::UpdateConflicts(
 	bool rect_o1 = false;
 
 	// preprocess rectangle once only
-	if (o1.shape == 0)
+	if (o1.Shape() == 0)
 	{
 		GetRectObjAtPt(o1_loc, o1, o1_rect);
 		rect_o1 = true;
@@ -227,7 +227,7 @@ State CollisionChecker::GetRandomStateOutside(const Object* o)
 	gmin.at(1) = OutsideYMin();
 	gmax.at(1) = OutsideYMax();
 
-	if (o->shape == 0) // rectangle
+	if (o->Shape() == 0) // rectangle
 	{
 		std::vector<State> o_goal;
 		do
@@ -238,7 +238,7 @@ State CollisionChecker::GetRandomStateOutside(const Object* o)
 		}
 		while (RectanglesIntersect(o_goal, m_base));
 	}
-	else if (o->shape == 2) // circle
+	else if (o->Shape() == 2) // circle
 	{
 		do
 		{
@@ -263,7 +263,7 @@ bool CollisionChecker::immovableCollision(const Object& o, const int& priority)
 	std::vector<State> o_rect;
 	// preprocess rectangle once only
 	bool rect = false;
-	if (o.shape == 0)
+	if (o.Shape() == 0)
 	{
 		GetRectObjAtPt(o_loc, o, o_rect);
 		rect = true;
@@ -282,13 +282,13 @@ bool CollisionChecker::immovableCollision(const Object& o, const int& priority)
 				continue;
 			}
 
-			if (obstacle.shape == 0) // rectangle
+			if (obstacle.Shape() == 0) // rectangle
 			{
 				if (rectRectCollision(o_rect, m_obs_rects[obstacle.id])) {
 					return true;
 				}
 			}
-			else if (obstacle.shape == 2) // circle
+			else if (obstacle.Shape() == 2) // circle
 			{
 				State obs_loc = {obstacle.o_x, obstacle.o_y};
 				if (rectCircCollision(o_rect, obstacle, obs_loc)) {
@@ -310,13 +310,13 @@ bool CollisionChecker::immovableCollision(const Object& o, const int& priority)
 				continue;
 			}
 
-			if (obstacle.shape == 0) // rectangle
+			if (obstacle.Shape() == 0) // rectangle
 			{
 				if (rectCircCollision(m_obs_rects[obstacle.id], o, o_loc)) {
 					return true;
 				}
 			}
-			else if (obstacle.shape == 2) // circle
+			else if (obstacle.Shape() == 2) // circle
 			{
 				State obs_loc = {obstacle.o_x, obstacle.o_y};
 				if (circCircCollision(o, o_loc, obstacle, obs_loc)) {
@@ -342,7 +342,7 @@ bool CollisionChecker::checkCollisionObjSet(
 	{
 		rect_o2 = false;
 		o2_loc = {ao.o_x, ao.o_y};
-		if (ao.shape == 0)
+		if (ao.Shape() == 0)
 		{
 			GetRectObjAtPt(o2_loc, ao, o2_rect);
 			rect_o2 = true;

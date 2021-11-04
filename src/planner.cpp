@@ -99,7 +99,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	for (auto& a: m_agents) {
 		a.Setup();
 	}
-	ROS_INFO("Agents setup!");
 
 	if (!m_robot->ProcessObstacles(all_obstacles))
 	{
@@ -127,7 +126,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_rearrange = m_nh.advertiseService("rearrange", &Planner::rearrange, this);
 
 	setupSim();
-	ROS_INFO("Sim setup!");
 
 	m_robot->SetSim(m_sim);
 
@@ -961,7 +959,7 @@ void Planner::writePlanState(int iter)
 	{
 		movable = obs.movable ? "True" : "False";
 		DATA << obs.id << ','
-				<< obs.shape << ','
+				<< obs.Shape() << ','
 				<< obs.type << ','
 				<< obs.o_x << ','
 				<< obs.o_y << ','
@@ -981,7 +979,7 @@ void Planner::writePlanState(int iter)
 	auto agent_obs = m_ooi.GetObject();
 	movable = "False";
 	DATA << 999 << ',' // for visualisation purposes
-			<< agent_obs->back().shape << ','
+			<< agent_obs->back().Shape() << ','
 			<< agent_obs->back().type << ','
 			<< loc.at(0) << ','
 			<< loc.at(1) << ','
@@ -1002,7 +1000,7 @@ void Planner::writePlanState(int iter)
 		loc = a.GetCurrentState()->state;
 		agent_obs = a.GetObject();
 		DATA << agent_obs->back().id << ','
-			<< agent_obs->back().shape << ','
+			<< agent_obs->back().Shape() << ','
 			<< agent_obs->back().type << ','
 			<< loc.at(0) << ','
 			<< loc.at(1) << ','
@@ -1022,7 +1020,7 @@ void Planner::writePlanState(int iter)
 	for (const auto& robot_o: *agent_obs)
 	{
 		DATA << robot_o.id << ','
-				<< robot_o.shape << ','
+				<< robot_o.Shape() << ','
 				<< robot_o.type << ','
 				<< robot_o.o_x << ','
 				<< robot_o.o_y << ','
