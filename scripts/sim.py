@@ -356,7 +356,6 @@ class BulletSim:
 
 		return ResetSceneResponse(True)
 
-
 	def SetColours(self, req):
 		sim_id = req.sim_id
 		all_sims = sim_id < 0
@@ -365,6 +364,9 @@ class BulletSim:
 			sim_idx = i if all_sims else sim_id
 			sim = self.sims[sim_idx]
 			sim_data = self.sim_datas[sim_idx]
+
+			for i in range(120):
+				sim.stepSimulation()
 
 			for idx, obj_id in enumerate(req.ids):
 				if req.type[idx] == -1: # table
@@ -387,6 +389,9 @@ class BulletSim:
 									rgbaColor=OOI_COLOUR + [1.0],
 									specularColor=OOI_COLOUR)
 					sim_data['objs'][obj_id]['type'] = 999
+
+				obj_xyz, obj_rpy = sim.getBasePositionAndOrientation(obj_id)
+				sim_data['objs'][obj_id]['xyz'][2] = obj_xyz[2]
 
 		return SetColoursResponse(True)
 
