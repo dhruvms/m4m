@@ -726,7 +726,7 @@ void Planner::init_agents(
 	for (size_t i = 0; i < immov_objs->size(); ++i)
 	{
 		o.id = immov_obj_ids->at(i).first;
-		o.type = i == 0 ? -1 : 0; // table or immovable
+		o.type = i < tables ? -1 : 0; // table or immovable
 		o.o_x = immov_objs->at(i).at(0);
 		o.o_y = immov_objs->at(i).at(1);
 		o.o_z = immov_objs->at(i).at(2);
@@ -734,14 +734,15 @@ void Planner::init_agents(
 		o.o_pitch = immov_objs->at(i).at(4);
 		o.o_yaw = immov_objs->at(i).at(5);
 
-		if (ycb)
+		if (ycb && i >= tables)
 		{
-			auto itr = YCB_OBJECT_DIMS.find(o.shape);
+			auto itr = YCB_OBJECT_DIMS.find(immov_obj_ids->at(i).second);
 			if (itr != YCB_OBJECT_DIMS.end())
 			{
 				o.x_size = itr->second.at(0);
 				o.y_size = itr->second.at(1);
 				o.z_size = itr->second.at(2);
+				o.o_yaw += itr->second.at(3);
 			}
 		}
 		else
@@ -752,12 +753,6 @@ void Planner::init_agents(
 		}
 		o.movable = false;
 		o.shape = immov_obj_ids->at(i).second;
-		if (ycb && i >= tables) {
-			o.shape = o.x_size == o.y_size ? 2 : 0;
-			if (immov_obj_ids->at(i).second == 36) {
-				o.shape = 0; // YCB wood block is a cuboid
-			}
-		}
 		o.mass = i == 0 ? 0 : -1;
 		o.locked = i == 0 ? true : false;
 		o.mu = -1;
@@ -789,12 +784,13 @@ void Planner::init_agents(
 
 		if (ycb)
 		{
-			auto itr = YCB_OBJECT_DIMS.find(o.shape);
+			auto itr = YCB_OBJECT_DIMS.find(mov_obj_ids->at(i).second);
 			if (itr != YCB_OBJECT_DIMS.end())
 			{
 				o.x_size = itr->second.at(0);
 				o.y_size = itr->second.at(1);
 				o.z_size = itr->second.at(2);
+				o.o_yaw += itr->second.at(3);
 			}
 		}
 		else
@@ -804,17 +800,11 @@ void Planner::init_agents(
 			o.z_size = mov_objs->at(i).at(8);
 		}
 		o.movable = true;
-		o.shape = immov_obj_ids->at(i).second;
-		if (ycb) {
-			o.shape = o.x_size == o.y_size ? 2 : 0;
-			if (immov_obj_ids->at(i).second == 36) {
-				o.shape = 0; // YCB wood block is a cuboid
-			}
-		}
+		o.shape = mov_obj_ids->at(i).second;
 		o.mass = i == 0 ? 0 : -1;
 		o.locked = false;
 		o.mu = -1;
-		o.ycb = i >= tables ? ycb : false;
+		o.ycb = ycb;
 
 		Agent r(o);
 		m_agents.push_back(std::move(r));
