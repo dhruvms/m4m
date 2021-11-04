@@ -32,7 +32,8 @@ BulletSim::BulletSim(
 	int immovable_objs,
 	int movable_objs) :
 m_num_immov(immovable_objs), m_num_mov(movable_objs),
-m_robot_id(-1), m_tables(-1)
+m_robot_id(-1), m_tables(-1),
+m_rng(m_dev())
 {
 	setupServices();
 
@@ -819,6 +820,8 @@ bool BulletSim::setupYCBObjects()
 			}
 		}
 	}
+
+	return true;
 }
 
 void BulletSim::readRobotFromFile(int replay_id, const std::string& suffix)
