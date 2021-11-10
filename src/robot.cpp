@@ -246,8 +246,8 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 			auto found = stl_mesh.find_last_of("/\\");
 			stl_mesh = stl_mesh.substr(0, found + 1) + "../dat/ycb/?/tsdf/nontextured.stl";
 
-			auto itr = YCB_OBJECT_NAMES.find(obs.shape);
-			std::string object_name(itr->second);
+			auto itr1 = YCB_OBJECT_NAMES.find(obs.shape);
+			std::string object_name(itr1->second);
 			found = stl_mesh.find_last_of("?");
 			stl_mesh.insert(found, object_name);
 			found = stl_mesh.find_last_of("?");
@@ -259,9 +259,15 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 			pose.position.y = obs.o_y;
 			pose.position.z = obs.o_z;
 
+			double yaw_offset = 0.0;
+			auto itr2 = YCB_OBJECT_DIMS.find(obs.shape);
+			if (itr2 != YCB_OBJECT_DIMS.end()) {
+				yaw_offset = itr2->second.at(3);
+			}
+
 			Eigen::Quaterniond q;
 			smpl::angles::from_euler_zyx(
-					obs.o_yaw, obs.o_pitch, obs.o_roll, q);
+					obs.o_yaw - yaw_offset, obs.o_pitch, obs.o_roll, q);
 			geometry_msgs::Quaternion orientation;
 			tf::quaternionEigenToMsg(q, orientation);
 			pose.orientation = orientation;

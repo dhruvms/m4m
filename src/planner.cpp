@@ -169,6 +169,8 @@ bool Planner::Plan()
 	}
 	else
 	{
+		m_exec_interm.clear();
+
 		time_taken = GetTime() - start_time;
 		SMPL_WARN("Need to re-run WHCA*! Planning took %f seconds.", time_taken);
 		m_stats["mapf_time"] += time_taken;
@@ -762,7 +764,10 @@ void Planner::init_agents(
 		{
 			m_ooi.SetObject(o);
 			m_goal.clear();
-			m_goal = {o.o_x, o.o_y, obstacles.at(0).o_z + obstacles.at(0).z_size + 0.05, 0.0, 0.0, 0.0};
+
+			double xdisp = std::cos(o.o_yaw) * 0.1;
+			double ydisp = std::sin(o.o_yaw) * 0.1;
+			m_goal = {o.o_x - xdisp, o.o_y - ydisp, obstacles.at(0).o_z + obstacles.at(0).z_size + 0.05, 0.0, 0.0, -o.o_yaw};
 
 			ooi_set = true;
 			continue;
