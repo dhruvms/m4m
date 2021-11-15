@@ -84,12 +84,12 @@ def DrawScene(filepath, objs, trajs, alpha=1.0):
 
 		obj_shape = obj[0]
 		obj_movable = obj[-1]
-		ec = 'g' if obj_movable else 'r'
-		fc = 'g' if obj_movable else 'r'
+		ec = 'b' if obj_movable else 'r'
+		fc = 'b' if obj_movable else 'r'
 		tc = 'w'
 		if obj_id >= 100 and obj_id <= 102:
-			ec = 'b'
-			fc = 'b'
+			ec = 'gray'
+			fc = 'gray'
 			tc = 'k'
 		if obj_id == 999:
 			ec = 'gold'
@@ -135,11 +135,11 @@ def DrawScene(filepath, objs, trajs, alpha=1.0):
 	if (trajs):
 		for key in trajs:
 			if key == 99:
-				lc = 'cyan'
+				lc = 'lightgray'
 			elif key == 999:
 				lc = 'orange'
 			else:
-				lc = 'lime'
+				lc = 'cyan'
 
 			traj = np.asarray(trajs[key])
 			AX.plot(traj[:, 0], traj[:, 1], c=lc, alpha=0.75, zorder=10)
@@ -158,8 +158,8 @@ def main():
 			if '.txt' not in filename:
 				continue
 
-			if int(filename.split('.')[0]) % 10 != 0:
-				continue
+			# if int(filename.split('.')[0]) % 10 != 0:
+			# 	continue
 
 			filepath = os.path.join(dirpath, filename)
 			objs, trajs = ParseFile(filepath)
