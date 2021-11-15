@@ -45,6 +45,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	m_ph.getParam("goal/plan_budget", m_plan_budget);
 	m_ph.getParam("goal/sim_budget", m_sim_budget);
+	m_ph.getParam("goal/total_budget", m_total_budget);
 
 	setupGlobals();
 
@@ -134,12 +135,17 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 bool Planner::Alive()
 {
-	double plan_time = m_plan_time + m_robot->PlannerTime();
-	if (plan_time > m_plan_budget) {
-		return false;
-	}
+	// double plan_time = m_plan_time + m_robot->PlannerTime();
+	// if (plan_time > m_plan_budget) {
+	// 	return false;
+	// }
 
-	if (m_robot->SimTime() > m_sim_budget) {
+	// if (m_robot->SimTime() > m_sim_budget) {
+	// 	return false;
+	// }
+
+	double total_time = m_plan_time + m_robot->PlannerTime() + m_robot->SimTime();
+	if (total_time > m_total_budget) {
 		return false;
 	}
 
@@ -197,12 +203,12 @@ bool Planner::PlanExtract()
 {
 	// Add rearranged objects as obstacles for extraction planning
 	std::vector<Object> extract_obs;
-	for (const auto& o: m_rearranged.poses)
+	for (const auto& a: m_agents)
 	{
-		auto search = m_agent_map.find(o.id);
-		if (search != m_agent_map.end()) {
-			extract_obs.push_back(m_agents.at(m_agent_map[o.id]).GetObject()->back());
-		}
+		extract_obs.push_back(a.GetObject()->back());
+		// auto search = m_agent_map.find(o.id);
+		// if (search != m_agent_map.end()) {
+		// }
 	}
 	if (!m_robot->Plan(m_ooi.GetObject()->back(), extract_obs)) {
 		return false;
@@ -400,13 +406,13 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 
 	comms::ObjectsPoses rearranged = m_rearranged;
 	std::vector<int> rearranged_ids;
-	for (const auto& o: m_rearranged.poses)
-	{
-		auto search = m_agent_map.find(o.id);
-		if (search != m_agent_map.end()) {
-			rearranged_ids.push_back(o.id);
-		}
-	}
+	// for (const auto& o: m_rearranged.poses)
+	// {
+	// 	auto search = m_agent_map.find(o.id);
+	// 	if (search != m_agent_map.end()) {
+	// 		rearranged_ids.push_back(o.id);
+	// 	}
+	// }
 
 	bool push_found = false;
 	while (!push_found && !conflicts.empty())

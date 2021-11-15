@@ -1037,7 +1037,7 @@ bool Robot::samplePush(
 	UpdateKDLRobot(link);
 
 	// sample push dist fraction
-	double push_frac = (m_distD(m_rng) * 0.85) + 0.25;
+	double push_frac = (m_distD(m_rng) * 0.75) + 0.3;
 
 	// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise (from -10 to 10 degrees)
 	double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * DEG5);

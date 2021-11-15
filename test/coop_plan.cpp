@@ -156,13 +156,13 @@ int main(int argc, char** argv)
 				ROS_ERROR("Planner terminated!!!");
 			}
 
-			// if (SAVE)
-			// {
-			// 	SaveData(
-			// 		scene_id,
-			// 		mapf_calls, mapf_sucesses, lucky, rearranged,
-			// 		dead, rearrange, violation);
-			// }
+			if (SAVE)
+			{
+				SaveData(
+					scene_id,
+					mapf_calls, mapf_sucesses, lucky, rearranged,
+					dead, rearrange, violation);
+			}
 		}
 	}
 	else

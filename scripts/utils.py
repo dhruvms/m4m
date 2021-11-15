@@ -4,7 +4,7 @@ from collections import namedtuple
 
 PR2_URDF = '../config/urdf/pr2_description/pr2.urdf'
 CLEARANCE = 0.0
-GUI = True
+GUI = False
 CLIENT = 0
 TABLE_COLOUR = [0.5, 0.5, 0.5]
 STATIC_COLOUR = [0.698, 0.133, 0.133]

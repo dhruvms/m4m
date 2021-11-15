@@ -68,7 +68,7 @@ private:
 	std::uint32_t m_violation;
 
 	std::map<std::string, double> m_stats;
-	double m_plan_time, m_plan_budget, m_sim_budget;
+	double m_plan_time, m_plan_budget, m_sim_budget, m_total_budget;
 
 	bool whcastar();
 
