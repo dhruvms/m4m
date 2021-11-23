@@ -189,8 +189,6 @@ bool Planner::Plan()
 	SMPL_INFO("Planning took %f seconds. (%f runs so far)", time_taken, m_stats["whca_attempts"]);
 
 	m_cc->PrintConflicts();
-	m_cc->CleanupConflicts();
-	m_cc->PrintConflicts();
 	m_stats["first_order_interactions"] = m_cc->NumConflicts();
 	if (SAVE) {
 		savePlanData();
@@ -211,10 +209,14 @@ bool Planner::PlanExtract()
 		// }
 	}
 	if (!m_robot->Plan(m_ooi.GetObject()->back(), extract_obs)) {
+		moveit_msgs::RobotTrajectory to_exec;
+		m_robot->ConvertTraj(m_exec_interm, to_exec);
+		m_exec = to_exec.joint_trajectory;
 		return false;
 	}
-
-	m_robot->GetExecTraj(m_exec);
+	else {
+		m_robot->GetExecTraj(m_exec);
+	}
 	SMPL_INFO("Exec traj size = %d", m_exec.points.size());
 
 	comms::ObjectsPoses rearranged = m_rearranged;
@@ -399,26 +401,19 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		a.ResetObject();
 	}
 
-	auto conflicts = m_cc->GetConflicts();
-	if (conflicts.empty()) {
+	auto robot_conflicts = m_cc->GetConflictsOf(100); // get first order conflicts
+	if (robot_conflicts.empty()) {
 		return false;
 	}
 
 	comms::ObjectsPoses rearranged = m_rearranged;
-	std::vector<int> rearranged_ids;
-	// for (const auto& o: m_rearranged.poses)
-	// {
-	// 	auto search = m_agent_map.find(o.id);
-	// 	if (search != m_agent_map.end()) {
-	// 		rearranged_ids.push_back(o.id);
-	// 	}
-	// }
+	std::vector<int> ids_attempted;
 
 	bool push_found = false;
-	while (!push_found && !conflicts.empty())
+	while (!push_found && !robot_conflicts.empty())
 	{
-		auto i = conflicts.begin();
-		for (auto iter = conflicts.begin(); iter != conflicts.end(); ++iter)
+		auto i = robot_conflicts.begin();
+		for (auto iter = robot_conflicts.begin(); iter != robot_conflicts.end(); ++iter)
 		{
 			if (iter == i) {
 				continue;
@@ -429,28 +424,56 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 			}
 		}
 
-		int oid = std::min(i->first.first, i->first.second); // max will be robot object
+		int oid = i->first.first;
+		int oid_t = i->second;
 		SMPL_INFO("Rearranging object %d", oid);
 		// m_agents.at(m_agent_map[oid]).ResetObject();
 
+		auto oid_conflicts = m_cc->GetConflictsOf(oid);
 		std::vector<Object> new_obstacles;
-		for (auto j = conflicts.begin(); j != conflicts.end(); ++j)
+		for (const auto& a: m_agents)
 		{
-			int obsid = std::min(j->first.first, j->first.second);
-			if (j == i || oid == obsid) {
-				continue;
+			if (a.GetObject()->back().id == oid) {
+				continue; // selected object cannot be obstacle
 			}
 
-			SMPL_INFO("Adding object %d as obstacle", obsid);
-			// m_agents.at(m_agent_map[obsid]).ResetObject();
-			new_obstacles.push_back(m_agents.at(m_agent_map[obsid]).GetObject()->back());
+			bool oid_child = false;
+			for (const auto& c: oid_conflicts)
+			{
+				if (c.first.first == a.GetObject()->back().id) {
+					oid_child = true;
+					break;
+				}
+			}
+			if (oid_child) {
+				continue; // children of selected object may not be obstacle
+			}
+
+			new_obstacles.push_back(a.GetObject()->back());
+			SMPL_INFO("Adding object %d as obstacle", a.GetObject()->back().id);
 		}
-		for (const auto& id: rearranged_ids) {
+
+		for (const auto& c: robot_conflicts)
+		{
+			if (c.first.first != oid && c.second < oid_t)
+			{
+				// first order conflicts earlier than selected object
+				// must be obstacles
+				new_obstacles.push_back(m_agents.at(m_agent_map[c.first.first]).GetObject()->back());
+				SMPL_INFO("Adding object %d as obstacle", c.first.first);
+			}
+		}
+
+		for (const auto& id: ids_attempted)
+		{
 			if (id == oid) {
 				continue;
 			}
-			SMPL_INFO("Adding rearranged object %d as obstacle", id);
+
+			// first order conflicts already selected (for which no push was found)
+			// must be obstacles
 			new_obstacles.push_back(m_agents.at(m_agent_map[id]).GetObject()->back());
+			SMPL_INFO("Adding rearranged object %d as obstacle", id);
 		}
 		// add new obstacles
 		m_robot->ProcessObstacles(new_obstacles);
@@ -483,11 +506,11 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 		// remove new obstacles
 		m_robot->ProcessObstacles(new_obstacles, true);
 
-		conflicts.erase(i);
+		robot_conflicts.erase(i);
 
-		auto it = std::find(begin(rearranged_ids), end(rearranged_ids), oid);
-		if (it == end(rearranged_ids)) {
-			rearranged_ids.push_back(oid);
+		auto it = std::find(begin(ids_attempted), end(ids_attempted), oid);
+		if (it == end(ids_attempted)) {
+			ids_attempted.push_back(oid);
 		}
 	}
 	m_rearranged = rearranged;
@@ -542,7 +565,12 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 	m_violation = 0x00000000;
 
 	comms::ObjectsPoses dummy;
-	for (const auto& traj: m_rearrangements) {
+	for (const auto& traj: m_rearrangements)
+	{
+		if (traj.points.empty()) {
+			continue;
+		}
+
 		if (!m_sim->ExecTraj(traj, dummy))
 		{
 			SMPL_ERROR("Failed to exec rearrangement!");
