@@ -138,7 +138,7 @@ int main(int argc, char** argv)
 					}
 				}
 			}
-			while (p.Alive());
+			while (rearrange && p.Alive());
 			dead = !p.Alive();
 
 			if (p.Alive()) {
