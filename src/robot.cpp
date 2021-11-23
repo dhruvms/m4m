@@ -930,7 +930,7 @@ bool Robot::PlanPush(
 			{
 				ROS_ERROR("Failed to plan.");
 				ProcessObstacles(obs, true);
-				return false;
+				continue;
 			}
 			ProcessObstacles(obs, true);
 
@@ -985,6 +985,7 @@ bool Robot::PlanPush(
 	}
 
 	m_traj = m_pushes.at(pidx);
+	SMPL_INFO("Found good push traj of length %d!", m_traj.points.size());
 	return true;
 }
 
@@ -1043,11 +1044,11 @@ bool Robot::samplePush(
 	double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * DEG5);
 
 	// roll and pitch are noise (from 0 to 10 degrees)
-	double roll = (m_distD(m_rng) * 2 * DEG5);
-	double pitch = (m_distD(m_rng) * 2 * DEG5);
+	double roll = (m_distD(m_rng) * 6 * DEG5);
+	double pitch = (m_distD(m_rng) * 6 * DEG5);
 
 	// z is between 2.5 to 7.5cm above table height
-	double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.025;
+	double z = m_table_z + (m_distD(m_rng) * 0.04) + 0.01;
 
 	// (x, y) are linearly interpolated between object start and end
 	double x = object->front().state.at(0) * (1 - push_frac) + object->back().state.at(0) * push_frac;
@@ -1075,8 +1076,8 @@ bool Robot::samplePush(
 		// SV_SHOW_INFO_NAMED(vis_name, markers);
 
 		push_pose = m_rm->computeFK(push_end);
-		push_pose.translation().x() = m_goal_vec[0];
-		push_pose.translation().y() = m_goal_vec[1];
+		push_pose.translation().x() = m_goal_vec[0] + (m_distG(m_rng) * 0.025);
+		push_pose.translation().y() = m_goal_vec[1] + (m_distG(m_rng) * 0.025);
 
 		// vis_name = "push_start_pose";
 		// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
@@ -1092,8 +1093,9 @@ bool Robot::samplePush(
 			// }
 			// SV_SHOW_INFO_NAMED(vis_name, markers);
 
+			bool collides = !(m_cc_i->isStateToStateValid(push_start, push_end));
 			ProcessObstacles(obs, true);
-			if (m_cc_i->isStateToStateValid(push_start, push_end)) {
+			if (collides && m_cc_i->isStateToStateValid(push_start, push_end)) {
 				success = true;
 			}
 		}
