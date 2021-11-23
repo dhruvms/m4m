@@ -417,7 +417,7 @@ class BulletSim:
 		for jidx, jval in zip(arm_joints, curr_pose):
 			sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
 		for gjidx in gripper_joints:
-			sim.resetJointState(robot_id, gjidx, 0.3, targetVelocity=0.0)
+			sim.resetJointState(robot_id, gjidx, 0.2, targetVelocity=0.0)
 		sim.setJointMotorControlArray(
 					robot_id, arm_joints,
 					controlMode=sim.VELOCITY_CONTROL,
@@ -478,7 +478,7 @@ class BulletSim:
 				sim.setJointMotorControlArray(
 						robot_id, gripper_joints,
 						controlMode=sim.POSITION_CONTROL,
-						targetPositions=[0.3]*len(gripper_joints))
+						targetPositions=[0.2]*len(gripper_joints))
 
 			prev_timestep = curr_timestep
 			curr_timestep = point.time_from_start.to_sec()
@@ -605,7 +605,7 @@ class BulletSim:
 			for jidx, jval in zip(arm_joints, curr_pose):
 				sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
 			for gjidx in gripper_joints:
-				sim.resetJointState(robot_id, gjidx, 0.3, targetVelocity=0.0)
+				sim.resetJointState(robot_id, gjidx, 0.2, targetVelocity=0.0)
 			sim.setJointMotorControlArray(
 					robot_id, arm_joints,
 					controlMode=sim.VELOCITY_CONTROL,
@@ -627,7 +627,7 @@ class BulletSim:
 				sim.setJointMotorControlArray(
 						robot_id, gripper_joints,
 						controlMode=sim.POSITION_CONTROL,
-						targetPositions=[0.3]*len(gripper_joints))
+						targetPositions=[0.2]*len(gripper_joints))
 
 				prev_timestep = curr_timestep
 				curr_timestep = point.time_from_start.to_sec()
