@@ -68,8 +68,6 @@ public:
 	bool UpdateConflicts(
 		const LatticeState& s, const Object& o1, const int& priority);
 
-	void CleanupConflicts();
-	void ClearConflicts() { m_conflicts.clear(); };
 
 	double BoundaryDistance(const State& p);
 	double GetMinX() { return m_base.at(0).at(0); };
@@ -88,7 +86,9 @@ public:
 	int NumObstacles() { return (int)m_obstacles.size(); };
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
 
+	auto GetConflictsOf(int pusher) const -> std::unordered_map<std::pair<int, int>, int, std::PairHash>;
 	void PrintConflicts() { std::cout << m_conflicts << std::endl; }
+	void ClearConflicts() { m_conflicts.clear(); };
 	auto GetConflicts() const -> std::unordered_map<std::pair<int, int>, int, std::PairHash> {
 		return m_conflicts;
 	};

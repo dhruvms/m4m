@@ -166,10 +166,12 @@ bool CollisionChecker::UpdateConflicts(
 				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs))
 				{
 					int id1 = o1.id, id2 = a2_objs->back().id;
-					if (p == 0) {
+					int priority2 = p;
+					if (p == 0 || p == 1) {
 						id2 = 100;
+						priority2 = 0;
 					}
-					updateConflicts(id1, priority, id2, p, s.t);
+					updateConflicts(id1, priority, id2, priority2, s.t);
 				}
 			}
 		}
@@ -178,33 +180,19 @@ bool CollisionChecker::UpdateConflicts(
 	return true;
 }
 
-void CollisionChecker::CleanupConflicts()
+auto CollisionChecker::GetConflictsOf(int pusher) const ->
+std::unordered_map<std::pair<int, int>, int, std::PairHash>
 {
-	std::vector<int> check;
+	auto pushed = m_conflicts;
+	pushed.clear();
 	for (const auto& c: m_conflicts)
 	{
-		if (c.first.second == 100) {
-			check.push_back(c.first.first);
+		if (c.first.second == pusher) {
+			pushed[c.first] = c.second;
 		}
 	}
 
-	size_t s;
-	do
-	{
-		s = check.size();
-		cleanupChildren(check);
-	}
-	while (s != check.size());
-
-	auto conflicts = m_conflicts;
-	conflicts.clear();
-	for (const auto& c: m_conflicts) {
-		auto loc = std::find(check.begin(), check.end(), c.first.second);
-		if (loc == check.end()) {
-			conflicts.insert(c);
-		}
-	}
-	m_conflicts = conflicts;
+	return pushed;
 }
 
 double CollisionChecker::BoundaryDistance(const State& p)
@@ -473,10 +461,6 @@ bool CollisionChecker::updateConflicts(
 	int id1, int p1,
 	int id2, int p2, int t)
 {
-	if (p1 == 1 || p2 == 1) {
-		return false;
-	}
-
 	auto key = std::make_pair(id1, id2);
 	auto search = m_conflicts.find(key);
 	if (search != m_conflicts.end())
