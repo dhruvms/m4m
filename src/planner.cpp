@@ -807,6 +807,7 @@ void Planner::init_agents(
 			continue;
 		}
 
+		o.CreateCollisionObjects();
 		obstacles.push_back(o);
 	}
 
@@ -845,6 +846,7 @@ void Planner::init_agents(
 		o.mu = -1;
 		o.ycb = ycb;
 
+		o.CreateCollisionObjects();
 		Agent r(o);
 		m_agents.push_back(std::move(r));
 		m_agent_map[o.id] = m_agents.size() - 1;
@@ -906,6 +908,8 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 						o.ycb = false;
 						count++;
 					}
+
+					o.CreateCollisionObjects();
 					if (o.movable) {
 						Agent r(o);
 						m_agents.push_back(std::move(r));
