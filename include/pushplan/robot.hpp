@@ -207,8 +207,7 @@ private:
 	bool processCollisionObjectMsg(
 		const moveit_msgs::CollisionObject& object, bool movable=false);
 	bool processSTLMesh(
-		const int& id, const geometry_msgs::Pose& pose,
-		const std::string& stl_mesh, bool remove, bool movable=false);
+		const Object& object, bool remove, bool movable=false);
 
 	bool addCollisionObjectMsg(
 		const moveit_msgs::CollisionObject& object, bool movable);

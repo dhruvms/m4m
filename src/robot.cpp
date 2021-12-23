@@ -242,37 +242,7 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 		}
 		else
 		{
-			std::string stl_mesh(__FILE__);
-			auto found = stl_mesh.find_last_of("/\\");
-			stl_mesh = stl_mesh.substr(0, found + 1) + "../dat/ycb/?/tsdf/nontextured.stl";
-
-			auto itr1 = YCB_OBJECT_NAMES.find(obs.shape);
-			std::string object_name(itr1->second);
-			found = stl_mesh.find_last_of("?");
-			stl_mesh.insert(found, object_name);
-			found = stl_mesh.find_last_of("?");
-			stl_mesh.erase(found, 1);
-			stl_mesh.insert(0, "file://");
-
-			geometry_msgs::Pose pose;
-			pose.position.x = obs.o_x;
-			pose.position.y = obs.o_y;
-			pose.position.z = obs.o_z;
-
-			double yaw_offset = 0.0;
-			auto itr2 = YCB_OBJECT_DIMS.find(obs.shape);
-			if (itr2 != YCB_OBJECT_DIMS.end()) {
-				yaw_offset = itr2->second.at(3);
-			}
-
-			Eigen::Quaterniond q;
-			smpl::angles::from_euler_zyx(
-					obs.o_yaw - yaw_offset, obs.o_pitch, obs.o_roll, q);
-			geometry_msgs::Quaternion orientation;
-			tf::quaternionEigenToMsg(q, orientation);
-			pose.orientation = orientation;
-
-			if (!processSTLMesh(obs.id, pose, stl_mesh, remove)) {
+			if (!processSTLMesh(obs, remove)) {
 				return false;
 			}
 		}
@@ -1636,7 +1606,7 @@ bool Robot::getCollisionObjectMsg(
 			moveit_msgs::CollisionObject& obj_msg,
 			bool remove)
 {
-	obj_msg.id = std::to_string(object.id);
+	object.GetMoveitObj(obj_msg);
 	obj_msg.operation = remove ? moveit_msgs::CollisionObject::REMOVE :
 										moveit_msgs::CollisionObject::ADD;
 
@@ -1646,60 +1616,6 @@ bool Robot::getCollisionObjectMsg(
 
 	obj_msg.header.frame_id = m_planning_frame;
 	obj_msg.header.stamp = ros::Time::now();
-
-	shape_msgs::SolidPrimitive object_prim;
-	switch (object.shape)
-	{
-		case 1: {
-			object_prim.type = shape_msgs::SolidPrimitive::SPHERE;
-			object_prim.dimensions.resize(1);
-			object_prim.dimensions[0] = object.x_size;
-			break;
-		}
-
-		case 2: {
-			object_prim.type = shape_msgs::SolidPrimitive::CYLINDER;
-			object_prim.dimensions.resize(2);
-			object_prim.dimensions[0] = object.z_size;
-			object_prim.dimensions[1] = object.x_size;
-			break;
-		}
-
-		case 0:
-		default: {
-			object_prim.type = shape_msgs::SolidPrimitive::BOX;
-			object_prim.dimensions.resize(3);
-			object_prim.dimensions[0] = object.x_size * 2.0;
-			object_prim.dimensions[1] = object.y_size * 2.0;
-			object_prim.dimensions[2] = object.z_size * 2.0;
-			break;
-		}
-	}
-
-	int table_ids = FRIDGE ? 5 : 1;
-	if (object.id <= table_ids)
-	{
-		object_prim.dimensions[0] *= (1.0 + (sqrt(3) * m_df_res));
-		object_prim.dimensions[1] *= (1.0 + (sqrt(3) * m_df_res));
-		object_prim.dimensions[2] *= (1.0 + (sqrt(3) * m_df_res));
-	}
-
-	geometry_msgs::Pose pose;
-	pose.position.x = object.o_x;
-	pose.position.y = object.o_y;
-	pose.position.z = object.o_z;
-
-	Eigen::Quaterniond q;
-	smpl::angles::from_euler_zyx(
-			object.o_yaw, object.o_pitch, object.o_roll, q);
-
-	geometry_msgs::Quaternion orientation;
-	tf::quaternionEigenToMsg(q, orientation);
-
-	pose.orientation = orientation;
-
-	obj_msg.primitives.push_back(object_prim);
-	obj_msg.primitive_poses.push_back(pose);
 
 	return true;
 }
@@ -1728,13 +1644,12 @@ bool Robot::processCollisionObjectMsg(
 }
 
 bool Robot::processSTLMesh(
-	const int& id, const geometry_msgs::Pose& pose,
-	const std::string& stl_mesh, bool remove, bool movable)
+	const Object& object, bool remove, bool movable)
 {
 	if (remove)
 	{
 		// find the collision object with this name
-		auto* _object = findCollisionObject(std::to_string(id));
+		auto* _object = findCollisionObject(std::to_string(object.id));
 		if (!_object) {
 			return false;
 		}
@@ -1770,14 +1685,33 @@ bool Robot::processSTLMesh(
 		return true;
 	}
 
-	smpl::collision::MeshShape* shape = ConvertSTLToMeshShape(stl_mesh);
-	if (!shape) {
-		ROS_ERROR("Could not convert STL to mesh.");
-		return false;
+	moveit_msgs::CollisionObject obj_msg;
+	object.GetMoveitObj(obj_msg);
+	auto object_mesh = obj_msg.meshes[0];
+
+	auto vertices = new double[3 * object_mesh.vertices.size()];
+	auto triangles = new std::uint32_t[3 * object_mesh.triangles.size()];
+
+	for (size_t i = 0; i < object_mesh.vertices.size(); ++i) {
+		vertices[3 * i + 0] = object_mesh.vertices[i].x;
+		vertices[3 * i + 1] = object_mesh.vertices[i].y;
+		vertices[3 * i + 2] = object_mesh.vertices[i].z;
 	}
 
+	for (size_t i = 0; i < object_mesh.triangles.size(); ++i) {
+		triangles[3 * i + 0] = object_mesh.triangles[i].vertex_indices[0];
+		triangles[3 * i + 1] = object_mesh.triangles[i].vertex_indices[1];
+		triangles[3 * i + 2] = object_mesh.triangles[i].vertex_indices[2];
+	}
+
+	smpl::collision::MeshShape* shape = new smpl::collision::MeshShape;
+	shape->vertices = vertices;
+	shape->triangles = triangles;
+	shape->vertex_count = object_mesh.vertices.size();
+	shape->triangle_count = object_mesh.triangles.size();
+
 	Eigen::Affine3d transform;
-	tf::poseMsgToEigen(pose, transform);
+	tf::poseMsgToEigen(obj_msg.mesh_poses[0], transform);
 
 	std::vector<smpl::collision::CollisionShape*> shapes;
 	smpl::collision::AlignedVector<Eigen::Affine3d> shape_poses;
@@ -1786,7 +1720,7 @@ bool Robot::processSTLMesh(
 	shape_poses.push_back(transform);
 
 	auto co = smpl::make_unique<smpl::collision::CollisionObject>();
-	co->id = std::to_string(id);
+	co->id = obj_msg.id;
 	co->shapes = std::move(shapes);
 	co->shape_poses = std::move(shape_poses);
 
