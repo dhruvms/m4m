@@ -149,7 +149,6 @@ private:
 	std::unique_ptr<smpl::collision::CollisionSpace> m_cc_i;
 	std::vector<std::unique_ptr<smpl::collision::CollisionShape>> m_collision_shapes;
 	std::vector<std::unique_ptr<smpl::collision::CollisionObject>> m_collision_objects;
-	double m_df_res;
 
 	PlannerConfig m_planning_config;
 	smpl::PlanningParams m_planning_params;

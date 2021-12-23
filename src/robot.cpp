@@ -1583,7 +1583,6 @@ void Robot::initOccupancyGrid()
 	m_ph.getParam("occupancy_grid/origin_y", df_origin_y);
 	m_ph.getParam("occupancy_grid/origin_z", df_origin_z);
 	m_ph.getParam("occupancy_grid/max_dist", max_distance);
-	m_ph.getParam("occupancy_grid/res", m_df_res);
 	m_ph.getParam("planning_frame", m_planning_frame);
 
 	using DistanceMapType = smpl::EuclidDistanceMap;
@@ -1591,7 +1590,7 @@ void Robot::initOccupancyGrid()
 	m_df_i = std::make_shared<DistanceMapType>(
 			df_origin_x, df_origin_y, df_origin_z,
 			df_size_x, df_size_y, df_size_z,
-			m_df_res,
+			DF_RES,
 			max_distance);
 
 	bool ref_counted = false;

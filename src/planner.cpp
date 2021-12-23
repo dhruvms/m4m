@@ -1104,6 +1104,7 @@ void Planner::setupGlobals()
 	m_ph.getParam("robot/robot_obj_mass", R_MASS);
 	m_ph.getParam("robot/speed", R_SPEED);
 	m_ph.getParam("goal/save", SAVE);
+	m_ph.getParam("occupancy_grid/res", DF_RES);
 }
 
 int Planner::armId()
