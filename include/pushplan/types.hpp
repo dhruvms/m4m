@@ -1,8 +1,23 @@
 #ifndef TYPES_HPP
 #define TYPES_HPP
 
+#include <pushplan/constants.hpp>
+
+#include <smpl/angles.h>
+#include <smpl/console/console.h>
+#include <fcl/collision_object.h>
+#include <fcl/shape/geometric_shapes.h>
+#include <fcl/BVH/BVH_model.h>
+#include <geometric_shapes/shapes.h>
+#include <geometric_shapes/mesh_operations.h>
+#include <geometric_shapes/shape_operations.h>
+#include <moveit_msgs/CollisionObject.h>
+#include <eigen_conversions/eigen_msg.h>
+#include <Eigen/Dense>
+
 #include <ostream>
 #include <vector>
+#include <memory>
 
 namespace clutter
 {
@@ -55,18 +70,13 @@ struct Object
 	double mass, mu;
 	bool movable, locked, ycb;
 
-	int Shape() const
-	{
-		if (!ycb) {
-			return shape;
-		}
-		else {
-			if (shape == 36) {
-				return 0;
-			}
-			int s = x_size == y_size ? 2 : 0;
-			return s;
-		}
+	moveit_msgs::CollisionObject* moveit_obj = nullptr;
+	fcl::CollisionObject* fcl_obj = nullptr;
+
+	int Shape() const;
+	bool CreateCollisionObjects();
+	void GetMoveitObj(moveit_msgs::CollisionObject& msg) const {
+		msg = *moveit_obj;
 	}
 };
 
@@ -106,6 +116,161 @@ struct PlannerConfig
 	double xyzrpy_snap_dist_thresh;
 	double short_dist_mprims_thresh;
 };
+
+inline
+int Object::Shape() const
+{
+	if (!ycb) {
+		return shape;
+	}
+	else {
+		if (shape == 36) {
+			return 0;
+		}
+		int s = x_size == y_size ? 2 : 0;
+		return s;
+	}
+}
+
+inline
+bool Object::CreateCollisionObjects()
+{
+	moveit_obj = new moveit_msgs::CollisionObject();
+	moveit_obj->id = std::to_string(id);
+
+	geometry_msgs::Pose pose;
+	Eigen::Quaterniond q;
+	geometry_msgs::Quaternion orientation;
+	if (!ycb)
+	{
+		shape_msgs::SolidPrimitive prim;
+
+		if (shape == 0)
+		{
+			// Create Moveit collision object shape
+			prim.type = shape_msgs::SolidPrimitive::BOX;
+			prim.dimensions.resize(3);
+			prim.dimensions[0] = x_size * 2;
+			prim.dimensions[1] = y_size * 2;
+			prim.dimensions[2] = z_size * 2;
+
+			// Create FCL collision object
+			std::shared_ptr<fcl::Box> shape =
+				std::make_shared<fcl::Box>(x_size * 2, y_size * 2, z_size * 2);
+			fcl_obj = new fcl::CollisionObject(shape);
+		}
+		else if (shape == 2)
+		{
+			// Create Moveit collision object shape
+			prim.type = shape_msgs::SolidPrimitive::CYLINDER;
+			prim.dimensions.resize(2);
+			prim.dimensions[0] = z_size;
+			prim.dimensions[1] = x_size;
+
+			// Create FCL collision object
+			std::shared_ptr<fcl::Cylinder> shape =
+				std::make_shared<fcl::Cylinder>(x_size, z_size);
+			fcl_obj = new fcl::CollisionObject(shape);
+		}
+
+		int table_ids = FRIDGE ? 5 : 1;
+		if (id <= table_ids)
+		{
+			prim.dimensions[0] *= (1.0 + (sqrt(3) * DF_RES));
+			prim.dimensions[1] *= (1.0 + (sqrt(3) * DF_RES));
+			prim.dimensions[2] *= (1.0 + (sqrt(3) * DF_RES));
+		}
+
+		pose.position.x = o_x;
+		pose.position.y = o_y;
+		pose.position.z = o_z;
+
+		smpl::angles::from_euler_zyx(o_yaw, o_pitch, o_roll, q);
+		tf::quaternionEigenToMsg(q, orientation);
+
+		pose.orientation = orientation;
+		moveit_obj->primitives.push_back(prim);
+		moveit_obj->primitive_poses.push_back(pose);
+	}
+	else
+	{
+		// Create Moveit collision object
+		std::string stl_mesh(__FILE__);
+		auto found = stl_mesh.find_last_of("/\\");
+		stl_mesh = stl_mesh.substr(0, found + 1) + "../../dat/ycb/?/tsdf/nontextured.stl";
+
+		auto itr1 = YCB_OBJECT_NAMES.find(shape);
+		std::string object_name(itr1->second);
+		found = stl_mesh.find_last_of("?");
+		stl_mesh.insert(found, object_name);
+		found = stl_mesh.find_last_of("?");
+		stl_mesh.erase(found, 1);
+		stl_mesh.insert(0, "file://");
+
+		shapes::Mesh* mesh = nullptr;
+		mesh = shapes::createMeshFromResource(stl_mesh, Eigen::Vector3d::Constant(1.0));
+		shape_msgs::Mesh mesh_msg;
+		shapes::ShapeMsg shape_msg = mesh_msg;
+		if (shapes::constructMsgFromShape(mesh, shape_msg)) {
+			mesh_msg = boost::get<shape_msgs::Mesh>(shape_msg);
+		}
+		else {
+			SMPL_ERROR("Failed to get Mesh msg!");
+			return false;
+		}
+
+		pose.position.x = o_x;
+		pose.position.y = o_y;
+		pose.position.z = o_z;
+
+		double yaw_offset = 0.0;
+		auto itr2 = YCB_OBJECT_DIMS.find(shape);
+		if (itr2 != YCB_OBJECT_DIMS.end()) {
+			yaw_offset = itr2->second.at(3);
+		}
+
+		smpl::angles::from_euler_zyx(
+				o_yaw - yaw_offset, o_pitch, o_roll, q);
+		tf::quaternionEigenToMsg(q, orientation);
+		pose.orientation = orientation;
+
+		moveit_obj->meshes.push_back(mesh_msg);
+		moveit_obj->mesh_poses.push_back(pose);
+
+		// Create FCL collision object
+		auto object_mesh = moveit_obj->meshes[0];
+
+	    std::vector<fcl::Vec3f> vertices;
+	    std::vector<fcl::Triangle> triangles;
+
+	    vertices.reserve(object_mesh.vertices.size());
+	    for (unsigned int i = 0; i < object_mesh.vertices.size(); ++i) {
+	        double x = object_mesh.vertices[i].x;
+	        double y = object_mesh.vertices[i].y;
+	        double z = object_mesh.vertices[i].z;
+	        vertices.push_back(fcl::Vec3f(x, y, z));
+	    }
+
+	    triangles.reserve(object_mesh.triangles.size());
+	    for (unsigned int i = 0; i < object_mesh.triangles.size(); ++i) {
+	        fcl::Triangle t;
+	        t[0] = object_mesh.triangles[i].vertex_indices[0];
+	        t[1] = object_mesh.triangles[i].vertex_indices[1];
+	        t[2] = object_mesh.triangles[i].vertex_indices[2];
+	        triangles.push_back(t);
+	    }
+	    typedef fcl::BVHModel<fcl::OBBRSS> Model;
+	    std::shared_ptr<Model> mesh_geom = std::make_shared<Model>();
+
+	    mesh_geom->beginModel();
+	    mesh_geom->addSubModel(vertices, triangles);
+	    mesh_geom->endModel();
+
+	    fcl_obj = new fcl::CollisionObject(mesh_geom);
+	}
+
+	return true;
+}
 
 } // namespace clutter
 
