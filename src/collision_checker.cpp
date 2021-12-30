@@ -136,39 +136,52 @@ bool CollisionChecker::IsStateValid(
 }
 
 bool CollisionChecker::UpdateConflicts(
-	const LatticeState& s, const Object& o1, const int& priority)
+	const LatticeState& s, const int& priority)
 {
-	State o1_loc = {s.state.at(0), s.state.at(1)};
-	std::vector<State> o1_rect;
-	bool rect_o1 = false;
+	auto o1 = m_planner->GetObject(s, priority); // updates pose
+	int id1 = m_planner->GetID(priority);
 
-	// preprocess rectangle once only
-	if (o1.Shape() == 0)
-	{
-		GetRectObjAtPt(o1_loc, o1, o1_rect);
-		rect_o1 = true;
-	}
-
+	LatticeState robot;
+	bool done = false;
 	for (int p = 0; p < priority; ++p)
 	{
 		for (const auto& s2: m_trajs.at(p))
 		{
 			if (s.t == s2.t)
 			{
-				// (o2.o_x, o2.o_y) are consistent with
-				// s2.state
-				auto a2_objs = m_planner->GetObject(s2, p);
-				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs))
+				if (p == 0)
 				{
-					int id1 = o1.id, id2 = a2_objs->back().id;
-					int priority2 = p;
-					if (p == 0 || p == 1) {
-						id2 = 100;
-						priority2 = 0;
+					robot = s2; // store for later
+					break;
+				}
+				else
+				{
+					auto o2 = m_planner->GetObject(s2, p);
+
+					fcl::CollisionRequest request;
+					fcl::CollisionResult result;
+					fcl::collide(o1, o2, request, result);
+					if (result.isCollision())
+					{
+						int id2 = m_planner->GetID(p);
+						int priority2 = p == 1 ? 0 : p;
+						updateConflicts(id1, priority, id2, priority2, s.t);
+
+						done = true;
+						break;
 					}
-					updateConflicts(id1, priority, id2, priority2, s.t);
 				}
 			}
+		}
+		if (done) {
+			break;
+		}
+	}
+
+	if (!done)
+	{
+		if (m_planner->CheckRobotCollision(robot, priority)) {
+			updateConflicts(id1, priority, 100, 0, robot.t);
 		}
 	}
 
@@ -190,16 +203,7 @@ std::unordered_map<std::pair<int, int>, int, std::PairHash>
 	return pushed;
 }
 
-double CollisionChecker::BoundaryDistance(const State& p)
-{
-	double d = PtDistFromLine(p, m_base.at(0), m_base.at(1));
-	d = std::min(d, PtDistFromLine(p, m_base.at(1), m_base.at(2)));
-	d = std::min(d, PtDistFromLine(p, m_base.at(2), m_base.at(3)));
-	d = std::min(d, PtDistFromLine(p, m_base.at(3), m_base.at(0)));
-	return d;
-}
-
-State CollisionChecker::GetRandomStateOutside(const Object* o)
+State CollisionChecker::GetRandomStateOutside(fcl::CollisionObject* o)
 {
 	State g(2, 0.0);
 	State gmin(2, 0.0), gmax(2, 0.0);
@@ -210,32 +214,12 @@ State CollisionChecker::GetRandomStateOutside(const Object* o)
 	gmin.at(1) = OutsideYMin();
 	gmax.at(1) = OutsideYMax();
 
-	if (o->Shape() == 0) // rectangle
+	do
 	{
-		std::vector<State> o_goal;
-		do
-		{
-			g.at(0) = (m_distD(m_rng) * (gmax.at(0) - gmin.at(0))) + gmin.at(0);
-			g.at(1) = (m_distD(m_rng) * (gmax.at(1) - gmin.at(1))) + gmin.at(1);
-			GetRectObjAtPt(g, *o, o_goal);
-		}
-		while (RectanglesIntersect(o_goal, m_base));
+		g.at(0) = (m_distD(m_rng) * (gmax.at(0) - gmin.at(0))) + gmin.at(0);
+		g.at(1) = (m_distD(m_rng) * (gmax.at(1) - gmin.at(1))) + gmin.at(1);
 	}
-	else if (o->Shape() == 2) // circle
-	{
-		do
-		{
-			g.at(0) = (m_distD(m_rng) * (gmax.at(0) - gmin.at(0))) + gmin.at(0);
-			g.at(1) = (m_distD(m_rng) * (gmax.at(1) - gmin.at(1))) + gmin.at(1);
-		}
-		while (LineSegCircleIntersect(g, o->x_size, m_base.at(0), m_base.back()));
-	}
-	else
-	{
-		SMPL_ERROR("Invalid object type!");
-		g.at(0) = -99;
-		g.at(1) = -99;
-	}
+	while (ImmovableCollision(g, o));
 
 	return g;
 }

@@ -81,8 +81,11 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_cc = std::make_shared<CollisionChecker>(this, pruned_obstacles);
 	pruned_obstacles.clear();
 
+	m_cc->InitMovableSet(&m_agents);
+	m_cc->AddToMovableSet(&m_ooi);
+
 	// Get OOI goal
-	m_ooi_gf = m_cc->GetRandomStateOutside(&m_ooi.GetObject()->back());
+	m_ooi_gf = m_cc->GetRandomStateOutside(m_ooi.GetFCLObject());
 	ContToDisc(m_ooi_gf, m_ooi_g);
 
 	m_ooi.SetCC(m_cc);

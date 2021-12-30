@@ -70,22 +70,15 @@ public:
 	bool ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o);
 	bool IsStateValid(const LatticeState& s, fcl::CollisionObject* o, const int& priority);
 	bool UpdateConflicts(
-		const LatticeState& s, const Object& o1, const int& priority);
+		const LatticeState& s, const int& priority);
 
+	State GetRandomStateOutside(fcl::CollisionObject* o);
 
-	double BoundaryDistance(const State& p);
-	double GetMinX() { return m_base.at(0).at(0); };
-
-	State GetRandomStateOutside(const Object* o);
-
-	double GetBaseWidth() { return std::fabs(m_base.at(0).at(0) - m_base.at(1).at(0)); };
-	double GetBaseLength() { return std::fabs(m_base.at(0).at(1) - m_base.at(3).at(1)); };
-
-	double GetTableHeight() { return m_obstacles.at(0).o_z + m_obstacles.at(0).z_size; };
-	double OutsideXMin() { return m_base.at(0).at(0) - m_obstacles.at(m_base_loc).x_size; };
-	double OutsideYMin() { return m_base.at(0).at(1) + (m_obstacles.at(m_base_loc).y_size/3); };
-	double OutsideXMax() { return m_base.at(0).at(0); };
-	double OutsideYMax() { return m_base.back().at(1) - (m_obstacles.at(m_base_loc).y_size/3); };
+	double GetTableHeight() { return m_obstacles.at(m_base_loc).o_z + m_obstacles.at(0).z_size; };
+	double OutsideXMin() { return m_obstacles.at(m_base_loc).o_x - (2 * m_obstacles.at(m_base_loc).x_size); };
+	double OutsideYMin() { return m_obstacles.at(m_base_loc).o_y - (0.67 * m_obstacles.at(m_base_loc).y_size); };
+	double OutsideXMax() { return m_obstacles.at(m_base_loc).o_x - m_obstacles.at(m_base_loc).x_size; };
+	double OutsideYMax() { return m_obstacles.at(m_base_loc).o_y + (0.67 * m_obstacles.at(m_base_loc).y_size); };
 
 	int NumObstacles() { return (int)m_obstacles.size(); };
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
