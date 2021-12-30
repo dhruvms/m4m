@@ -84,63 +84,55 @@ bool CollisionChecker::ImmovableCollision(const LatticeState& s, fcl::CollisionO
 
 // IsStateValid should only be called for priority > 1
 bool CollisionChecker::IsStateValid(
-	const LatticeState& s, const Object& o1, const int& priority)
+	const LatticeState& s, fcl::CollisionObject* o1, const int& priority)
 {
-	State o1_loc = {s.state.at(0), s.state.at(1)};
-	std::vector<State> o1_rect;
-	bool rect_o1 = false;
+	// double start_time = GetTime(), time_taken;
 
-	// preprocess rectangle once only
-	if (o1.Shape() == 0)
-	{
-		GetRectObjAtPt(o1_loc, o1, o1_rect);
-		rect_o1 = true;
-	}
+	m_fcl_mov->unregisterObject(o1);
+	auto o1_new = m_planner->GetObject(s, priority); // updates pose
 
+	LatticeState robot;
+	// Check against movables' FCL manager
 	for (int p = 0; p < priority; ++p)
 	{
 		for (const auto& s2: m_trajs.at(p))
 		{
 			if (s.t == s2.t)
 			{
-				// (o2.o_x, o2.o_y) are consistent with
-				// s2.state
-				auto a2_objs = m_planner->GetObject(s2, p);
-				if (!checkCollisionObjSet(o1, o1_loc, rect_o1, o1_rect, a2_objs)) {
-					return false;
+				if (p == 0)
+				{
+					robot = s2; // store for later
+					break;
+				}
+				else
+				{
+					auto o2 = m_planner->GetObject(s2, p);
+					m_fcl_mov->update(o2);
 				}
 			}
 		}
 	}
+	m_fcl_mov->setup();
+	fcl::DefaultCollisionData collision_data;
+	m_fcl_mov->collide(o1, &collision_data, fcl::DefaultCollisionFunction);
+	bool collision = collision_data.result.isCollision();
 
-	return true;
-}
+	// time_taken = GetTime() - start_time;
+	// SMPL_INFO("Movable collision check: %f seconds.", time_taken);
 
-// OOICollision should only be called for the EE rectangle object at some state
-bool CollisionChecker::OOICollision(const Object& o)
-{
-	State o_loc = {o.o_x, o.o_y};
-	std::vector<State> o_rect, ooi_rect;
-	bool rect_o = false, rect_ooi = false;
+	// start_time = GetTime();
+	// double start_time = GetTime(), time_taken;
 
-	// preprocess rectangle once only
-	if (o.Shape() == 0)
-	{
-		GetRectObjAtPt(o_loc, o, o_rect);
-		rect_o = true;
+	//  Check against robot collision
+	if (!collision && !robot.state.empty()) {
+		collision = collision || m_planner->CheckRobotCollision(robot, priority);
 	}
 
-	auto ooi = m_planner->GetObject(*(m_planner->GetOOIState()), 0)->back();
-	State ooi_loc = {ooi.o_x, ooi.o_y};
+	// time_taken = GetTime() - start_time;
+	// SMPL_INFO("Robot collision check: %f seconds.", time_taken);
 
-	if (rect_o)	{
-		return PointInRectangle(ooi_loc, o_rect);
-	}
-	else {
-		return EuclideanDist(o_loc, ooi_loc) < o.x_size;
-	}
-
-	return false;
+	m_fcl_mov->registerObject(o1_new);
+	return !collision;
 }
 
 bool CollisionChecker::UpdateConflicts(

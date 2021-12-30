@@ -1,4 +1,5 @@
 #include <pushplan/robot.hpp>
+#include <pushplan/agent.hpp>
 #include <pushplan/geometry.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/pr2_allowed_collision_pairs.h>
@@ -224,6 +225,18 @@ bool Robot::SavePushData(int scene_id)
 	m_stats["push_sim_time"] = 0.0;
 	m_stats["push_successes"] = 0;
 	m_stats["push_traj_plan_time"] = 0.0;
+}
+
+bool Robot::CheckCollision(const LatticeState& robot, Agent* a)
+{
+	std::vector<Object> o;
+	o.push_back(a->GetObject()->back());
+	ProcessObstacles(o);
+
+	bool collision = !m_cc_i->isStateValid(robot.state);
+
+	ProcessObstacles(o, true);
+	return collision;
 }
 
 bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)

@@ -34,13 +34,18 @@ public:
 	bool TryExtract();
 	void AnimateSolution();
 
-	const std::vector<Object>* GetObject(const LatticeState& s, int priority);
-	const std::vector<Object>* GetGraspObjs() {
-		return m_robot->GetGraspObjs();
-	}
+	fcl::CollisionObject* GetObject(const LatticeState& s, int priority);
+	bool CheckRobotCollision(const LatticeState& robot, int priority);
 
 	const std::vector<Object>* GetOOIObject() { return m_ooi.GetObject(); };
 	const LatticeState* GetOOIState() { return m_ooi.GetCurrentState(); };
+
+	int GetID(int priority) {
+		if (priority == 0 || priority == 1) {
+			return 100;
+		}
+		return m_agents.at(m_priorities.at(priority-2)).GetID();
+	}
 
 private:
 	std::string m_scene_file;

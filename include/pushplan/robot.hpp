@@ -35,6 +35,7 @@ public:
 
 	bool Setup();
 	bool SavePushData(int scene_id);
+	bool CheckCollision(const LatticeState& robot, Agent* a);
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
 	bool Init();
 	bool RandomiseStart();
@@ -83,9 +84,6 @@ public:
 	}
 	const std::vector<Object>* GetObject() const { return &m_objs; };
 	const std::vector<Object>* GetObject(const LatticeState& s);
-	const std::vector<Object>* GetGraspObjs() {
-		return &m_grasp_objs;
-	};
 
 	Coord GetEECoord();
 	const moveit_msgs::RobotState* GetStartState() { return &m_start_state; };

@@ -593,17 +593,26 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 	return m_violation == 0;
 }
 
-const std::vector<Object>* Planner::GetObject(const LatticeState& s, int priority)
+fcl::CollisionObject* Planner::GetObject(const LatticeState& s, int priority)
 {
-	if (priority == 0) {
-		return m_robot->GetObject(s);
+	fcl::Transform3f pose;
+	pose.setIdentity();
+
+	if (priority == 1)
+	{
+		m_ooi.UpdatePose(s);
+		return m_ooi.GetFCLObject();;
 	}
-	else if (priority == 1) {
-		return m_ooi.GetObject(s);
+	else
+	{
+		m_agents.at(m_priorities.at(priority-2)).UpdatePose(s);
+		return m_agents.at(m_priorities.at(priority-2)).GetFCLObject();
 	}
-	else {
-		return m_agents.at(m_priorities.at(priority-2)).GetObject(s);
-	}
+}
+
+bool Planner::CheckRobotCollision(const LatticeState& robot, int priority)
+{
+	return m_robot->CheckCollision(robot, &m_agents.at(m_priorities.at(priority-2)));
 }
 
 void Planner::reinit()
