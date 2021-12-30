@@ -1,8 +1,10 @@
 #include <pushplan/collision_checker.hpp>
 #include <pushplan/planner.hpp>
 #include <pushplan/geometry.hpp>
+#include <default_broadphase_callbacks.h>
 
 #include <smpl/console/console.h>
+#include <fcl/broadphase/broadphase_dynamic_AABB_tree.h>
 
 namespace clutter
 {
@@ -13,27 +15,32 @@ m_planner(planner),
 m_obstacles(obstacles),
 m_rng(m_dev())
 {
+	m_fcl_immov = new fcl::DynamicAABBTreeCollisionManager();
+	m_fcl_mov = new fcl::DynamicAABBTreeCollisionManager();
+
 	// preprocess immovable obstacles
 	for (size_t i = 0; i != m_obstacles.size(); ++i)
 	{
-		if (m_obstacles.at(i).id == 1)
-		{
+		if (m_obstacles.at(i).id == 1) {
 			m_base_loc = i;
-			MakeObjectRectangle(m_obstacles.at(m_base_loc), m_base);
-		}
-		else if (m_obstacles.at(i).id <= 5) { // shelf
 			continue;
 		}
-		else
-		{
-			State obs_loc = {m_obstacles.at(i).o_x, m_obstacles.at(i).o_y};
-			std::vector<State> obs_rect;
-			GetRectObjAtPt(obs_loc, m_obstacles.at(i), obs_rect);
-			m_obs_rects[m_obstacles.at(i).id] = obs_rect;
-		}
+		m_fcl_immov->registerObject(m_obstacles.at(i).GetFCLObject());
 	}
 
 	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
+}
+
+void CollisionChecker::InitMovableSet(std::vector<Agent>* agents)
+{
+	for (size_t i = 0; i != agents->size(); ++i) {
+		m_fcl_mov->registerObject(agents->at(i).GetFCLObject());
+	}
+}
+
+void CollisionChecker::AddToMovableSet(Agent* agent)
+{
+	m_fcl_mov->registerObject(agent->GetFCLObject());
 }
 
 void CollisionChecker::UpdateTraj(const int& priority, const Trajectory& traj)
@@ -243,218 +250,6 @@ State CollisionChecker::GetRandomStateOutside(const Object* o)
 	}
 
 	return g;
-}
-
-bool CollisionChecker::immovableCollision(const Object& o, const int& priority)
-{
-	State o_loc = {o.o_x, o.o_y};
-	std::vector<State> o_rect;
-	// preprocess rectangle once only
-	bool rect = false;
-	if (o.Shape() == 0)
-	{
-		GetRectObjAtPt(o_loc, o, o_rect);
-		rect = true;
-	}
-
-	if (rect)
-	{
-		if (rectCollisionBase(o_loc, o_rect, priority)) {
-			// SMPL_WARN("collision with base!");
-			return true;
-		}
-
-		for (const auto& obstacle: m_obstacles)
-		{
-			if (obstacle.id <= 5) { // shelf
-				continue;
-			}
-
-			if (obstacle.Shape() == 0) // rectangle
-			{
-				if (rectRectCollision(o_rect, m_obs_rects[obstacle.id])) {
-					return true;
-				}
-			}
-			else if (obstacle.Shape() == 2) // circle
-			{
-				State obs_loc = {obstacle.o_x, obstacle.o_y};
-				if (rectCircCollision(o_rect, obstacle, obs_loc)) {
-					return true;
-				}
-			}
-		}
-	}
-	else
-	{
-		if (circCollisionBase(o_loc, o, priority)) {
-			// SMPL_WARN("collision with base!");
-			return true;
-		}
-
-		for (const auto& obstacle: m_obstacles)
-		{
-			if (obstacle.id <= 5) { // shelf
-				continue;
-			}
-
-			if (obstacle.Shape() == 0) // rectangle
-			{
-				if (rectCircCollision(m_obs_rects[obstacle.id], o, o_loc)) {
-					return true;
-				}
-			}
-			else if (obstacle.Shape() == 2) // circle
-			{
-				State obs_loc = {obstacle.o_x, obstacle.o_y};
-				if (circCircCollision(o, o_loc, obstacle, obs_loc)) {
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
-}
-
-bool CollisionChecker::checkCollisionObjSet(
-	const Object& o1, const State& o1_loc,
-	bool rect_o1, const std::vector<State>& o1_rect,
-	const std::vector<Object>* a2_objs)
-{
-	State o2_loc;
-	bool rect_o2;
-	std::vector<State> o2_rect;
-
-	for (const auto& ao: *a2_objs)
-	{
-		rect_o2 = false;
-		o2_loc = {ao.o_x, ao.o_y};
-		if (ao.Shape() == 0)
-		{
-			GetRectObjAtPt(o2_loc, ao, o2_rect);
-			rect_o2 = true;
-		}
-
-		if (rect_o1)
-		{
-			if (rect_o2)
-			{
-				if (rectRectCollision(o1_rect, o2_rect)) {
-					return false;
-				}
-			}
-			else
-			{
-				if (rectCircCollision(o1_rect, ao, o2_loc)) {
-					return false;
-				}
-			}
-		}
-		else
-		{
-			if (rect_o2)
-			{
-				if (rectCircCollision(o2_rect, o1, o1_loc)) {
-					return false;
-				}
-			}
-			else
-			{
-				if (circCircCollision(o1, o1_loc, ao, o2_loc)) {
-					return false;
-				}
-			}
-		}
-	}
-	// SMPL_WARN("collision! objects ids %d and %d (movable) collide at time %d", o1.id, m_planner->GetObject(p)->id, s.t);
-	// std::cout << o1.id << ',' << other_obj->id << ',' << s.t << std::endl;
-
-	return true;
-}
-
-bool CollisionChecker::rectRectCollision(
-	const std::vector<State>& r1, const std::vector<State>& r2)
-{
-	return RectanglesIntersect(r1, r2);
-}
-
-bool CollisionChecker::rectCircCollision(
-	const std::vector<State>& r1, const Object& c1, const State& c1_loc)
-{
-	return (PointInRectangle(c1_loc, r1) ||
-			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(0), r1.at(1)) ||
-			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(1), r1.at(2)) ||
-			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(2), r1.at(3)) ||
-			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(3), r1.at(0)));
-}
-
-bool CollisionChecker::circCircCollision(
-	const Object& c1, const State& c1_loc,
-	const Object& c2, const State& c2_loc)
-{
-	double dist = EuclideanDist(c1_loc, c2_loc);
-	return (dist < (c1.x_size + c2.x_size));
-}
-
-bool CollisionChecker::rectCollisionBase(
-	const State& o_loc, const std::vector<State>& o_rect, const int& priority)
-{
-	if (priority > 1) // object is movable
-	{
-		// no part of the object can be outside the sides or back of shelf
-		for (const auto& p: o_rect)
-		{
-			if (p.at(0) > m_base.at(1).at(0) ||
-				p.at(1) < m_base.at(0).at(1) ||
-				p.at(1) > m_base.at(2).at(1))
-			{
-				return true;
-			}
-		}
-
-		// the centroid of the object rectangle should be inside shelf
-		if (!PointInRectangle(o_loc, m_base)) {
-			return true;
-		}
-		return false;
-	}
-	else // object is robot or being extracted
-	{
-		// no part of the OOI can be outside the sides or back of shelf
-		for (const auto& p: o_rect)
-		{
-			if (p.at(0) > m_base.at(1).at(0) ||
-				p.at(1) < m_base.at(0).at(1) ||
-				p.at(1) > m_base.at(2).at(1))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-}
-
-bool CollisionChecker::circCollisionBase(
-	const State& o_loc, const Object& o, const int& priority)
-{
-	if (priority > 1) // object is movable
-	{
-		// the centre of the object circle must be inside shelf
-		// no part of the object can be outside the sides or back of shelf
-		return (!PointInRectangle(o_loc, m_base) ||
-				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(0), m_base.at(1)) ||
-				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(1), m_base.at(2)) ||
-				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(2), m_base.at(3)));
-	}
-	else // object is robot or being extracted
-	{
-		// no part of the OOI can be outside the sides or back of shelf
-		return (LineSegCircleIntersect(o_loc, o.x_size, m_base.at(0), m_base.at(1)) ||
-				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(1), m_base.at(2)) ||
-				LineSegCircleIntersect(o_loc, o.x_size, m_base.at(2), m_base.at(3)));
-
-	}
 }
 
 bool CollisionChecker::updateConflicts(

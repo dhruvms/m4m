@@ -4,6 +4,7 @@
 #include <pushplan/types.hpp>
 
 #include <boost/functional/hash.hpp>
+#include <fcl/broadphase/broadphase.h>
 
 #include <vector>
 #include <random>
@@ -49,6 +50,7 @@ namespace clutter
 {
 
 class Planner;
+class Agent;
 
 class CollisionChecker
 {
@@ -58,6 +60,9 @@ public:
 	void AddObstacle(const Object& o) {
 		m_obstacles.push_back(o);
 	};
+	void AddToMovableSet(Agent* agent);
+	void InitMovableSet(std::vector<Agent>* movables);
+
 
 	void UpdateTraj(const int& priority, const Trajectory& traj);
 
@@ -98,9 +103,7 @@ private:
 	Planner* m_planner = nullptr;
 
 	std::vector<Object> m_obstacles;
-	std::unordered_map<int, std::vector<State> > m_obs_rects;
 	size_t m_base_loc;
-	std::vector<State> m_base;
 	std::vector<Trajectory> m_trajs;
 	std::unordered_map<std::pair<int, int>, int, std::PairHash> m_conflicts;
 
@@ -108,27 +111,8 @@ private:
 	std::mt19937 m_rng;
 	std::uniform_real_distribution<double> m_distD;
 
-	bool immovableCollision(const Object& o, const int& priority);
-	bool checkCollisionObjSet(
-		const Object& o1, const State& o1_loc,
-		bool rect_o1, const std::vector<State>& o1_rect,
-		const std::vector<Object>* a2_objs);
-
-	bool rectRectCollision(
-		const std::vector<State>& r1, const std::vector<State>& r2);
-	bool rectCircCollision(
-		const std::vector<State>& r1,
-		const Object& c1, const State& c1_loc);
-	bool circCircCollision(
-		const Object& c1, const State& c1_loc,
-		const Object& c2, const State& c2_loc);
-
-	bool rectCollisionBase(
-		const State& o_loc, const std::vector<State>& o_rect,
-		const int& priority);
-	bool circCollisionBase(
-		const State& o_loc, const Object& o,
-		const int& priority);
+	fcl::BroadPhaseCollisionManager* m_fcl_immov = nullptr;
+	fcl::BroadPhaseCollisionManager* m_fcl_mov = nullptr;
 
 	bool updateConflicts(
 		int id1, int p1,
