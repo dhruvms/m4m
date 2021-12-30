@@ -46,7 +46,7 @@ whca:
   res: 0.01
   grid: 8
   cost_mult: 1000
-  planning_time: 5.0
+  planning_time: 300.0
 
 objects:
   min_size: 0.03
