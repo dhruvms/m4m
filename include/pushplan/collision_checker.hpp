@@ -66,10 +66,9 @@ public:
 
 	void UpdateTraj(const int& priority, const Trajectory& traj);
 
-	bool ImmovableCollision(const LatticeState& s, const Object& o, const int& priority);
-	bool ImmovableCollision(const std::vector<Object>& objs, const int& priority);
-	bool IsStateValid(const LatticeState& s, const Object& o, const int& priority);
-	bool OOICollision(const Object& o);
+	bool ImmovableCollision(const State& s, fcl::CollisionObject* o);
+	bool ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o);
+	bool IsStateValid(const LatticeState& s, fcl::CollisionObject* o, const int& priority);
 	bool UpdateConflicts(
 		const LatticeState& s, const Object& o1, const int& priority);
 

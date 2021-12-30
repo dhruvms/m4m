@@ -52,38 +52,34 @@ void CollisionChecker::UpdateTraj(const int& priority, const Trajectory& traj)
 	m_trajs.at(priority) = traj;
 }
 
-bool CollisionChecker::ImmovableCollision(const LatticeState& s, const Object& o, const int& priority)
+bool CollisionChecker::ImmovableCollision(const State& s, fcl::CollisionObject* o)
 {
-	if (!FRIDGE)
-	{
-		SMPL_WARN("Do not handle non-fridge scenes. Return collision = true.");
-		return true;
-	}
-
-	Object o_temp = o;
-	o_temp.o_x = s.state.at(0);
-	o_temp.o_y = s.state.at(1);
-
-	return immovableCollision(o_temp, priority);
+	LatticeState ls;
+	ls.state = s;
+	return this->ImmovableCollision(ls, o);
 }
 
-bool CollisionChecker::ImmovableCollision(const std::vector<Object>& objs, const int& priority)
+bool CollisionChecker::ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o)
 {
-	if (!FRIDGE)
-	{
-		SMPL_WARN("Do not handle non-fridge scenes. Return collision = true.");
-		return true;
-	}
+	// double start_time = GetTime(), time_taken;
 
-	// (o.o_x, o.o_y) are already where o is
-	for (const auto& o: objs)
-	{
-		if (immovableCollision(o, priority)) {
-			return true;
-		}
-	}
+	fcl::Transform3f pose;
+	pose.setIdentity();
+	fcl::Vec3f T(o->getTranslation());
+	T.setValue(s.state.at(0), s.state.at(1), T[2]);
+	pose.setTranslation(T);
 
-	return false;
+	o->setTransform(pose);
+	o->computeAABB();
+
+	m_fcl_immov->setup();
+	fcl::DefaultCollisionData collision_data;
+	m_fcl_immov->collide(o, &collision_data, fcl::DefaultCollisionFunction);
+
+	// time_taken = GetTime() - start_time;
+	// SMPL_INFO("Immovable collision check: %f seconds.", time_taken);
+
+	return collision_data.result.isCollision();
 }
 
 // IsStateValid should only be called for priority > 1
