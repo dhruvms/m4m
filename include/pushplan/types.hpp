@@ -77,6 +77,49 @@ struct Object
 	bool CreateCollisionObjects();
 	void GetMoveitObj(moveit_msgs::CollisionObject& msg) const {
 		msg = *moveit_obj;
+	};
+	fcl::CollisionObject* GetFCLObject() { return fcl_obj; };
+
+	void UpdatePose(const LatticeState& s)
+	{
+		// Update Moveit pose
+		geometry_msgs::Pose moveit_pose;
+		Eigen::Quaterniond q;
+		geometry_msgs::Quaternion orientation;
+
+		moveit_pose.position.x = s.state.at(0);
+		moveit_pose.position.y = s.state.at(1);
+		moveit_pose.position.z = o_z;
+
+		double yaw_offset = 0.0;
+		if (ycb)
+		{
+			auto itr2 = YCB_OBJECT_DIMS.find(shape);
+			if (itr2 != YCB_OBJECT_DIMS.end()) {
+				yaw_offset = itr2->second.at(3);
+			}
+		}
+
+		smpl::angles::from_euler_zyx(o_yaw - yaw_offset, o_pitch, o_roll, q);
+		tf::quaternionEigenToMsg(q, orientation);
+
+		moveit_pose.orientation = orientation;
+
+		if (ycb) {
+			moveit_obj->mesh_poses[0] = moveit_pose;
+		}
+		else {
+			moveit_obj->primitive_poses[0] = moveit_pose;
+		}
+
+		// Update FCL pose
+		fcl::Transform3f fcl_pose;
+		fcl_pose.setIdentity();
+		fcl::Vec3f T(s.state.at(0), s.state.at(1), o_z);
+		fcl_pose.setTranslation(T);
+
+		fcl_obj->setTransform(fcl_pose);
+		fcl_obj->computeAABB();
 	}
 };
 
