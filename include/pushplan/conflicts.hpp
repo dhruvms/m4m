@@ -11,6 +11,7 @@ namespace clutter
 struct Constraint
 {
 	int m_me, m_other, m_time;
+	bool m_on;
 	LatticeState m_q;
 };
 
@@ -18,6 +19,7 @@ struct Conflict
 {
 	int m_a1, m_a2;
 	int m_t;
+	bool m_on;
 	LatticeState m_q1, m_q2;
 	std::shared_ptr<Constraint> m_c1, m_c2;
 

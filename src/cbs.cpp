@@ -34,16 +34,30 @@ bool CBS::Solve()
 		auto next = m_OPEN.top();
 		m_OPEN.pop();
 
+		selectConflict(next);
 		if (done(next)) {
 			return m_solved;
 		}
 
 		double expand_time = GetTime();
-
-		// expand CT node
-
 		++m_ct_expanded;
 		next->m_expand = m_ct_expanded;
+
+		// expand CT node
+		HighLevelNode* child[2] = { new HighLevelNode() , new HighLevelNode() };
+		addConstraints(curr, child[0], child[1]);
+		for (int i = 0; i < 2; ++i)
+		{
+			if (updateChild(curr, child[i])) {
+				parent->m_children.push_back(child[i]);
+			}
+			else {
+				delete (child[i]);
+				continue;
+			}
+		}
+		next->clear();
+
 		m_search_time += GetTime() - expand_time;
 	}
 }
@@ -58,20 +72,20 @@ void CBS::initialiseRoot()
 	root->m_children.clear();
 
 	// Plan for robot
-	if (!m_robot->SatisfyPath(0, root, m_paths[0])) { // (agent id, CT node, path location)
+	if (!m_robot->SatisfyPath(root, m_paths[0])) { // (CT node, path location)
 		return false;
 	}
-	root->m_solution.emplace_back(0, m_paths[0]);
+	root->m_solution.emplace_back(m_robot->GetID(), m_paths[0]);
 	root->m_g += m_paths[0]->size();
 	root->m_makespan = std::max(root->m_makespan, m_paths[0]->size());
 
 	// Plan for objects
 	for (size_t i = 0; i < m_objs.size(); ++i)
 	{
-		if (!m_objs[i]->SatisfyPath(int(i+1), root, m_paths[i+1])) {
+		if (!m_objs[i]->SatisfyPath(root, m_paths[i+1])) {
 			return false;
 		}
-		root->m_solution.emplace_back(i+1, m_paths[i+1]);
+		root->m_solution.emplace_back(m_objs[i]->GetID(), m_paths[i+1]);
 		root->m_g += m_paths[i+1]->size();
 		root->m_makespan = std::max(root->m_makespan, m_paths[i+1]->size());
 	}
@@ -147,7 +161,7 @@ void CBS::findConflicts(HighLevelNode& curr, Robot* r, Agent* a)
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
 			conflict->InitConflict(r->GetID(), a->GetID(), t, r_traj->at(t), a_traj->at(t), true);
-			curr.conflicts.push_back(conflict);
+			curr.m_conflicts.push_front(conflict);
 		}
 	}
 
@@ -167,7 +181,7 @@ void CBS::findConflicts(HighLevelNode& curr, Robot* r, Agent* a)
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
 					conflict->InitConflict(r->GetID(), a->GetID(), t, shorter->back(), longer->at(t), true);
-					curr.conflicts.push_back(conflict);
+					curr.m_conflicts.push_front(conflict);
 				}
 			}
 			else
@@ -176,7 +190,7 @@ void CBS::findConflicts(HighLevelNode& curr, Robot* r, Agent* a)
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
 					conflict->InitConflict(r->GetID(), a->GetID(), t, longer->at(t), shorter->back(), true);
-					curr.conflicts.push_back(conflict);
+					curr.m_conflicts.push_front(conflict);
 				}
 			}
 		}
@@ -196,7 +210,7 @@ void CBS::findConflicts(HighLevelNode& curr, Agent* a1, Agent* a2)
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
 			conflict->InitConflict(a1->GetID(), a2->GetID(), t, a1_traj->at(t), a2_traj->at(t), false);
-			curr.conflicts.push_back(conflict);
+			curr.m_conflicts.push_back(conflict);
 		}
 	}
 
@@ -217,13 +231,13 @@ void CBS::findConflicts(HighLevelNode& curr, Agent* a1, Agent* a2)
 			{
 				std::shared_ptr<Conflict> conflict(new Conflict());
 				conflict->InitConflict(shorter->GetID(), longer->GetID(), t, shorter->back(), longer->at(t), false);
-				curr.conflicts.push_back(conflict);
+				curr.m_conflicts.push_back(conflict);
 			}
 		}
 	}
 }
 
-void CBS::copyRelevantConflicts(HighLevelNode& node)
+void CBS::copyRelevantConflicts(HighLevelNode& node) const
 {
 	for (auto& conflict : node.parent->m_conflicts)
 	{
@@ -234,9 +248,128 @@ void CBS::copyRelevantConflicts(HighLevelNode& node)
 	}
 }
 
+void CBS::selectConflict(HighLevelNode* node) const
+{
+	if (!node->m_conflicts.empty())
+	{
+		node->m_conflict = node->m_conflicts.front();
+		node->m_conflict->m_on = true;
+	}
+	else
+	{
+		node->m_conflict = std::make_shared<Conflict>();
+		node->m_conflict->m_on = false;
+	}
+}
+
+void CBS::addConstraints(const HighLevelNode* curr, HighLevelNode* child1, HighLevelNode* child2) const
+{
+	child1->m_constraints = curr->m_constraints;
+	child2->m_constraints = curr->m_constraints;
+
+	child1->m_constraints.push_back(curr->m_conflict->m_c1);
+	child2->m_constraints.push_back(curr->m_conflict->m_c2);
+}
+
+bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
+{
+	child->m_g = parent->m_g; // for now
+	child->m_makespan = parent->m_makespan; // for now
+	child->m_solution = parent->m_solution; // for now
+	child->m_depth = parent->m_depth + 1;
+	child->m_parent = parent;
+	child->m_children.clear();
+
+	// agent to be replanned for
+	child->m_replanned = child->m_constraints.back()->m_me;
+
+	// collect agent constraints
+	std::list<std::shared_ptr<Constraint> > agent_constraints;
+	for (auto& constraint : child->m_constraints)
+	{
+		if (constraint->m_me == child->m_replanned) {
+			agent_constraints.push_back(constraint);
+		}
+	}
+
+	// replan for agent
+	bool recalc_makespan = false;
+	if (child->m_replanned == 0)
+	{
+		child->m_g -= m_paths[0]->size();
+		if (child->m_makespan == m_paths[0]->size()) {
+			recalc_makespan = true;
+		}
+
+		if (!m_robot->SatisfyPath(child, m_paths[0])) {
+			return false;
+		}
+		// update solution in CT node
+		for (auto& solution : child->m_solution)
+		{
+			if (solution.first == m_robot->GetID()) {
+				solution.second = m_paths[0];
+				break;
+			}
+		}
+
+		child->m_g += m_paths[0]->size();
+		if (recalc_makespan) {
+			child->recalcMakespan();
+		}
+		else {
+			child->m_makespan = std::max(child->m_makespan, m_paths[0]->size());
+		}
+
+	}
+	else
+	{
+		for (size_t i = 0; i < m_objs.size(); ++i)
+		{
+			if (m_objs[i]->GetID() != child->m_replanned) {
+				continue;
+			}
+
+			child->m_g -= m_paths[i+1]->size();
+			if (child->m_makespan == m_paths[i+1]->size()) {
+				recalc_makespan = true;
+			}
+
+			if (!m_objs[i]->SatisfyPath(child, m_paths[i+1])) {
+				return false;
+			}
+			// update solution in CT node
+			for (auto& solution : child->m_solution)
+			{
+				if (solution.first == m_objs[i]->GetID()) {
+					solution.second = m_paths[i+1];
+					break;
+				}
+			}
+
+			child->m_g += m_paths[i+1]->size();
+			if (recalc_makespan) {
+				child->recalcMakespan();
+			}
+			else {
+				child->m_makespan = std::max(child->m_makespan, m_paths[0]->size());
+			}
+
+			break;
+		}
+	}
+
+	findConflicts(*child);
+	++m_ct_generated;
+	child->m_generate = m_ct_generated;
+	child->m_OPEN_h = m_OPEN.push(child);
+
+	return true;
+}
+
 bool CBS::done(HighLevelNode* node)
 {
-	if (!node->m_conflict.on)
+	if (!node->m_conflict->m_on)
 	{
 		m_solved = true;
 		m_goal = node;

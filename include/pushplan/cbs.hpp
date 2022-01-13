@@ -44,6 +44,13 @@ private:
 	void findConflicts(HighLevelNode& curr, Agent* a1, Agent* a2);
 
 	bool done(HighLevelNode* node);
+
+	void copyRelevantConflicts(HighLevelNode& node) const;
+	void selectConflict(HighLevelNode* node) const;
+	void addConstraints(
+		const HighLevelNode* curr,
+		HighLevelNode* child1, HighLevelNode* child2) const;
+	bool updateChild(HighLevelNode* parent, HighLevelNode* child);
 };
 
 } // namespace clutter
