@@ -75,16 +75,10 @@ private:
 	std::map<std::string, double> m_stats;
 	double m_plan_time, m_plan_budget, m_sim_budget, m_total_budget;
 
-	bool whcastar();
-
 	bool setupSim();
 	bool runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 	bool animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 	bool rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
-
-	void reinit();
-	void prioritize();
-	void step_agents(int k=1);
 
 	bool setupProblem();
 	void updateAgentPositions(
