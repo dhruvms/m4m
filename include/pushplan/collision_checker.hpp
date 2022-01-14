@@ -60,8 +60,7 @@ public:
 	void AddObstacle(const Object& o) {
 		m_obstacles.push_back(o);
 	};
-	void AddToMovableSet(Agent* agent);
-	void InitMovableSet(std::vector<Agent>* movables);
+	void InitMovableSet(const std::vector<std::shared_ptr<Agent> >& agents);
 
 
 	void UpdateTraj(const int& priority, const Trajectory& traj);

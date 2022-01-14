@@ -31,16 +31,11 @@ m_rng(m_dev())
 	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
 }
 
-void CollisionChecker::InitMovableSet(std::vector<Agent>* agents)
+void CollisionChecker::InitMovableSet(const std::vector<std::shared_ptr<Agent> >& agents)
 {
 	for (size_t i = 0; i != agents->size(); ++i) {
-		m_fcl_mov->registerObject(agents->at(i).GetFCLObject());
+		m_fcl_mov->registerObject(agents.at(i)->GetFCLObject());
 	}
-}
-
-void CollisionChecker::AddToMovableSet(Agent* agent)
-{
-	m_fcl_mov->registerObject(agent->GetFCLObject());
 }
 
 void CollisionChecker::UpdateTraj(const int& priority, const Trajectory& traj)
