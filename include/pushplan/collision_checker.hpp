@@ -68,8 +68,8 @@ public:
 
 	bool ImmovableCollision(const State& s, fcl::CollisionObject* o);
 	bool ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o);
-	bool IsStateValid(const LatticeState& s, fcl::CollisionObject* o, const int& priority);
-		const LatticeState& s, const int& priority);
+	// bool IsStateValid(const LatticeState& s, fcl::CollisionObject* o, const int& priority);
+	// 	const LatticeState& s, const int& priority);
 
 	State GetRandomStateOutside(fcl::CollisionObject* o);
 

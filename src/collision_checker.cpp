@@ -82,58 +82,58 @@ bool CollisionChecker::ImmovableCollision(const LatticeState& s, fcl::CollisionO
 	return collision_data.result.isCollision();
 }
 
-// IsStateValid should only be called for priority > 1
-bool CollisionChecker::IsStateValid(
-	const LatticeState& s, fcl::CollisionObject* o1, const int& priority)
-{
-	// double start_time = GetTime(), time_taken;
+// // IsStateValid should only be called for priority > 1
+// bool CollisionChecker::IsStateValid(
+// 	const LatticeState& s, fcl::CollisionObject* o1, const int& priority)
+// {
+// 	// double start_time = GetTime(), time_taken;
 
-	m_fcl_mov->unregisterObject(o1);
-	auto o1_new = m_planner->GetObject(s, priority); // updates pose
+// 	m_fcl_mov->unregisterObject(o1);
+// 	auto o1_new = m_planner->GetObject(s, priority); // updates pose
 
-	LatticeState robot;
-	// Check against movables' FCL manager
-	for (int p = 0; p < priority; ++p)
-	{
-		for (const auto& s2: m_trajs.at(p))
-		{
-			if (s.t == s2.t)
-			{
-				if (p == 0)
-				{
-					robot = s2; // store for later
-					break;
-				}
-				else
-				{
-					auto o2 = m_planner->GetObject(s2, p);
-					m_fcl_mov->update(o2);
-				}
-			}
-		}
-	}
-	m_fcl_mov->setup();
-	fcl::DefaultCollisionData collision_data;
-	m_fcl_mov->collide(o1, &collision_data, fcl::DefaultCollisionFunction);
-	bool collision = collision_data.result.isCollision();
+// 	LatticeState robot;
+// 	// Check against movables' FCL manager
+// 	for (int p = 0; p < priority; ++p)
+// 	{
+// 		for (const auto& s2: m_trajs.at(p))
+// 		{
+// 			if (s.t == s2.t)
+// 			{
+// 				if (p == 0)
+// 				{
+// 					robot = s2; // store for later
+// 					break;
+// 				}
+// 				else
+// 				{
+// 					auto o2 = m_planner->GetObject(s2, p);
+// 					m_fcl_mov->update(o2);
+// 				}
+// 			}
+// 		}
+// 	}
+// 	m_fcl_mov->setup();
+// 	fcl::DefaultCollisionData collision_data;
+// 	m_fcl_mov->collide(o1, &collision_data, fcl::DefaultCollisionFunction);
+// 	bool collision = collision_data.result.isCollision();
 
-	// time_taken = GetTime() - start_time;
-	// SMPL_INFO("Movable collision check: %f seconds.", time_taken);
+// 	// time_taken = GetTime() - start_time;
+// 	// SMPL_INFO("Movable collision check: %f seconds.", time_taken);
 
-	// start_time = GetTime();
-	// double start_time = GetTime(), time_taken;
+// 	// start_time = GetTime();
+// 	// double start_time = GetTime(), time_taken;
 
-	//  Check against robot collision
-	if (!collision && !robot.state.empty()) {
-		collision = collision || m_planner->CheckRobotCollision(robot, priority);
-	}
+// 	//  Check against robot collision
+// 	if (!collision && !robot.state.empty()) {
+// 		collision = collision || m_planner->CheckRobotCollision(robot, priority);
+// 	}
 
-	// time_taken = GetTime() - start_time;
-	// SMPL_INFO("Robot collision check: %f seconds.", time_taken);
+// 	// time_taken = GetTime() - start_time;
+// 	// SMPL_INFO("Robot collision check: %f seconds.", time_taken);
 
-	m_fcl_mov->registerObject(o1_new);
-	return !collision;
-}
+// 	m_fcl_mov->registerObject(o1_new);
+// 	return !collision;
+// }
 
 State CollisionChecker::GetRandomStateOutside(fcl::CollisionObject* o)
 {

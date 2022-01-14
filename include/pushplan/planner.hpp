@@ -34,11 +34,8 @@ public:
 	bool TryExtract();
 	void AnimateSolution();
 
-	fcl::CollisionObject* GetObject(const LatticeState& s, int priority);
+	// fcl::CollisionObject* GetObject(const LatticeState& s, int priority);
 	bool CheckRobotCollision(const LatticeState& robot, int priority);
-
-	const std::vector<Object>* GetOOIObject() { return m_ooi.GetObject(); };
-	const LatticeState* GetOOIState() { return m_ooi.GetCurrentState(); };
 
 	int GetID(int priority) {
 		if (priority == 0 || priority == 1) {
