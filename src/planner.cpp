@@ -2,6 +2,7 @@
 #include <pushplan/agent.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/geometry.hpp>
+#include <pushplan/cbs.hpp>
 
 #include <smpl/console/console.h>
 #include <moveit_msgs/RobotTrajectory.h>
@@ -35,7 +36,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 				m_scene_id, std::string(),
 				num_immov, num_mov);
 
-	m_robot = std::make_unique<Robot>();
+	m_robot = std::make_shared<Robot>();
 	m_robot->SetID(0);
 
 	m_stats["whca_attempts"] = 0;
@@ -50,7 +51,9 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	setupGlobals();
 
+	m_agent_map.clear();
 	m_agents.clear();
+	m_agents.resize(1, std::make_shared<Agent>());
 
 	std::vector<Object> all_obstacles, pruned_obstacles;
 	if (m_scene_id < 0)	{ // init agents from simulator
@@ -59,6 +62,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	else {
 		parse_scene(all_obstacles); // TODO: relax ycb = false assumption
 	}
+	m_ooi = m_agents.at(0);
 
 	pruned_obstacles = all_obstacles;
 	// only keep the base of the fridge shelf
@@ -83,26 +87,23 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	pruned_obstacles.clear();
 
 	m_cc->InitMovableSet(&m_agents);
-	m_cc->AddToMovableSet(&m_ooi);
 
 	// Get OOI goal
-	m_ooi_gf = m_cc->GetRandomStateOutside(m_ooi.GetFCLObject());
+	m_ooi_gf = m_cc->GetRandomStateOutside(m_ooi->GetFCLObject());
 	ContToDisc(m_ooi_gf, m_ooi_g);
 
-	m_ooi.SetCC(m_cc);
 	m_robot->SetCC(m_cc);
 	for (auto& a: m_agents) {
-		a.SetCC(m_cc);
+		a->SetCC(m_cc);
 	}
 
-	m_ooi.Setup();
 	if (!m_robot->Setup())
 	{
 		SMPL_ERROR("Robot setup failed!");
 		return false;
 	}
 	for (auto& a: m_agents) {
-		a.Setup();
+		a->Setup();
 	}
 
 	if (!m_robot->ProcessObstacles(all_obstacles))
@@ -116,7 +117,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_ph.getParam("robot/grasp_tries", grasp_tries);
 	for (; t < grasp_tries; ++t)
 	{
-		if (m_robot->ComputeGrasps(m_goal, m_ooi.GetObject()->back())) {
+		if (m_robot->ComputeGrasps(m_goal, m_ooi->GetObject()->back())) {
 			break;
 		}
 	}
@@ -133,6 +134,8 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	setupSim();
 
 	m_robot->SetSim(m_sim);
+
+	m_cbs = std::make_unique<CBS>(m_robot, m_agents);
 
 	return true;
 }
@@ -212,7 +215,7 @@ bool Planner::PlanExtract()
 		// if (search != m_agent_map.end()) {
 		// }
 	}
-	if (!m_robot->Plan(m_ooi.GetObject()->back(), extract_obs)) {
+	if (!m_robot->Plan(m_ooi->GetObject()->back(), extract_obs)) {
 		moveit_msgs::RobotTrajectory to_exec;
 		m_robot->ConvertTraj(m_exec_interm, to_exec);
 		m_exec = to_exec.joint_trajectory;
@@ -226,7 +229,7 @@ bool Planner::PlanExtract()
 	comms::ObjectsPoses rearranged = m_rearranged;
 	bool success = true;
 	double start_time = GetTime();
-	if (!m_sim->ExecTraj(m_exec, rearranged, m_robot->GraspAt(), m_ooi.GetID()))
+	if (!m_sim->ExecTraj(m_exec, rearranged, m_robot->GraspAt(), m_ooi->GetID()))
 	{
 		SMPL_ERROR("Failed to exec traj!");
 		success = false;
@@ -274,7 +277,7 @@ bool Planner::TryExtract()
 	comms::ObjectsPoses rearranged = m_rearranged;
 	bool success = true;
 	double start_time = GetTime();
-	if (!m_sim->ExecTraj(to_exec.joint_trajectory, rearranged, m_robot->GraspAt(), m_ooi.GetID()))
+	if (!m_sim->ExecTraj(to_exec.joint_trajectory, rearranged, m_robot->GraspAt(), m_ooi->GetID()))
 	{
 		SMPL_ERROR("Failed to exec traj!");
 		success = false;
@@ -455,7 +458,7 @@ bool Planner::setupSim()
 		return false;
 	}
 
-	if (!m_sim->SetColours(m_ooi.GetID()))
+	if (!m_sim->SetColours(m_ooi->GetID()))
 	{
 		ROS_ERROR("Failed to set object colours in scene!");
 		return false;
@@ -483,7 +486,7 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 	}
 	// if any rearrangement traj execuction failed, m_violation == 1
 
-	if (!m_sim->ExecTraj(m_exec, dummy, m_robot->GraspAt(), m_ooi.GetID()))
+	if (!m_sim->ExecTraj(m_exec, dummy, m_robot->GraspAt(), m_ooi->GetID()))
 	{
 		SMPL_ERROR("Failed to exec traj!");
 		m_violation |= 0x00000004;
@@ -555,17 +558,15 @@ void Planner::updateAgentPositions(
 
 bool Planner::setupProblem()
 {
+	// CBS TODO: assign starts and goals to agents
+
 	int result = cleanupLogs();
 	if (result == -1) {
 		SMPL_ERROR("system command errored!");
 	}
 
-	m_t = 0;
-	m_phase = 0;
-	m_cc->ClearConflicts();
-
 	// Set agent current positions and time
-	m_ooi.Init();
+	m_ooi->Init();
 
 	m_robot->Init();
 	if (m_exec_interm.empty() && !m_robot->RandomiseStart()) {
@@ -599,8 +600,6 @@ void Planner::init_agents(
 	auto immov_obj_ids = m_sim->GetImmovableObjIDs();
 
 	m_num_objs = mov_objs->size() + immov_objs->size();
-	m_agents.clear();
-	m_agent_map.clear();
 	obstacles.clear();
 
 	int tables = FRIDGE ? 5 : 1;
@@ -643,7 +642,8 @@ void Planner::init_agents(
 
 		if (!ooi_set && i >= tables)
 		{
-			m_ooi.SetObject(o);
+			m_agent_map[1] = m_agents.size() - 1; // OOI always has ID 1
+			m_agents.at(0)->SetObject(o);
 			m_goal.clear();
 
 			double xdisp = std::cos(o.o_yaw) * 0.1;
@@ -694,8 +694,8 @@ void Planner::init_agents(
 		o.ycb = ycb;
 
 		o.CreateCollisionObjects();
-		Agent r(o);
-		m_agents.push_back(std::move(r));
+		std::shared_ptr<Agent> movable(new Agent(o));
+		m_agents.push_back(movable);
 		m_agent_map[o.id] = m_agents.size() - 1;
 	}
 }
@@ -715,8 +715,6 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 			{
 				getline(SCENE, line);
 				m_num_objs = std::stoi(line);
-				m_agents.clear();
-				m_agent_map.clear();
 				obstacles.clear();
 
 				for (int i = 0; i < m_num_objs; ++i)
@@ -758,8 +756,8 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 
 					o.CreateCollisionObjects();
 					if (o.movable) {
-						Agent r(o);
-						m_agents.push_back(std::move(r));
+						std::shared_ptr<Agent> movable(new Agent(o));
+						m_agents.push_back(movable);
 						m_agent_map[o.id] = m_agents.size() - 1;
 					}
 					else {
@@ -773,13 +771,14 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 			else if (line.compare("ooi") == 0)
 			{
 				getline(SCENE, line);
-				m_ooi_idx = std::stoi(line); // object of interest ID
+				int ooi_idx = std::stoi(line); // object of interest ID
 
 				for (auto itr = obstacles.begin(); itr != obstacles.end(); ++itr)
 				{
-					if (itr->id == m_ooi_idx)
+					if (itr->id == ooi_idx)
 					{
-						m_ooi.SetObject(*itr);
+						m_agent_map[1] = 0;
+						m_agents.at(0)->SetObject(*itr);
 						obstacles.erase(itr);
 						break;
 					}
@@ -855,8 +854,8 @@ void Planner::writePlanState(int iter)
 				<< movable << '\n';
 	}
 
-	State loc = m_ooi.GetCurrentState()->state;
-	auto agent_obs = m_ooi.GetObject();
+	State loc = m_ooi->GetCurrentState()->state;
+	auto agent_obs = m_ooi->GetObject();
 	movable = "False";
 	DATA << 999 << ',' // for visualisation purposes
 			<< agent_obs->back().Shape() << ','
@@ -921,7 +920,7 @@ void Planner::writePlanState(int iter)
 	o = 1 + m_agents.size();
 	DATA << o << '\n';
 
-	auto move = m_ooi.GetMoveTraj();
+	auto move = m_ooi->GetMoveTraj();
 	DATA << 999 << '\n';
 	DATA << move->size() << '\n';
 	for (const auto& s: *move) {

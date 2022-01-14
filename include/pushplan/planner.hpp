@@ -18,10 +18,12 @@
 namespace clutter
 {
 
+class CBS;
+
 class Planner
 {
 public:
-	Planner() : m_num_objs(-1), m_ooi_idx(-1), m_scene_id(-1),
+	Planner() : m_num_objs(-1), m_scene_id(-1),
 				m_t(0), m_phase(0), m_ph("~") {};
 	bool Init(const std::string& scene_file, int scene_id, bool ycb);
 
@@ -47,13 +49,14 @@ public:
 private:
 	std::string m_scene_file;
 	std::shared_ptr<CollisionChecker> m_cc;
-	std::unique_ptr<Robot> m_robot;
+	std::shared_ptr<Robot> m_robot;
 	std::shared_ptr<BulletSim> m_sim;
+	std::unique_ptr<CBS> m_cbs;
 
-	int m_num_objs, m_ooi_idx, m_t, m_phase, m_scene_id;
-	std::vector<Agent> m_agents;
+	int m_num_objs, m_scene_id;
+	std::vector<std::shared_ptr<Agent> > m_agents;
+	std::shared_ptr<Agent> m_ooi;
 	std::unordered_map<int, size_t> m_agent_map;
-	Agent m_ooi, m_ee;
 	Coord m_ooi_g;
 	State m_ooi_gf;
 	std::vector<double> m_goal;
