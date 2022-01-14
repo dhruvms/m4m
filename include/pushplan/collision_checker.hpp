@@ -69,7 +69,6 @@ public:
 	bool ImmovableCollision(const State& s, fcl::CollisionObject* o);
 	bool ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o);
 	bool IsStateValid(const LatticeState& s, fcl::CollisionObject* o, const int& priority);
-	bool UpdateConflicts(
 		const LatticeState& s, const int& priority);
 
 	State GetRandomStateOutside(fcl::CollisionObject* o);
@@ -83,13 +82,6 @@ public:
 	int NumObstacles() { return (int)m_obstacles.size(); };
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
 
-	auto GetConflictsOf(int pusher) const -> std::unordered_map<std::pair<int, int>, int, std::PairHash>;
-	void PrintConflicts() { std::cout << m_conflicts << std::endl; }
-	void ClearConflicts() { m_conflicts.clear(); };
-	auto GetConflicts() const -> std::unordered_map<std::pair<int, int>, int, std::PairHash> {
-		return m_conflicts;
-	};
-	int NumConflicts() { return (int)m_conflicts.size(); };
 
 private:
 	Planner* m_planner = nullptr;
@@ -97,7 +89,6 @@ private:
 	std::vector<Object> m_obstacles;
 	size_t m_base_loc;
 	std::vector<Trajectory> m_trajs;
-	std::unordered_map<std::pair<int, int>, int, std::PairHash> m_conflicts;
 
 	std::random_device m_dev;
 	std::mt19937 m_rng;
@@ -106,9 +97,6 @@ private:
 	fcl::BroadPhaseCollisionManager* m_fcl_immov = nullptr;
 	fcl::BroadPhaseCollisionManager* m_fcl_mov = nullptr;
 
-	bool updateConflicts(
-		int id1, int p1,
-		int id2, int p2, int t);
 	void cleanupChildren(std::vector<int>& check);
 
 };

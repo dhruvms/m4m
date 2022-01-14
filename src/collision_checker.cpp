@@ -135,74 +135,6 @@ bool CollisionChecker::IsStateValid(
 	return !collision;
 }
 
-bool CollisionChecker::UpdateConflicts(
-	const LatticeState& s, const int& priority)
-{
-	auto o1 = m_planner->GetObject(s, priority); // updates pose
-	int id1 = m_planner->GetID(priority);
-
-	LatticeState robot;
-	bool done = false;
-	for (int p = 0; p < priority; ++p)
-	{
-		for (const auto& s2: m_trajs.at(p))
-		{
-			if (s.t == s2.t)
-			{
-				if (p == 0)
-				{
-					robot = s2; // store for later
-					break;
-				}
-				else
-				{
-					auto o2 = m_planner->GetObject(s2, p);
-
-					fcl::CollisionRequest request;
-					fcl::CollisionResult result;
-					fcl::collide(o1, o2, request, result);
-					if (result.isCollision())
-					{
-						int id2 = m_planner->GetID(p);
-						int priority2 = p == 1 ? 0 : p;
-						updateConflicts(id1, priority, id2, priority2, s.t);
-
-						done = true;
-						break;
-					}
-				}
-			}
-		}
-		if (done) {
-			break;
-		}
-	}
-
-	if (!done)
-	{
-		if (m_planner->CheckRobotCollision(robot, priority)) {
-			updateConflicts(id1, priority, 100, 0, robot.t);
-		}
-	}
-
-	return true;
-}
-
-auto CollisionChecker::GetConflictsOf(int pusher) const ->
-std::unordered_map<std::pair<int, int>, int, std::PairHash>
-{
-	auto pushed = m_conflicts;
-	pushed.clear();
-	for (const auto& c: m_conflicts)
-	{
-		if (c.first.second == pusher) {
-			pushed[c.first] = c.second;
-		}
-	}
-
-	return pushed;
-}
-
 State CollisionChecker::GetRandomStateOutside(fcl::CollisionObject* o)
 {
 	State g(2, 0.0);
@@ -222,38 +154,6 @@ State CollisionChecker::GetRandomStateOutside(fcl::CollisionObject* o)
 	while (ImmovableCollision(g, o));
 
 	return g;
-}
-
-bool CollisionChecker::updateConflicts(
-	int id1, int p1,
-	int id2, int p2, int t)
-{
-	auto key = std::make_pair(id1, id2);
-	auto search = m_conflicts.find(key);
-	if (search != m_conflicts.end())
-	{
-		if (search->second > t) {
-			m_conflicts[key] = t;
-		}
-	}
-	else {
-		m_conflicts.emplace(key, t);
-	}
-}
-
-void CollisionChecker::cleanupChildren(std::vector<int>& check)
-{
-	for (const auto& c: m_conflicts)
-	{
-		auto loc = std::find(check.begin(), check.end(), c.first.second);
-		if (loc != check.end())
-		{
-			loc = std::find(check.begin(), check.end(), c.first.first);
-			if (loc == check.end()) {
-				check.push_back(c.first.first);
-			}
-		}
-	}
 }
 
 } // namespace clutter
