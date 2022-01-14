@@ -25,7 +25,6 @@ public:
 
 	bool Search(int robin);
 	virtual bool AtGoal(const LatticeState& s, bool verbose=false) = 0;
-	virtual void Step(int k) = 0;
 
 	bool IsGoal(int state_id);
 	virtual void GetSuccs(

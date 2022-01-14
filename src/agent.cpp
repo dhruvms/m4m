@@ -71,27 +71,6 @@ bool Agent::AtGoal(const LatticeState& s, bool verbose)
 	return dist < GOAL_THRESH;
 }
 
-void Agent::Step(int k)
-{
-	// TODO: account for k > 1
-	m_t += k;
-	for (const auto& s: m_solve)
-	{
-		if (s.t == m_t)
-		{
-			m_current.t = s.t;
-			if (m_current.state != s.state)
-			{
-				if (m_t > 1 && m_priority > 1) {
-					m_cc->UpdateConflicts(m_current, m_priority);
-				}
-				m_current = s;
-				m_move.push_back(m_current);
-			}
-		}
-	}
-}
-
 void Agent::GetSE2Push(std::vector<double>& push)
 {
 	push.clear();
