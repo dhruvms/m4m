@@ -13,11 +13,11 @@ m_ct_generated(0), m_ct_expanded(0)
 	m_paths.clear();
 }
 
-CBS::CBS(Robot* r, std::vector<Agent*> objs) :
+CBS::CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs) :
 m_ct_generated(0), m_ct_expanded(0)
 {
 	m_robot = r;
-	m_objs.insert(m_objs.end(), objs.begin(), objs.end());
+	m_objs = objs;
 	m_num_agents = (int)m_objs.size() + 1;
 	m_paths.resize(m_num_agents, nullptr);
 }
@@ -72,7 +72,7 @@ void CBS::initialiseRoot()
 	root->m_children.clear();
 
 	// Plan for robot
-	if (!m_robot->SatisfyPath(root, m_paths[0])) { // (CT node, path location)
+	if (!m_robot->SatisfyPath(root, m_paths[0], m_objs.at(0)->GetObject()->back())) { // (CT node, path location)
 		return false;
 	}
 	root->m_solution.emplace_back(m_robot->GetID(), m_paths[0]);
@@ -105,7 +105,7 @@ void CBS::findConflicts(HighLevelNode& node)
 		// robot-object conflicts
 		for (size_t i = 0; i < m_objs.size(); ++i)
 		{
-			findConflicts(node, m_robot, m_objs[i]);
+			findConflictsRobot(node, i);
 		}
 
 		// object-object conflicts
@@ -113,7 +113,7 @@ void CBS::findConflicts(HighLevelNode& node)
 		{
 			for (size_t j = i+1; j < m_objs.size(); ++j)
 			{
-				findConflicts(node, m_objs[i], m_objs[j]);
+				findConflictsObjects(node, i, j);
 			}
 		}
 	}
@@ -125,7 +125,7 @@ void CBS::findConflicts(HighLevelNode& node)
 		{
 			for (size_t i = 0; i < m_objs.size(); ++i)
 			{
-				findConflicts(node, m_robot, m_objs[i]);
+				findConflicts(node, i);
 			}
 		}
 		else
@@ -142,25 +142,25 @@ void CBS::findConflicts(HighLevelNode& node)
 					if (j == i) {
 						continue;
 					}
-					findConflicts(node, m_objs[i], m_objs[j]);
+					findConflicts(node, i, j);
 				}
 			}
 		}
 	}
 }
 
-void CBS::findConflicts(HighLevelNode& curr, Robot* r, Agent* a)
+void CBS::findConflicts(HighLevelNode& curr, size_t oid)
 {
-	Trajectory* r_traj = r->GetLastTraj();
-	Trajectory* a_traj = a->GetLastTraj();
+	Trajectory* r_traj = m_robot->GetLastTraj();
+	Trajectory* a_traj = m_objs[oid]->GetLastTraj();
 	int tmin = std::min(r_traj->size(), a_traj->size());
 	for (int t = 0; t < tmin; ++t)
 	{
-		a->UpdatePose(a_traj->at(t));
-		if (r->CheckCollision(r_traj->at(t), a))
+		m_objs[oid]->UpdatePose(a_traj->at(t));
+		if (r->CheckCollision(r_traj->at(t), m_objs[oid]))
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
-			conflict->InitConflict(r->GetID(), a->GetID(), t, r_traj->at(t), a_traj->at(t), true);
+			conflict->InitConflict(r->GetID(), m_objs[oid]->GetID(), t, r_traj->at(t), a_traj->at(t), true);
 			curr.m_conflicts.push_front(conflict);
 		}
 	}
@@ -171,25 +171,25 @@ void CBS::findConflicts(HighLevelNode& curr, Robot* r, Agent* a)
 		Trajectory* shorter = robot_shorter ? r_traj : a_traj;
 		Trajectory* longer = robot_shorter ? a_traj : r_traj;
 
-		a->UpdatePose(a_traj->back());
+		m_objs[oid]->UpdatePose(a_traj->back());
 		for (int t = tmin; t < longer->size(); ++tmin)
 		{
 			if (robot_shorter)
 			{
-				a->UpdatePose(longer->at(t));
-				if (r->CheckCollision(shorter->back(), a))
+				m_objs[oid]->UpdatePose(longer->at(t));
+				if (r->CheckCollision(shorter->back(), m_objs[oid]))
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
-					conflict->InitConflict(r->GetID(), a->GetID(), t, shorter->back(), longer->at(t), true);
+					conflict->InitConflict(r->GetID(), m_objs[oid]->GetID(), t, shorter->back(), longer->at(t), true);
 					curr.m_conflicts.push_front(conflict);
 				}
 			}
 			else
 			{
-				if (r->CheckCollision(longer->at(t), a))
+				if (r->CheckCollision(longer->at(t), m_objs[oid]))
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
-					conflict->InitConflict(r->GetID(), a->GetID(), t, longer->at(t), shorter->back(), true);
+					conflict->InitConflict(r->GetID(), m_objs[oid]->GetID(), t, longer->at(t), shorter->back(), true);
 					curr.m_conflicts.push_front(conflict);
 				}
 			}
@@ -197,19 +197,19 @@ void CBS::findConflicts(HighLevelNode& curr, Robot* r, Agent* a)
 	}
 }
 
-void CBS::findConflicts(HighLevelNode& curr, Agent* a1, Agent* a2)
+void CBS::findConflicts(HighLevelNode& curr, size_t o1, size_t o2)
 {
-	Trajectory* a1_traj = a1->GetLastTraj();
-	Trajectory* a2_traj = a2->GetLastTraj();
+	Trajectory* a1_traj = m_objs[o1]->GetLastTraj();
+	Trajectory* a2_traj = m_objs[o2]->GetLastTraj();
 	int tmin = std::min(a1_traj->size(), a2_traj->size());
 	for (int t = 0; t < tmin; ++t)
 	{
-		a1->UpdatePose(a1_traj->at(t));
-		a2->UpdatePose(a2_traj->at(t));
-		if (m_cc->FCLCollision(a1, a2))
+		m_objs[o1]->UpdatePose(a1_traj->at(t));
+		m_objs[o2]->UpdatePose(a2_traj->at(t));
+		if (m_cc->FCLCollision(m_objs[o1], m_objs[o2]))
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
-			conflict->InitConflict(a1->GetID(), a2->GetID(), t, a1_traj->at(t), a2_traj->at(t), false);
+			conflict->InitConflict(m_objs[o1]->GetID(), m_objs[o2]->GetID(), t, a1_traj->at(t), a2_traj->at(t), false);
 			curr.m_conflicts.push_back(conflict);
 		}
 	}
@@ -218,8 +218,8 @@ void CBS::findConflicts(HighLevelNode& curr, Agent* a1, Agent* a2)
 	{
 		LatticeState terminal;
 		bool a1_shorter = a1_traj->size() < a2_traj->size();
-		Agent* shorter = a1_shorter ? a1 : a2;
-		Agent* longer = a1_shorter ? a2 : a1;
+		Agent* shorter = a1_shorter ? m_objs[o1] : m_objs[o2];
+		Agent* longer = a1_shorter ? m_objs[o2] : m_objs[o1];
 		Trajectory* shorter_traj = a1_shorter ? a1_traj : a2_traj;
 		Trajectory* longer_traj = a1_shorter ? a2_traj : a1_traj;
 
@@ -264,9 +264,11 @@ void CBS::selectConflict(HighLevelNode* node) const
 
 void CBS::addConstraints(const HighLevelNode* curr, HighLevelNode* child1, HighLevelNode* child2) const
 {
+	// children inherit all constraints of parent node
 	child1->m_constraints = curr->m_constraints;
 	child2->m_constraints = curr->m_constraints;
 
+	// children get one new constraint each
 	child1->m_constraints.push_back(curr->m_conflict->m_c1);
 	child2->m_constraints.push_back(curr->m_conflict->m_c2);
 }
@@ -301,7 +303,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 			recalc_makespan = true;
 		}
 
-		if (!m_robot->SatisfyPath(child, m_paths[0])) {
+		if (!m_robot->SatisfyPath(child, m_paths[0], m_objs.at(0)->GetObject()->back())) {
 			return false;
 		}
 		// update solution in CT node

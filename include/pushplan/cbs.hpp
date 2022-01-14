@@ -5,6 +5,8 @@
 
 #include <boost/heap/fibonacci_heap.hpp>
 
+#include <memory>
+
 namespace clutter
 {
 
@@ -15,19 +17,19 @@ class CBS
 {
 public:
 	CBS();
-	CBS(Robot* r, std::vector<Agent*> objs);
+	CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs);
 
-	void SetRobot(Robot* r) { m_robot = r; };
-	void AddObject(Agent* o) { m_objs.push_back(o); };
-	void AddObjects(std::vector<Agent*> objs) {
+	void SetRobot(std::shared_ptr<Robot> r) { m_robot = r; };
+	void AddObject(std::shared_ptr<Agent> o) { m_objs.push_back(o); };
+	void AddObjects(std::vector<std::shared_ptr<Agent> > objs) {
 		m_objs.insert(m_objs.end(), objs.begin(), objs.end());
 	};
 
 	bool Solve();
 
 private:
-	Robot* m_robot;
-	std::vector<Agent*> m_objs;
+	std::shared_ptr<Robot> m_robot;
+	std::vector<std::shared_ptr<Agent> > m_objs;
 	int m_num_agents;
 	std::vector<Trajectory*> m_paths;
 
@@ -40,8 +42,8 @@ private:
 	void initialiseRoot();
 
 	void findConflicts(HighLevelNode& node);
-	void findConflicts(HighLevelNode& curr, Robot* r, Agent* a);
-	void findConflicts(HighLevelNode& curr, Agent* a1, Agent* a2);
+	void findConflicts(HighLevelNode& curr, size_t oid);
+	void findConflicts(HighLevelNode& curr, size_t o1, size_t o2);
 
 	bool done(HighLevelNode* node);
 
