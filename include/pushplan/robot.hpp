@@ -31,7 +31,8 @@ class Robot
 {
 public:
 	Robot() : m_ph("~"), m_rng(m_dev()) {};
-
+	void SetID(int id) { m_id = id; };
+	int GetID() { return m_id; };
 
 	bool Setup();
 	bool SavePushData(int scene_id);
@@ -111,6 +112,7 @@ public:
 	}
 
 private:
+	int m_id;
 	ros::NodeHandle m_nh, m_ph;
 	std::string m_robot_description, m_planning_frame;
 	RobotModelConfig m_robot_config;

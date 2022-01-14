@@ -36,6 +36,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 				num_immov, num_mov);
 
 	m_robot = std::make_unique<Robot>();
+	m_robot->SetID(0);
 
 	m_stats["whca_attempts"] = 0;
 	m_stats["robot_plan_time"] = 0.0;
