@@ -40,7 +40,7 @@ public:
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
 	bool Init();
 	bool RandomiseStart();
-	bool Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacles=boost::none);
+	bool SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Object& ooi);
 
 	void ProfileTraj(Trajectory& traj);
 	bool ComputeGrasps(
@@ -57,7 +57,6 @@ public:
 		return m_t == m_solve.back().t;
 	}
 	int GraspAt() { return m_grasp_at; };
-	void Step(int k);
 
 	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner(bool interp=false);
@@ -76,17 +75,13 @@ public:
 
 	void AnimateSolution();
 
-	const LatticeState* GetCurrentState() const { return &m_current; };
-	const Trajectory* GetMoveTraj() const { return &m_move; };
-	void GetExecTraj(trajectory_msgs::JointTrajectory& traj) const { traj = m_exec; };
-
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
 	}
 	const std::vector<Object>* GetObject() const { return &m_objs; };
 	const std::vector<Object>* GetObject(const LatticeState& s);
 
-	Coord GetEECoord();
+	Coord GetEECoord(const State& state);
 	const moveit_msgs::RobotState* GetStartState() { return &m_start_state; };
 
 	void PrintFK(const trajectory_msgs::JointTrajectory& traj)
@@ -133,11 +128,9 @@ private:
 	double m_mass, m_b, m_table_z;
 	std::string m_shoulder, m_elbow, m_wrist, m_tip;
 	const smpl::urdf::Link* m_link_s = nullptr;
-	const smpl::urdf::Link* m_link_e = nullptr;
-	const smpl::urdf::Link* m_link_w = nullptr;
+	const smpl::urdf::Link* m_link_e = nullptr;	const smpl::urdf::Link* m_link_w = nullptr;
 	const smpl::urdf::Link* m_link_t = nullptr;
 	smpl::RobotState m_pregrasp_state, m_grasp_state, m_postgrasp_state;
-	std::vector<Object> m_grasp_objs;
 
 	std::random_device m_dev;
 	std::mt19937 m_rng;
@@ -157,11 +150,11 @@ private:
 	std::vector<double> m_goal_vec;
 	moveit_msgs::Constraints m_goal;
 	std::string m_chain_tip_link;
-	trajectory_msgs::JointTrajectory m_traj, m_exec;
+	trajectory_msgs::JointTrajectory m_traj;
 
 	int m_t, m_priority;
-	LatticeState m_current, m_init;
-	Trajectory m_solve, m_move;
+	LatticeState m_init;
+	Trajectory m_solve;
 	std::vector<Object> m_objs;
 	std::shared_ptr<CollisionChecker> m_cc;
 
@@ -241,9 +234,11 @@ private:
 		int N=2,
 		const std::string& ns="");
 
-	bool attachOOI(const Object& ooi);
-	bool detachOOI();
-	void displayObjectMarker(const Object& ooi);
+	bool attachAndCheckObject(
+		const Object& object, const smpl::RobotState& state);
+	bool attachObject(const Object& ooi);
+	bool detachObject();
+	void displayObjectMarker(const Object& object);
 };
 
 } // namespace clutter

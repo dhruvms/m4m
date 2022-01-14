@@ -268,12 +268,10 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 bool Robot::Init()
 {
 	m_solve.clear();
-	m_move.clear();
 
-	m_t = 0;
 	m_grasp_at = -1;
 
-	m_init.t = m_t;
+	m_init.t = 0;
 	m_init.state.clear();
 	m_init.state.insert(m_init.state.begin(),
 		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
@@ -283,7 +281,6 @@ bool Robot::Init()
 	Eigen::Affine3d ee_pose = m_rm->computeFK(m_init.state);
 
 	reinitObjects(m_init.state);
-	m_current = m_init;
 
 	return true;
 }
@@ -303,393 +300,8 @@ bool Robot::RandomiseStart()
 	stateToCoord(m_init.state, m_init.coord);
 
 	reinitObjects(m_init.state);
-	m_current = m_init;
 
 	return true;
-}
-
-void Robot::ProfileTraj(Trajectory& traj)
-{
-	double prev_time = 0.0, wp_time = 0.0;
-	for (size_t i = 1; i < traj.size(); ++i)
-	{
-		wp_time += profileAction(traj.at(i-1).state, traj.at(i).state);
-		traj.at(i-1).state.push_back(prev_time);
-		prev_time = wp_time;
-	}
-	traj.back().state.push_back(prev_time);
-}
-
-bool Robot::detachOOI()
-{
-	const std::string attached_body_id = "ooi";
-	if (!m_cc_i->detachObject(attached_body_id))
-	{
-		ROS_ERROR("Failed to detach body '%s'", attached_body_id.c_str());
-		return false;
-	}
-	return true;
-}
-
-bool Robot::attachOOI(const Object& ooi)
-{
-	std::vector<Object> ooi_v = {ooi};
-	ProcessObstacles(ooi_v); // hack to compute collision object
-
-	smpl::collision::CollisionObject* ooi_co;
-	for (auto& object : m_collision_objects)
-	{
-		if (object->id == std::to_string(ooi.id))
-		{
-			ooi_co = object.get();
-			break;
-		}
-	}
-
-	std::vector<shapes::ShapeConstPtr> shapes;
-	smpl::collision::Affine3dVector transforms;
-	if (ooi_co)
-	{
-		for (size_t sidx = 0; sidx < ooi_co->shapes.size(); ++sidx)
-		{
-			auto transform = Eigen::Affine3d::Identity();
-			transform.translation().x() += 0.2;
-			switch (ooi_co->shapes.at(sidx)->type)
-			{
-				case smpl::collision::ShapeType::Box:
-				{
-					auto box = static_cast<smpl::collision::BoxShape*>(ooi_co->shapes.at(sidx));
-					shapes::ShapeConstPtr ao_shape(new shapes::Box(box->size[0], box->size[1], box->size[2]));
-					shapes.push_back(std::move(ao_shape));
-					break;
-				}
-				case smpl::collision::ShapeType::Cylinder:
-				{
-					auto cylinder = static_cast<smpl::collision::CylinderShape*>(ooi_co->shapes.at(sidx));
-					shapes::ShapeConstPtr ao_shape(new shapes::Cylinder(cylinder->radius, cylinder->height));
-					shapes.push_back(std::move(ao_shape));
-					break;
-				}
-				case smpl::collision::ShapeType::Mesh:
-				{
-					shapes::ShapeConstPtr ao_shape = MakeROSShape(ooi_co->shapes.at(sidx));
-					shapes.push_back(std::move(ao_shape));
-
-					auto itr = YCB_OBJECT_DIMS.find(ooi.shape);
-					if (itr != YCB_OBJECT_DIMS.end()) {
-						transform.translation().z() -= (m_grasp_z - m_table_z);
-					}
-
-					break;
-				}
-				case smpl::collision::ShapeType::Sphere:
-				case smpl::collision::ShapeType::Cone:
-				case smpl::collision::ShapeType::Plane:
-				case smpl::collision::ShapeType::OcTree:
-				default:
-				{
-					ROS_ERROR("Incompatible shape type!");
-					return false;
-				}
-			}
-			transforms.push_back(transform);
-		}
-	}
-	else
-	{
-		ROS_ERROR("Collision object not found!");
-		return false;
-	}
-
-
-	const std::string attach_link = "r_gripper_palm_link";
-	const std::string attached_body_id = "ooi";
-	if (!m_cc_i->attachObject(
-				attached_body_id, shapes, transforms, attach_link))
-	{
-		ROS_ERROR("Failed to attach body to '%s'", attach_link.c_str());
-		return false;
-	}
-
-	auto markers = m_cc_i->getCollisionRobotVisualization(m_postgrasp_state);
-	SV_SHOW_INFO(markers);
-
-	ProcessObstacles(ooi_v, true);
-
-	return true;
-}
-
-bool Robot::Plan(const Object& ooi, boost::optional<std::vector<Object>> obstacles)
-{
-	if (obstacles != boost::none)
-	{
-		m_solve.clear();
-		ProcessObstacles(obstacles.get());
-	}
-
-	///////////////////
-	// Plan approach //
-	///////////////////
-
-	detachOOI();
-	UpdateKDLRobot(0);
-	// setGripper(false); // closed
-	InitArmPlanner(true);
-
-	moveit_msgs::MotionPlanRequest req;
-	moveit_msgs::MotionPlanResponse res;
-
-	m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
-	createJointSpaceGoal(m_pregrasp_state, req);
-	req.max_acceleration_scaling_factor = 1.0;
-	req.max_velocity_scaling_factor = 1.0;
-	req.num_planning_attempts = 1;
-	// req.path_constraints;
-	req.planner_id = "arastar.joint_distance.manip";
-	req.start_state = m_start_state;
-	// req.trajectory_constraints;
-	// req.workspace_parameters;
-
-	// completely unnecessary variable
-	moveit_msgs::PlanningScene planning_scene;
-	planning_scene.robot_state = m_start_state;
-
-	SMPL_INFO("Planning to pregrasp state.");
-	if (!m_planner->solve(planning_scene, req, res))
-	{
-		ROS_ERROR("Failed to plan to pregrasp state.");
-		if (obstacles != boost::none) {
-			ProcessObstacles(obstacles.get(), true);
-		}
-		return false;
-	}
-	SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
-
-	auto planner_stats = m_planner->getPlannerStats();
-	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
-
-	//////////////////
-	// Append grasp //
-	//////////////////
-
-	m_traj = res.trajectory.joint_trajectory;
-	m_grasp_at = m_traj.points.size() - 1;
-	if (obstacles != boost::none) {
-		m_grasp_at += 1; // WTF IS THIS???
-	}
-
-	double grasp_time = profileAction(m_pregrasp_state, m_grasp_state);
-	double postgrasp_time = profileAction(m_grasp_state, m_postgrasp_state);
-	// double retreat_time = profileAction(m_postgrasp_state, m_pregrasp_state);
-
-	trajectory_msgs::JointTrajectoryPoint p;
-	p.positions = m_grasp_state;
-	p.time_from_start = ros::Duration(grasp_time) + m_traj.points.back().time_from_start;
-	m_traj.points.push_back(p);
-
-	p.positions = m_postgrasp_state;
-	p.time_from_start = ros::Duration(postgrasp_time) + m_traj.points.back().time_from_start;
-	m_traj.points.push_back(p);
-
-	/////////////////////
-	// Plan extraction //
-	/////////////////////
-
-	// setGripper(true); // open
-	if (!attachOOI(ooi))
-	{
-		if (obstacles != boost::none) {
-			ProcessObstacles(obstacles.get(), true);
-		}
-		else {
-			++m_stats["attach_fails"];
-		}
-		ROS_ERROR("Failed to attach OOI.");
-		return false;
-	}
-	else
-	{
-		// ooi attached, but are we collision free with it grasped?
-		if (!m_cc_i->isStateValid(m_postgrasp_state))
-		{
-			if (obstacles != boost::none) {
-				ProcessObstacles(obstacles.get(), true);
-			}
-			else {
-				++m_stats["attach_collides"];
-			}
-			ROS_ERROR("Postgrasp state is in collision with attached OOI.");
-			return false;
-		}
-	}
-	InitArmPlanner(true);
-
-	moveit_msgs::RobotState orig_start = m_start_state;
-	m_start_state.joint_state.position.erase(
-		m_start_state.joint_state.position.begin() + 1,
-		m_start_state.joint_state.position.begin() + 1 + m_postgrasp_state.size());
-	m_start_state.joint_state.position.insert(
-		m_start_state.joint_state.position.begin() + 1,
-		m_postgrasp_state.begin(), m_postgrasp_state.end());
-	req.start_state = m_start_state;
-	planning_scene.robot_state = m_start_state;
-
-	smpl::RobotState home;
-	home.insert(home.begin(),
-		orig_start.joint_state.position.begin() + 1, orig_start.joint_state.position.end());
-	createJointSpaceGoal(home, req);
-
-	addPathConstraint(req.path_constraints);
-
-	SMPL_INFO("Planning to home state with attached body.");
-	if (!m_planner->solve(planning_scene, req, res))
-	{
-		ROS_ERROR("Failed to plan to home state with attached body.");
-		if (obstacles != boost::none) {
-			ProcessObstacles(obstacles.get(), true);
-		}
-		detachOOI();
-		m_start_state = orig_start;
-		return false;
-	}
-	SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
-
-	planner_stats = m_planner->getPlannerStats();
-	m_stats["extract_plan_time"] = planner_stats["initial solution planning time"];
-
-	detachOOI();
-	m_start_state = orig_start;
-
-	auto extract_start_time = m_traj.points.back().time_from_start;
-	for (size_t i = 0; i < res.trajectory.joint_trajectory.points.size(); ++i)
-	{
-		auto& wp = res.trajectory.joint_trajectory.points.at(i);
-		wp.time_from_start += extract_start_time;
-		m_traj.points.push_back(wp);
-	}
-
-	int t = 0;
-	for (const auto& wp: m_traj.points)
-	{
-		LatticeState s;
-		s.state = wp.positions;
-		s.coord = Coord(m_rm->jointVariableCount());
-		stateToCoord(s.state, s.coord);
-		s.t = t;
-
-		m_solve.push_back(s);
-		++t;
-	}
-	m_cc->UpdateTraj(m_priority, m_solve);
-
-	SMPL_INFO("Robot has complete plan! m_solve.size() = %d", m_solve.size());
-	if (obstacles != boost::none) {
-		m_exec = m_traj;
-		SMPL_INFO("m_exec.points.size() = %d", m_exec.points.size());
-		ProcessObstacles(obstacles.get(), true);
-	}
-	return true;
-}
-
-bool Robot::ComputeGrasps(
-	const std::vector<double>& pregrasp_goal,
-	const Object& ooi)
-{
-	double start_time = GetTime();
-
-	m_pregrasp_state.clear();
-	m_grasp_state.clear();
-	m_postgrasp_state.clear();
-
-	bool success = false;
-	int tries = 0;
-	UpdateKDLRobot(0);
-
-	smpl::RobotState ee_state;
-	Eigen::Affine3d ee_pose;
-	do
-	{
-		m_grasp_z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
-		ee_pose = Eigen::Translation3d(ooi.o_x + 0.025 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.025 * std::sin(pregrasp_goal[5]), m_grasp_z) *
-						Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
-						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
-	}
-	while (!getStateNearPose(ee_pose, ee_state, m_grasp_state, 5) && ++tries < m_grasp_tries);
-
-	auto* vis_name = "grasp_pose";
-	SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
-		ee_pose, m_grid_i->getReferenceFrame(), vis_name));
-
-	if (tries == m_grasp_tries)	{
-		return false;
-	}
-
-	// vis_name = "grasp_state";
-	// auto markers = m_cc_i->getCollisionModelVisualization(m_grasp_state);
-	// for (auto& marker : markers) {
-	// 	marker.ns = vis_name;
-	// }
-	// SV_SHOW_INFO_NAMED(vis_name, markers);
-
-	SMPL_INFO("Found grasp state!!");
-
-	// compute pregrasp state
-	ee_pose = m_rm->computeFK(m_grasp_state);
-	ee_pose.translation().x() = pregrasp_goal[0];
-	ee_pose.translation().y() = pregrasp_goal[1];
-
-	// vis_name = "pregrasp_pose";
-	// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
-	// 	ee_pose, m_grid_i->getReferenceFrame(), vis_name));
-
-	if (getStateNearPose(ee_pose, m_grasp_state, m_pregrasp_state, 1))
-	{
-		// vis_name = "pregrasp_state";
-		// auto markers = m_cc_i->getCollisionModelVisualization(m_pregrasp_state);
-		// for (auto& marker : markers) {
-		// 	marker.ns = vis_name;
-		// }
-		// SV_SHOW_INFO_NAMED(vis_name, markers);
-
-		SMPL_INFO("Found pregrasp state!");
-		ee_pose = m_rm->computeFK(m_grasp_state);
-		ee_pose.translation().z() += m_grasp_lift;
-
-		// vis_name = "postgrasp_pose";
-		// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
-		// 	ee_pose, m_grid_i->getReferenceFrame(), vis_name));
-
-		// compute postgrasp state
-		if (getStateNearPose(ee_pose, m_grasp_state, m_postgrasp_state, 1))
-		{
-			// vis_name = "postgrasp_state";
-			// auto markers = m_cc_i->getCollisionModelVisualization(m_postgrasp_state);
-			// for (auto& marker : markers) {
-			// 	marker.ns = vis_name;
-			// }
-			// SV_SHOW_INFO_NAMED(vis_name, markers);
-
-			SMPL_INFO("Found postgrasp state!!!");
-			m_planner_time += GetTime() - start_time;
-			success = true;
-		}
-	}
-
-	if (success)
-	{
-		m_grasp_objs.clear();
-		reinitObjects(m_pregrasp_state);
-		m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
-		reinitObjects(m_grasp_state);
-		m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
-		reinitObjects(m_postgrasp_state);
-		m_grasp_objs.insert(m_grasp_objs.begin(), m_objs.begin(), m_objs.end());
-
-		displayObjectMarker(ooi);
-	}
-
-	return success;
 }
 
 void Robot::ConvertTraj(
@@ -795,20 +407,389 @@ void Robot::ConvertTraj(
 	traj_out.joint_trajectory.header.stamp = ros::Time::now();
 }
 
-void Robot::Step(int k)
+void Robot::ProfileTraj(Trajectory& traj)
 {
-	// TODO: account for k > 1
-	m_t += k;
-	for (const auto& s: m_solve)
+	double prev_time = 0.0, wp_time = 0.0;
+	for (size_t i = 1; i < traj.size(); ++i)
 	{
-		if (s.t == m_t)
-		{
-			m_current = s;
-			reinitObjects(m_current.state);
+		wp_time += profileAction(traj.at(i-1).state, traj.at(i).state);
+		traj.at(i-1).state.push_back(prev_time);
+		prev_time = wp_time;
+	}
+	traj.back().state.push_back(prev_time);
+}
 
-			m_move.push_back(m_current);
+bool Robot::detachObject()
+{
+	const std::string attached_body_id = "att_obj";
+	if (!m_cc_i->detachObject(attached_body_id))
+	{
+		ROS_ERROR("Failed to detach body '%s'", attached_body_id.c_str());
+		return false;
+	}
+	return true;
+}
+
+bool Robot::attachObject(const Object& ooi)
+{
+	std::vector<Object> ooi_v = {ooi};
+	ProcessObstacles(ooi_v); // hack to compute collision object
+
+	smpl::collision::CollisionObject* ooi_co;
+	for (auto& object : m_collision_objects)
+	{
+		if (object->id == std::to_string(ooi.id))
+		{
+			ooi_co = object.get();
+			break;
 		}
 	}
+
+	std::vector<shapes::ShapeConstPtr> shapes;
+	smpl::collision::Affine3dVector transforms;
+	if (ooi_co)
+	{
+		for (size_t sidx = 0; sidx < ooi_co->shapes.size(); ++sidx)
+		{
+			auto transform = Eigen::Affine3d::Identity();
+			transform.translation().x() += 0.2;
+			switch (ooi_co->shapes.at(sidx)->type)
+			{
+				case smpl::collision::ShapeType::Box:
+				{
+					auto box = static_cast<smpl::collision::BoxShape*>(ooi_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape(new shapes::Box(box->size[0], box->size[1], box->size[2]));
+					shapes.push_back(std::move(ao_shape));
+					break;
+				}
+				case smpl::collision::ShapeType::Cylinder:
+				{
+					auto cylinder = static_cast<smpl::collision::CylinderShape*>(ooi_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape(new shapes::Cylinder(cylinder->radius, cylinder->height));
+					shapes.push_back(std::move(ao_shape));
+					break;
+				}
+				case smpl::collision::ShapeType::Mesh:
+				{
+					shapes::ShapeConstPtr ao_shape = MakeROSShape(ooi_co->shapes.at(sidx));
+					shapes.push_back(std::move(ao_shape));
+
+					auto itr = YCB_OBJECT_DIMS.find(ooi.shape);
+					if (itr != YCB_OBJECT_DIMS.end()) {
+						transform.translation().z() -= (m_grasp_z - m_table_z);
+					}
+
+					break;
+				}
+				case smpl::collision::ShapeType::Sphere:
+				case smpl::collision::ShapeType::Cone:
+				case smpl::collision::ShapeType::Plane:
+				case smpl::collision::ShapeType::OcTree:
+				default:
+				{
+					ROS_ERROR("Incompatible shape type!");
+					return false;
+				}
+			}
+			transforms.push_back(transform);
+		}
+	}
+	else
+	{
+		ROS_ERROR("Collision object not found!");
+		return false;
+	}
+
+
+	const std::string attach_link = "r_gripper_palm_link";
+	const std::string attached_body_id = "att_obj";
+	if (!m_cc_i->attachObject(
+				attached_body_id, shapes, transforms, attach_link))
+	{
+		ROS_ERROR("Failed to attach body to '%s'", attach_link.c_str());
+		return false;
+	}
+
+	auto markers = m_cc_i->getCollisionRobotVisualization(m_postgrasp_state);
+	SV_SHOW_INFO(markers);
+
+	ProcessObstacles(ooi_v, true);
+
+	return true;
+}
+
+bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& state)
+{
+	if (!attachObject(object))
+	{
+		++m_stats["attach_fails"];
+		ROS_ERROR("Failed to attach object.");
+		return false;
+	}
+	else
+	{
+		// object attached, but are we collision free with it grasped?
+		if (!m_cc_i->isStateValid(state))
+		{
+			++m_stats["attach_collides"];
+			ROS_ERROR("Robot state is in collision with attached object.");
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Object& ooi)
+{
+	// CBS TODO: must pick out constraints wrt planning phase:
+	// (i) for planning to pregrasp, all constraints with time <= m_grasp_at
+	// are active
+	// (ii) for planning to home, all constraints with times >= m_grasp_at + 2
+	// are active
+
+	// Get relevant constraints - check logic per above
+	std::list<std::shared_ptr<Constraint> > approach_constraints, retract_constraints;
+	for (auto& constraint : ct_node->m_constraints)
+	{
+		if (constraint->m_me == ct_node->m_replanned)
+		{
+			if (constraint->m_time <= m_grasp_at) {
+				approach_constraints.push_back(constraint);
+			}
+			else if (constraint->m_time >= m_grasp_at + 2)
+			{
+				std::shared_ptr<Constraint> new_constraint(new Constraint());
+				new_constraint->m_me = constraint->m_me;
+				new_constraint->m_other = constraint->m_other;
+				new_constraint->m_time = constraint->m_time - (m_grasp_at + 2);
+				new_constraint->m_q = constraint->m_q;
+				extract_constraints.push_back(new_constraint);
+			}
+		}
+	}
+
+	///////////////////
+	// Plan approach //
+	///////////////////
+
+	detachObject();
+	UpdateKDLRobot(0);
+	// setGripper(false); // closed
+	InitArmPlanner(true);
+
+	moveit_msgs::MotionPlanRequest req;
+	moveit_msgs::MotionPlanResponse res;
+
+	m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
+	createJointSpaceGoal(m_pregrasp_state, req);
+	req.max_acceleration_scaling_factor = 1.0;
+	req.max_velocity_scaling_factor = 1.0;
+	req.num_planning_attempts = 1;
+	// req.path_constraints;
+	req.planner_id = "arastar.joint_distance.manip";
+	req.start_state = m_start_state;
+	// req.trajectory_constraints;
+	// req.workspace_parameters;
+
+	// completely unnecessary variable
+	moveit_msgs::PlanningScene planning_scene;
+	planning_scene.robot_state = m_start_state;
+
+	SMPL_INFO("Planning to pregrasp state.");
+	if (!m_planner->solve_with_constraints(planning_scene, req, res, approach_constraints))
+	{
+		ROS_ERROR("Failed to plan to pregrasp state.");
+		return false;
+	}
+	SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
+
+	auto planner_stats = m_planner->getPlannerStats();
+	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
+
+	//////////////////
+	// Append grasp //
+	//////////////////
+
+	m_traj = res.trajectory.joint_trajectory;
+	m_grasp_at = m_traj.points.size() - 1;
+
+	double grasp_time = profileAction(m_pregrasp_state, m_grasp_state);
+	double postgrasp_time = profileAction(m_grasp_state, m_postgrasp_state);
+	// double retreat_time = profileAction(m_postgrasp_state, m_pregrasp_state);
+
+	trajectory_msgs::JointTrajectoryPoint p;
+	p.positions = m_grasp_state;
+	p.time_from_start = ros::Duration(grasp_time) + m_traj.points.back().time_from_start;
+	m_traj.points.push_back(p);
+
+	p.positions = m_postgrasp_state;
+	p.time_from_start = ros::Duration(postgrasp_time) + m_traj.points.back().time_from_start;
+	m_traj.points.push_back(p);
+
+	/////////////////////
+	// Plan extraction //
+	/////////////////////
+
+	// setGripper(true); // open
+	if (!attachAndCheckObject(ooi)) {
+		detachObject();
+		return false;
+	}
+	InitArmPlanner(true);
+
+	moveit_msgs::RobotState orig_start = m_start_state;
+	m_start_state.joint_state.position.erase(
+		m_start_state.joint_state.position.begin() + 1,
+		m_start_state.joint_state.position.begin() + 1 + m_postgrasp_state.size());
+	m_start_state.joint_state.position.insert(
+		m_start_state.joint_state.position.begin() + 1,
+		m_postgrasp_state.begin(), m_postgrasp_state.end());
+	req.start_state = m_start_state;
+	planning_scene.robot_state = m_start_state;
+
+	smpl::RobotState home;
+	home.insert(home.begin(),
+		orig_start.joint_state.position.begin() + 1, orig_start.joint_state.position.end());
+	createJointSpaceGoal(home, req);
+
+	addPathConstraint(req.path_constraints);
+
+	SMPL_INFO("Planning to home state with attached body.");
+	if (!m_planner->solve_with_constraints(planning_scene, req, res, extract_constraints))
+	{
+		ROS_ERROR("Failed to plan to home state with attached body.");
+		detachObject();
+		m_start_state = orig_start;
+		return false;
+	}
+	SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
+
+	planner_stats = m_planner->getPlannerStats();
+	m_stats["extract_plan_time"] = planner_stats["initial solution planning time"];
+
+	detachObject();
+	m_start_state = orig_start;
+
+	auto extract_start_time = m_traj.points.back().time_from_start;
+	for (size_t i = 0; i < res.trajectory.joint_trajectory.points.size(); ++i)
+	{
+		auto& wp = res.trajectory.joint_trajectory.points.at(i);
+		wp.time_from_start += extract_start_time;
+		m_traj.points.push_back(wp);
+	}
+
+	int t = 0;
+	for (const auto& wp: m_traj.points)
+	{
+		LatticeState s;
+		s.state = wp.positions;
+		s.coord = Coord(m_rm->jointVariableCount());
+		stateToCoord(s.state, s.coord);
+		s.t = t;
+
+		m_solve.push_back(s);
+		++t;
+	}
+	sol_path = &m_solve;
+
+	SMPL_INFO("Robot has complete plan! m_solve.size() = %d", m_solve.size());
+	return true;
+}
+
+bool Robot::ComputeGrasps(
+	const std::vector<double>& pregrasp_goal,
+	const Object& ooi)
+{
+	double start_time = GetTime();
+
+	m_pregrasp_state.clear();
+	m_grasp_state.clear();
+	m_postgrasp_state.clear();
+
+	bool success = false;
+	int tries = 0;
+	UpdateKDLRobot(0);
+
+	smpl::RobotState ee_state;
+	Eigen::Affine3d ee_pose;
+	do
+	{
+		m_grasp_z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
+		ee_pose = Eigen::Translation3d(ooi.o_x + 0.025 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.025 * std::sin(pregrasp_goal[5]), m_grasp_z) *
+						Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
+	}
+	while (!getStateNearPose(ee_pose, ee_state, m_grasp_state, 5) && ++tries < m_grasp_tries);
+
+	auto* vis_name = "grasp_pose";
+	SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+		ee_pose, m_grid_i->getReferenceFrame(), vis_name));
+
+	if (tries == m_grasp_tries)	{
+		return false;
+	}
+
+	// vis_name = "grasp_state";
+	// auto markers = m_cc_i->getCollisionModelVisualization(m_grasp_state);
+	// for (auto& marker : markers) {
+	// 	marker.ns = vis_name;
+	// }
+	// SV_SHOW_INFO_NAMED(vis_name, markers);
+
+	SMPL_INFO("Found grasp state!!");
+
+	// compute pregrasp state
+	ee_pose = m_rm->computeFK(m_grasp_state);
+	ee_pose.translation().x() = pregrasp_goal[0];
+	ee_pose.translation().y() = pregrasp_goal[1];
+
+	// vis_name = "pregrasp_pose";
+	// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+	// 	ee_pose, m_grid_i->getReferenceFrame(), vis_name));
+
+	if (getStateNearPose(ee_pose, m_grasp_state, m_pregrasp_state, 1))
+	{
+		// vis_name = "pregrasp_state";
+		// auto markers = m_cc_i->getCollisionModelVisualization(m_pregrasp_state);
+		// for (auto& marker : markers) {
+		// 	marker.ns = vis_name;
+		// }
+		// SV_SHOW_INFO_NAMED(vis_name, markers);
+
+		SMPL_INFO("Found pregrasp state!");
+		ee_pose = m_rm->computeFK(m_grasp_state);
+		ee_pose.translation().z() += m_grasp_lift;
+
+		// vis_name = "postgrasp_pose";
+		// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
+		// 	ee_pose, m_grid_i->getReferenceFrame(), vis_name));
+
+		// compute postgrasp state
+		if (getStateNearPose(ee_pose, m_grasp_state, m_postgrasp_state, 1))
+		{
+			// vis_name = "postgrasp_state";
+			// auto markers = m_cc_i->getCollisionModelVisualization(m_postgrasp_state);
+			// for (auto& marker : markers) {
+			// 	marker.ns = vis_name;
+			// }
+			// SV_SHOW_INFO_NAMED(vis_name, markers);
+
+			SMPL_INFO("Found postgrasp state!!!");
+
+			if (!attachAndCheckObject(ooi, m_postgrasp_state)) {
+				detachObject();
+				return false;
+			}
+			detachObject();
+
+			m_planner_time += GetTime() - start_time;
+			success = true;
+		}
+	}
+
+	return success;
 }
 
 bool Robot::UpdateKDLRobot(int mode)
@@ -846,6 +827,7 @@ bool Robot::UpdateKDLRobot(int mode)
 bool Robot::InitArmPlanner(bool interp)
 {
 	if (!m_planner_init) {
+		m_ph.setParam("robot/interpolate", interp);
 		return initPlanner();
 	}
 	else {
@@ -997,9 +979,9 @@ const std::vector<Object>* Robot::GetObject(const LatticeState& s)
 	return &m_objs;
 }
 
-Coord Robot::GetEECoord()
+Coord Robot::GetEECoord(const State& state)
 {
-	Eigen::Affine3d ee_pose = m_rm->computeFK(m_current.state);
+	Eigen::Affine3d ee_pose = m_rm->computeFK(state);
 	State ee = {ee_pose.translation().x(), ee_pose.translation().y()};
 	Coord ee_coord;
 	ContToDisc(ee, ee_coord);
@@ -2273,24 +2255,24 @@ bool Robot::getStateNearPose(
 }
 
 
-void Robot::displayObjectMarker(const Object& ooi)
+void Robot::displayObjectMarker(const Object& object)
 {
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = "base_footprint";
 	marker.header.stamp = ros::Time();
-	marker.ns = "ooi";
-	marker.id = ooi.id;
+	marker.ns = "object";
+	marker.id = object.id;
 	marker.action = visualization_msgs::Marker::ADD;
-	marker.type = ooi.shape == 0 ? visualization_msgs::Marker::CUBE : visualization_msgs::Marker::CYLINDER;
+	marker.type = object.shape == 0 ? visualization_msgs::Marker::CUBE : visualization_msgs::Marker::CYLINDER;
 
 	geometry_msgs::Pose pose;
-	pose.position.x = ooi.o_x;
-	pose.position.y = ooi.o_y;
-	pose.position.z = ooi.o_z;
+	pose.position.x = object.o_x;
+	pose.position.y = object.o_y;
+	pose.position.z = object.o_z;
 
 	Eigen::Quaterniond q;
 	smpl::angles::from_euler_zyx(
-			ooi.o_yaw, ooi.o_pitch, ooi.o_roll, q);
+			object.o_yaw, object.o_pitch, object.o_roll, q);
 
 	geometry_msgs::Quaternion orientation;
 	tf::quaternionEigenToMsg(q, orientation);
@@ -2298,10 +2280,10 @@ void Robot::displayObjectMarker(const Object& ooi)
 
 	marker.pose = pose;
 
-	marker.scale.x = 2 * ooi.x_size;
-	marker.scale.y = 2 * ooi.y_size;
-	marker.scale.z = 2 * ooi.z_size;
-	marker.scale.z /= ooi.shape == 2 ? 2.0 : 1.0;
+	marker.scale.x = 2 * object.x_size;
+	marker.scale.y = 2 * object.y_size;
+	marker.scale.z = 2 * object.z_size;
+	marker.scale.z /= object.shape == 2 ? 2.0 : 1.0;
 
 	marker.color.a = 0.5; // Don't forget to set the alpha!
 	marker.color.r = 0.86;
