@@ -33,34 +33,6 @@ void Movable::SetGoalState(const Coord& p)
 	m_wastar->set_goal(m_goal_id);
 }
 
-bool Movable::Search(int robin)
-{
-	m_priority = robin;
-
-	std::vector<int> solution;
-	int solcost;
-	bool result = m_wastar->replan(&solution, &solcost);
-
-	if (result)
-	{
-		convertPath(solution);
-		m_cc->UpdateTraj(m_priority, m_solve);
-
-		return true;
-	}
-
-	return false;
-}
-
-bool Movable::IsGoal(int state_id)
-{
-	assert(state_id >= 0);
-	LatticeState* s = getHashEntry(state_id);
-	assert(s);
-
-	return s->t == m_t + WINDOW + 1;
-}
-
 void Movable::reset(int phase)
 {
 	// reset everything

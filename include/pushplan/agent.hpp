@@ -27,10 +27,8 @@ public:
 		const std::vector<double>& rpy);
 	bool Init() override;
 
-	bool AtGoal(const LatticeState& s, bool verbose=false) override;
-
-	void GetSE2Push(std::vector<double>& push);
-
+	bool SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path);
+	bool IsGoal(int state_id) override;
 	void GetSuccs(
 		int state_id,
 		std::vector<int>* succ_ids,
@@ -39,6 +37,7 @@ public:
 	unsigned int GetGoalHeuristic(int state_id) override;
 	unsigned int GetGoalHeuristic(const LatticeState& s) override;
 
+	void GetSE2Push(std::vector<double>& push);
 	const std::vector<Object>* GetObject(const LatticeState& s) override;
 	using Movable::GetObject;
 
@@ -50,6 +49,7 @@ public:
 
 private:
 	Object m_orig_o;
+	std::list<std::shared_ptr<Constraint> > m_constraints;
 
 	int generateSuccessor(
 		const LatticeState* parent,

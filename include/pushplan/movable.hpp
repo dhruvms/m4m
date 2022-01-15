@@ -23,10 +23,7 @@ public:
 	void SetStartState(const LatticeState& s);
 	void SetGoalState(const Coord& p);
 
-	bool Search(int robin);
-	virtual bool AtGoal(const LatticeState& s, bool verbose=false) = 0;
-
-	bool IsGoal(int state_id);
+	bool IsGoal(int state_id) = 0;
 	virtual void GetSuccs(
 		int state_id,
 		std::vector<int>* succ_ids,
@@ -48,14 +45,14 @@ public:
 
 protected:
 	std::vector<Object> m_objs;
-	LatticeState m_current, m_init;
+	LatticeState m_init;
 	Coord m_start, m_goal;
 	State m_goalf;
 	int m_t, m_priority, m_phase;
 
 	int m_start_id, m_goal_id, m_expansions = 0;
 	STATES m_states, m_closed;
-	Trajectory m_solve, m_move, m_retrieve;
+	Trajectory m_solve;
 
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<WAStar> m_wastar;

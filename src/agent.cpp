@@ -35,23 +35,16 @@ bool Agent::SetObjectPose(
 
 bool Agent::Init()
 {
-	m_solve.clear();
-	m_retrieve.clear();
-	m_move.clear();
-
-	m_t = 0;
+	m_path.clear();
 
 	m_objs.back().o_x = m_orig_o.o_x;
 	m_objs.back().o_y = m_orig_o.o_y;
 
-	m_init.t = m_t;
+	m_init.t = 0;
 	m_init.state.clear();
 	m_init.state.push_back(m_objs.back().o_x);
 	m_init.state.push_back(m_objs.back().o_y);
 	ContToDisc(m_init.state, m_init.coord);
-	m_current = m_init;
-
-	m_move.push_back(m_current);
 
 	if (!m_wastar) {
 		m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
@@ -60,61 +53,51 @@ bool Agent::Init()
 	return true;
 }
 
-bool Agent::AtGoal(const LatticeState& s, bool verbose)
+bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path)
 {
-	double dist = EuclideanDist(s.state, m_goalf);
-
-	if (verbose) {
-		SMPL_INFO("At: (%f, %f), Goal: (%f, %f), dist = %f (thresh = %f)", s.state.at(0), s.state.at(1), m_goalf.at(0), m_goalf.at(1), dist, GOAL_THRESH);
+	// collect agent constraints
+	m_constraints.clear();
+	for (auto& constraint : child->m_constraints)
+	{
+		if (constraint->m_me == child->m_replanned) {
+			m_constraints.push_back(constraint);
+		}
 	}
 
-	return dist < GOAL_THRESH;
+	std::vector<int> solution;
+	int solcost;
+	bool result = m_wastar->replan(&solution, &solcost);
+
+	if (result)
+	{
+		convertPath(solution);
+		sol_path = &m_solve;
+	}
 }
 
-void Agent::GetSE2Push(std::vector<double>& push)
+// As long as I am not allowed to be in this location at some later time,
+// I have not reached a valid goal state
+// Conversely, if I can remain in this location (per existing constraints),
+// I am at a valid goal state (since states in collision with immovable obstacles
+// will never enter OPEN)
+bool Agent::IsGoal(int state_id)
 {
-	push.clear();
-	push.resize(3, 0.0); // (x, y, yaw)
+	assert(state_id >= 0);
+	LatticeState* s = getHashEntry(state_id);
+	assert(s);
 
-	double move_dir = std::atan2(
-					m_move.back().state.at(1) - m_move.front().state.at(1),
-					m_move.back().state.at(0) - m_move.front().state.at(0));
-	push.at(0) = m_orig_o.o_x + std::cos(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
-	push.at(1) = m_orig_o.o_y + std::sin(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
-	push.at(2) = move_dir;
-
-	if (m_objs.back().shape == 0)
+	bool constrained = false;
+	for (const auto& constraint : m_constraints)
 	{
-		// get my object rectangle
-		std::vector<State> rect;
-		State o = {m_orig_o.o_x, m_orig_o.o_y};
-		GetRectObjAtPt(o, m_objs.back(), rect);
-
-		// find rectangle side away from push direction
-		push.at(0) = m_orig_o.o_x + std::cos(move_dir + M_PI) * 0.5;
-		push.at(1) = m_orig_o.o_y + std::sin(move_dir + M_PI) * 0.5;
-		State p = {push.at(0), push.at(1)}, intersection;
-		double op = EuclideanDist(o, p);
-		int side = 0;
-		for (; side <= 3; ++side)
-		{
-			LineLineIntersect(o, p, rect.at(side), rect.at((side + 1) % 4), intersection);
-			if (PointInRectangle(intersection, rect))
-			{
-				if (EuclideanDist(intersection, o) + EuclideanDist(intersection, p) <= op + 1e-6) {
-					break;
-				}
+		if (constraint->m_q.coord == s->coord) {
+			if (constraint->m_q.t >= s->t) {
+				constrained = true;
+				break;
 			}
 		}
-
-		// compute push point on side
-		intersection.at(0) += std::cos(move_dir + M_PI) * 0.08;
-		intersection.at(1) += std::sin(move_dir + M_PI) * 0.08;
-
-		// update push
-		push.at(0) = intersection.at(0);
-		push.at(1) = intersection.at(1);
 	}
+
+	return !constrained;
 }
 
 void Agent::GetSuccs(
@@ -178,6 +161,52 @@ const std::vector<Object>* Agent::GetObject(const LatticeState& s)
 	return &m_objs;
 }
 
+void Agent::GetSE2Push(std::vector<double>& push)
+{
+	push.clear();
+	push.resize(3, 0.0); // (x, y, yaw)
+
+	double move_dir = std::atan2(
+					m_move.back().state.at(1) - m_move.front().state.at(1),
+					m_move.back().state.at(0) - m_move.front().state.at(0));
+	push.at(0) = m_orig_o.o_x + std::cos(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
+	push.at(1) = m_orig_o.o_y + std::sin(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
+	push.at(2) = move_dir;
+
+	if (m_objs.back().shape == 0)
+	{
+		// get my object rectangle
+		std::vector<State> rect;
+		State o = {m_orig_o.o_x, m_orig_o.o_y};
+		GetRectObjAtPt(o, m_objs.back(), rect);
+
+		// find rectangle side away from push direction
+		push.at(0) = m_orig_o.o_x + std::cos(move_dir + M_PI) * 0.5;
+		push.at(1) = m_orig_o.o_y + std::sin(move_dir + M_PI) * 0.5;
+		State p = {push.at(0), push.at(1)}, intersection;
+		double op = EuclideanDist(o, p);
+		int side = 0;
+		for (; side <= 3; ++side)
+		{
+			LineLineIntersect(o, p, rect.at(side), rect.at((side + 1) % 4), intersection);
+			if (PointInRectangle(intersection, rect))
+			{
+				if (EuclideanDist(intersection, o) + EuclideanDist(intersection, p) <= op + 1e-6) {
+					break;
+				}
+			}
+		}
+
+		// compute push point on side
+		intersection.at(0) += std::cos(move_dir + M_PI) * 0.08;
+		intersection.at(1) += std::sin(move_dir + M_PI) * 0.08;
+
+		// update push
+		push.at(0) = intersection.at(0);
+		push.at(1) = intersection.at(1);
+	}
+}
+
 int Agent::generateSuccessor(
 	const LatticeState* parent,
 	int dx, int dy,
@@ -195,9 +224,13 @@ int Agent::generateSuccessor(
 		return -1;
 	}
 
-	int succ_state_id;
-	if (m_priority > 1 && !m_cc->IsStateValid(child, this->GetFCLObject(), m_priority)) {
-		return -1;
+	for (const auto& constraint : m_constraints)
+	{
+		// successor is invalid if that (position, time) configuration
+		// is constrained
+		if (constraint->m_q == child) {
+			return -1;
+		}
 	}
 
 	succ_state_id = getOrCreateState(child);
@@ -213,27 +246,8 @@ unsigned int Agent::cost(
 	const LatticeState* s1,
 	const LatticeState* s2)
 {
-	if (s2->t <= m_t + WINDOW)
-	{
-		if (AtGoal(*s1) && AtGoal(*s2)){
-			return 0;
-		}
-
-		double dist = std::max(1.0, EuclideanDist(s1->state, s2->state));
-		return (dist * COST_MULT);
-
-		// // Works okay for WINDOW = 20, but not for WINDOW <= 10
-		// double bdist = m_cc->BoundaryDistance(s2f);
-		// double bw = m_cc->GetBaseWidth(), bl = m_cc->GetBaseLength();
-		// return ((dist + WINDOW*(1 - bdist/std::min(bw, bl))*(m_priority > 0)) * COST_MULT);
-	}
-	else if (s2->t == m_t + WINDOW + 1) {
-		return GetGoalHeuristic(*s2);
-	}
-	else {
-		SMPL_ERROR("Unknown edge cost condition! Return 0. (s1->t, s2->t, m_t) = (%d, %d, %d)", s1->t, s2->t, m_t);
-		return 0;
-	}
+	double dist = std::max(1.0, EuclideanDist(s1->state, s2->state));
+	return (dist * COST_MULT);
 }
 
 bool Agent::convertPath(

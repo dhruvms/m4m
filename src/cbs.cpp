@@ -285,15 +285,6 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 	// agent to be replanned for
 	child->m_replanned = child->m_constraints.back()->m_me;
 
-	// collect agent constraints
-	std::list<std::shared_ptr<Constraint> > agent_constraints;
-	for (auto& constraint : child->m_constraints)
-	{
-		if (constraint->m_me == child->m_replanned) {
-			agent_constraints.push_back(constraint);
-		}
-	}
-
 	// replan for agent
 	bool recalc_makespan = false;
 	if (child->m_replanned == 0)
