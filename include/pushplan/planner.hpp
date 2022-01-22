@@ -24,11 +24,10 @@ class Planner
 {
 public:
 	Planner() : m_num_objs(-1), m_scene_id(-1),
-				m_t(0), m_phase(0), m_ph("~") {};
+				m_ph("~") {};
 	bool Init(const std::string& scene_file, int scene_id, bool ycb);
 
 	bool Plan();
-	bool PlanExtract();
 	bool SaveData();
 	bool Alive();
 	bool Rearrange();
@@ -37,13 +36,9 @@ public:
 	void AnimateSolution();
 
 	// fcl::CollisionObject* GetObject(const LatticeState& s, int priority);
-	bool CheckRobotCollision(const LatticeState& robot, int priority);
-
-	int GetID(int priority) {
-		if (priority == 0 || priority == 1) {
-			return 100;
-		}
-		return m_agents.at(m_priorities.at(priority-2)).GetID();
+	Agent* GetAgent(const int& id) {
+		assert(id > 0); // 0 is robot
+		return m_agents.at(m_agent_map[id]).get();
 	}
 
 private:
@@ -51,7 +46,7 @@ private:
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::shared_ptr<Robot> m_robot;
 	std::shared_ptr<BulletSim> m_sim;
-	std::unique_ptr<CBS> m_cbs;
+	std::shared_ptr<CBS> m_cbs;
 
 	int m_num_objs, m_scene_id;
 	std::vector<std::shared_ptr<Agent> > m_agents;
@@ -75,7 +70,6 @@ private:
 	std::map<std::string, double> m_stats;
 	double m_plan_time, m_plan_budget, m_sim_budget, m_total_budget;
 
-	bool setupSim();
 	bool runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 	bool animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 	bool rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);

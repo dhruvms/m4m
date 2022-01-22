@@ -3,6 +3,7 @@
 #include <pushplan/constants.hpp>
 #include <pushplan/geometry.hpp>
 #include <pushplan/cbs.hpp>
+#include <pushplan/helpers.hpp>
 
 #include <smpl/console/console.h>
 #include <moveit_msgs/RobotTrajectory.h>
@@ -53,7 +54,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	m_agent_map.clear();
 	m_agents.clear();
-	m_agents.resize(1, std::make_shared<Agent>());
+	m_ooi = std::make_shared<Agent>();
 
 	std::vector<Object> all_obstacles, pruned_obstacles;
 	if (m_scene_id < 0)	{ // init agents from simulator
@@ -62,7 +63,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	else {
 		parse_scene(all_obstacles); // TODO: relax ycb = false assumption
 	}
-	m_ooi = m_agents.at(0);
 
 	pruned_obstacles = all_obstacles;
 	// only keep the base of the fridge shelf
@@ -86,13 +86,12 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_cc = std::make_shared<CollisionChecker>(this, pruned_obstacles);
 	pruned_obstacles.clear();
 
-	m_cc->InitMovableSet(&m_agents);
-
 	// Get OOI goal
 	m_ooi_gf = m_cc->GetRandomStateOutside(m_ooi->GetFCLObject());
 	ContToDisc(m_ooi_gf, m_ooi_g);
 
 	m_robot->SetCC(m_cc);
+	m_ooi->SetCC(m_cc);
 	for (auto& a: m_agents) {
 		a->SetCC(m_cc);
 	}
@@ -102,6 +101,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		SMPL_ERROR("Robot setup failed!");
 		return false;
 	}
+	m_ooi->Setup();
 	for (auto& a: m_agents) {
 		a->Setup();
 	}
@@ -112,12 +112,14 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		return false;
 	}
 	all_obstacles.clear();
+	m_robot->SetOOI(m_ooi->GetObject());
+	m_robot->SetMovables(m_agents);
 
 	int t = 0, grasp_tries;
 	m_ph.getParam("robot/grasp_tries", grasp_tries);
 	for (; t < grasp_tries; ++t)
 	{
-		if (m_robot->ComputeGrasps(m_goal, m_ooi->GetObject()->back())) {
+		if (m_robot->ComputeGrasps(m_goal)) {
 			break;
 		}
 	}
@@ -131,11 +133,12 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_animate = m_nh.advertiseService("anim_soln", &Planner::animateSolution, this);
 	m_rearrange = m_nh.advertiseService("rearrange", &Planner::rearrange, this);
 
-	setupSim();
+	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
 
 	m_robot->SetSim(m_sim);
 
-	m_cbs = std::make_unique<CBS>(m_robot, m_agents);
+	m_cbs = std::make_shared<CBS>(m_robot, m_agents);
+	m_cbs->SetCC(m_cc);
 
 	return true;
 }
@@ -165,79 +168,13 @@ bool Planner::Alive()
 
 bool Planner::Plan()
 {
-	++m_stats["whca_attempts"];
 	while (!setupProblem()) {
 		continue;
 	}
 
-	double start_time = GetTime(), time_taken;
-	if (whcastar())
-	{
-		m_exec_interm.clear();
-
-		auto robot_traj = m_robot->GetMoveTraj();
-		m_exec_interm.insert(m_exec_interm.begin(), robot_traj->begin(), robot_traj->end());
-		SMPL_INFO("Exec trajj size = %d", m_exec_interm.size());
-		m_robot->ProfileTraj(m_exec_interm);
-	}
-	else
-	{
-		m_exec_interm.clear();
-
-		time_taken = GetTime() - start_time;
-		SMPL_WARN("Need to re-run WHCA*! Planning took %f seconds.", time_taken);
-		m_stats["mapf_time"] += time_taken;
-		m_plan_time += time_taken;
-		return false;
-	}
-	time_taken = GetTime() - start_time;
-	m_stats["mapf_time"] += time_taken;
-	m_plan_time += time_taken;
-	SMPL_INFO("Planning took %f seconds. (%f runs so far)", time_taken, m_stats["whca_attempts"]);
-
-	m_cc->PrintConflicts();
-	m_stats["first_order_interactions"] = m_cc->NumConflicts();
-	if (SAVE) {
-		savePlanData();
-	}
+	m_cbs->Solve();
 
 	return true;
-}
-
-bool Planner::PlanExtract()
-{
-	// Add rearranged objects as obstacles for extraction planning
-	std::vector<Object> extract_obs;
-	for (const auto& a: m_agents)
-	{
-		extract_obs.push_back(a.GetObject()->back());
-		// auto search = m_agent_map.find(o.id);
-		// if (search != m_agent_map.end()) {
-		// }
-	}
-	if (!m_robot->Plan(m_ooi->GetObject()->back(), extract_obs)) {
-		moveit_msgs::RobotTrajectory to_exec;
-		m_robot->ConvertTraj(m_exec_interm, to_exec);
-		m_exec = to_exec.joint_trajectory;
-		return false;
-	}
-	else {
-		m_robot->GetExecTraj(m_exec);
-	}
-	SMPL_INFO("Exec traj size = %d", m_exec.points.size());
-
-	comms::ObjectsPoses rearranged = m_rearranged;
-	bool success = true;
-	double start_time = GetTime();
-	if (!m_sim->ExecTraj(m_exec, rearranged, m_robot->GraspAt(), m_ooi->GetID()))
-	{
-		SMPL_ERROR("Failed to exec traj!");
-		success = false;
-	}
-
-	m_sim->RemoveConstraint();
-
-	return success;
 }
 
 bool Planner::Rearrange()
@@ -250,7 +187,7 @@ bool Planner::Rearrange()
 	}
 
 	for (auto& a: m_agents) {
-		a.Setup(); // updates original object
+		a->Setup(); // updates original object
 	}
 	return true;
 }
@@ -268,7 +205,7 @@ std::uint32_t Planner::RunSim()
 
 bool Planner::TryExtract()
 {
-	if (m_exec_interm.empty() || !setupSim()) {
+	if (m_exec_interm.empty() || !setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID())) {
 		return false;
 	}
 
@@ -292,8 +229,8 @@ void Planner::AnimateSolution()
 {
 	std::vector<Object> final_objects;
 	for (auto& a: m_agents) {
-		a.ResetObject();
-		final_objects.push_back(a.GetObject()->back());
+		a->ResetObject();
+		final_objects.push_back(a->GetObject()->back());
 	}
 	m_robot->ProcessObstacles(final_objects);
 
@@ -304,123 +241,123 @@ void Planner::AnimateSolution()
 
 bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
 {
-	for (auto& a: m_agents) {
-		a.ResetObject();
-	}
+	// for (auto& a: m_agents) {
+	// 	a->ResetObject();
+	// }
 
-	auto robot_conflicts = m_cc->GetConflictsOf(100); // get first order conflicts
-	if (robot_conflicts.empty()) {
-		return false;
-	}
+	// auto robot_conflicts = m_cc->GetConflictsOf(100); // get first order conflicts
+	// if (robot_conflicts.empty()) {
+	// 	return false;
+	// }
 
-	comms::ObjectsPoses rearranged = m_rearranged;
-	std::vector<int> ids_attempted;
+	// comms::ObjectsPoses rearranged = m_rearranged;
+	// std::vector<int> ids_attempted;
 
-	bool push_found = false;
-	while (!push_found && !robot_conflicts.empty())
-	{
-		auto i = robot_conflicts.begin();
-		for (auto iter = robot_conflicts.begin(); iter != robot_conflicts.end(); ++iter)
-		{
-			if (iter == i) {
-				continue;
-			}
+	// bool push_found = false;
+	// while (!push_found && !robot_conflicts.empty())
+	// {
+	// 	auto i = robot_conflicts.begin();
+	// 	for (auto iter = robot_conflicts.begin(); iter != robot_conflicts.end(); ++iter)
+	// 	{
+	// 		if (iter == i) {
+	// 			continue;
+	// 		}
 
-			if (iter->second < i->second) {
-				i = iter;
-			}
-		}
+	// 		if (iter->second < i->second) {
+	// 			i = iter;
+	// 		}
+	// 	}
 
-		int oid = i->first.first;
-		int oid_t = i->second;
-		SMPL_INFO("Rearranging object %d", oid);
-		// m_agents.at(m_agent_map[oid]).ResetObject();
+	// 	int oid = i->first.first;
+	// 	int oid_t = i->second;
+	// 	SMPL_INFO("Rearranging object %d", oid);
+	// 	// m_agents.at(m_agent_map[oid])->ResetObject();
 
-		auto oid_conflicts = m_cc->GetConflictsOf(oid);
-		std::vector<Object> new_obstacles;
-		for (const auto& a: m_agents)
-		{
-			if (a.GetObject()->back().id == oid) {
-				continue; // selected object cannot be obstacle
-			}
+	// 	auto oid_conflicts = m_cc->GetConflictsOf(oid);
+	// 	std::vector<Object> new_obstacles;
+	// 	for (const auto& a: m_agents)
+	// 	{
+	// 		if (a->GetObject()->back().id == oid) {
+	// 			continue; // selected object cannot be obstacle
+	// 		}
 
-			bool oid_child = false;
-			for (const auto& c: oid_conflicts)
-			{
-				if (c.first.first == a.GetObject()->back().id) {
-					oid_child = true;
-					break;
-				}
-			}
-			if (oid_child) {
-				continue; // children of selected object may not be obstacle
-			}
+	// 		bool oid_child = false;
+	// 		for (const auto& c: oid_conflicts)
+	// 		{
+	// 			if (c.first.first == a->GetObject()->back().id) {
+	// 				oid_child = true;
+	// 				break;
+	// 			}
+	// 		}
+	// 		if (oid_child) {
+	// 			continue; // children of selected object may not be obstacle
+	// 		}
 
-			new_obstacles.push_back(a.GetObject()->back());
-			SMPL_INFO("Adding object %d as obstacle", a.GetObject()->back().id);
-		}
+	// 		new_obstacles.push_back(a->GetObject()->back());
+	// 		SMPL_INFO("Adding object %d as obstacle", a->GetObject()->back().id);
+	// 	}
 
-		for (const auto& c: robot_conflicts)
-		{
-			if (c.first.first != oid && c.second < oid_t)
-			{
-				// first order conflicts earlier than selected object
-				// must be obstacles
-				new_obstacles.push_back(m_agents.at(m_agent_map[c.first.first]).GetObject()->back());
-				SMPL_INFO("Adding object %d as obstacle", c.first.first);
-			}
-		}
+	// 	for (const auto& c: robot_conflicts)
+	// 	{
+	// 		if (c.first.first != oid && c.second < oid_t)
+	// 		{
+	// 			// first order conflicts earlier than selected object
+	// 			// must be obstacles
+	// 			new_obstacles.push_back(m_agents.at(m_agent_map[c.first.first])->GetObject()->back());
+	// 			SMPL_INFO("Adding object %d as obstacle", c.first.first);
+	// 		}
+	// 	}
 
-		for (const auto& id: ids_attempted)
-		{
-			if (id == oid) {
-				continue;
-			}
+	// 	for (const auto& id: ids_attempted)
+	// 	{
+	// 		if (id == oid) {
+	// 			continue;
+	// 		}
 
-			// first order conflicts already selected (for which no push was found)
-			// must be obstacles
-			new_obstacles.push_back(m_agents.at(m_agent_map[id]).GetObject()->back());
-			SMPL_INFO("Adding rearranged object %d as obstacle", id);
-		}
-		// add new obstacles
-		m_robot->ProcessObstacles(new_obstacles);
+	// 		// first order conflicts already selected (for which no push was found)
+	// 		// must be obstacles
+	// 		new_obstacles.push_back(m_agents.at(m_agent_map[id])->GetObject()->back());
+	// 		SMPL_INFO("Adding rearranged object %d as obstacle", id);
+	// 	}
+	// 	// add new obstacles
+	// 	m_robot->ProcessObstacles(new_obstacles);
 
-		// get push location
-		std::vector<double> push;
-		m_agents.at(m_agent_map[oid]).GetSE2Push(push);
-		SMPL_INFO("Object %d push is (%f, %f, %f)", oid, push[0], push[1], push[2]);
+	// 	// get push location
+	// 	std::vector<double> push;
+	// 	m_agents.at(m_agent_map[oid])->GetSE2Push(push);
+	// 	SMPL_INFO("Object %d push is (%f, %f, %f)", oid, push[0], push[1], push[2]);
 
-		// set push location goal for robot
-		m_robot->SetPushGoal(push);
+	// 	// set push location goal for robot
+	// 	m_robot->SetPushGoal(push);
 
-		// plan to push location
-		// m_robot->PlanPush creates the planner internally, because it might
-		// change KDL chain during the process
-		comms::ObjectsPoses result;
+	// 	// plan to push location
+	// 	// m_robot->PlanPush creates the planner internally, because it might
+	// 	// change KDL chain during the process
+	// 	comms::ObjectsPoses result;
 
-		if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetMoveTraj(), m_agents.at(m_agent_map[oid]).GetObject()->back(), rearranged, result))
-		{
-			push_found = true;
-			m_rearrangements.push_back(m_robot->GetLastPlan());
+	// 	if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetLastTraj(), m_agents.at(m_agent_map[oid])->GetObject()->back(), rearranged, result))
+	// 	{
+	// 		push_found = true;
+	// 		m_rearrangements.push_back(m_robot->GetLastPlan());
 
-			// update positions of moved objects
-			updateAgentPositions(result, rearranged);
-		}
-		if (SAVE) {
-			m_robot->SavePushData(m_scene_id);
-		}
+	// 		// update positions of moved objects
+	// 		updateAgentPositions(result, rearranged);
+	// 	}
+	// 	if (SAVE) {
+	// 		m_robot->SavePushData(m_scene_id);
+	// 	}
 
-		// remove new obstacles
-		m_robot->ProcessObstacles(new_obstacles, true);
+	// 	// remove new obstacles
+	// 	m_robot->ProcessObstacles(new_obstacles, true);
 
-		robot_conflicts.erase(i);
+	// 	robot_conflicts.erase(i);
 
-		auto it = std::find(begin(ids_attempted), end(ids_attempted), oid);
-		if (it == end(ids_attempted)) {
-			ids_attempted.push_back(oid);
-		}
-	}
-	m_rearranged = rearranged;
+	// 	auto it = std::find(begin(ids_attempted), end(ids_attempted), oid);
+	// 	if (it == end(ids_attempted)) {
+	// 		ids_attempted.push_back(oid);
+	// 	}
+	// }
+	// m_rearranged = rearranged;
 
 	return true;
 }
@@ -431,43 +368,9 @@ bool Planner::animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Re
 	return true;
 }
 
-bool Planner::setupSim()
-{
-	if (!m_sim->SetRobotState(m_robot->GetStartState()->joint_state))
-	{
-		ROS_ERROR("Failed to set start state!");
-		return false;
-	}
-
-	int planning_arm = armId();
-	if (!m_sim->ResetArm(1 - planning_arm))
-	{
-		ROS_ERROR("Failed to reset other arm!");
-		return false;
-	}
-
-	int removed;
-	if (!m_sim->CheckScene(planning_arm, removed))
-	{
-		ROS_ERROR("Failed to check for start state collisions with objects!");
-		return false;
-	}
-
-	if (!m_sim->ResetScene()) {
-		ROS_ERROR("Failed to reset scene objects!");
-		return false;
-	}
-
-	if (!m_sim->SetColours(m_ooi->GetID()))
-	{
-		ROS_ERROR("Failed to set object colours in scene!");
-		return false;
-	}
-}
-
 bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
 {
-	setupSim();
+	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
 
 	m_violation = 0x00000000;
 
@@ -517,11 +420,6 @@ bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& r
 // 	}
 // }
 
-bool Planner::CheckRobotCollision(const LatticeState& robot, int priority)
-{
-	return m_robot->CheckCollision(robot, &m_agents.at(m_priorities.at(priority-2)));
-}
-
 void Planner::updateAgentPositions(
 	const comms::ObjectsPoses& result,
 	comms::ObjectsPoses& rearranged)
@@ -538,7 +436,7 @@ void Planner::updateAgentPositions(
 			// }
 
 			// SMPL_DEBUG("Object %d did moved > %f cm.", o.id, RES);
-			m_agents.at(m_agent_map[o.id]).SetObjectPose(o.xyz, o.rpy);
+			m_agents.at(m_agent_map[o.id])->SetObjectPose(o.xyz, o.rpy);
 			bool exist = false;
 			for (auto& p: rearranged.poses)
 			{
@@ -567,14 +465,12 @@ bool Planner::setupProblem()
 
 	// Set agent current positions and time
 	m_ooi->Init();
-
 	m_robot->Init();
-	if (m_exec_interm.empty() && !m_robot->RandomiseStart()) {
+	if (!m_robot->RandomiseStart()) {
 		return false;
 	}
-
 	for (auto& a: m_agents) {
-		a.Init();
+		a->Init();
 	}
 
 	return true;
@@ -642,8 +538,7 @@ void Planner::init_agents(
 
 		if (!ooi_set && i >= tables)
 		{
-			m_agent_map[1] = m_agents.size() - 1; // OOI always has ID 1
-			m_agents.at(0)->SetObject(o);
+			m_ooi->SetObject(o);
 			m_goal.clear();
 
 			double xdisp = std::cos(o.o_yaw) * 0.1;
@@ -695,7 +590,7 @@ void Planner::init_agents(
 
 		o.CreateCollisionObjects();
 		std::shared_ptr<Agent> movable(new Agent(o));
-		m_agents.push_back(movable);
+		m_agents.push_back(std::move(movable));
 		m_agent_map[o.id] = m_agents.size() - 1;
 	}
 }
@@ -757,7 +652,7 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 					o.CreateCollisionObjects();
 					if (o.movable) {
 						std::shared_ptr<Agent> movable(new Agent(o));
-						m_agents.push_back(movable);
+						m_agents.push_back(std::move(movable));
 						m_agent_map[o.id] = m_agents.size() - 1;
 					}
 					else {
@@ -777,8 +672,7 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 				{
 					if (itr->id == ooi_idx)
 					{
-						m_agent_map[1] = 0;
-						m_agents.at(0)->SetObject(*itr);
+						m_ooi->SetObject(*itr);
 						obstacles.erase(itr);
 						break;
 					}
@@ -810,135 +704,6 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 	}
 
 	SCENE.close();
-}
-
-void Planner::writePlanState(int iter)
-{
-	std::string filename(__FILE__);
-	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../dat/txt/";
-
-	std::stringstream ss;
-	ss << std::setw(4) << std::setfill('0') << iter;
-	std::string s = ss.str();
-
-	filename += s;
-	filename += ".txt";
-
-	std::ofstream DATA;
-	DATA.open(filename, std::ofstream::out);
-
-	DATA << 'O' << '\n';
-	int o = m_cc->NumObstacles() + 1 + m_agents.size() + 3;
-	DATA << o << '\n';
-
-	std::string movable;
-	auto obstacles = m_cc->GetObstacles();
-	for (const auto& obs: *obstacles)
-	{
-		movable = obs.movable ? "True" : "False";
-		DATA << obs.id << ','
-				<< obs.Shape() << ','
-				<< obs.type << ','
-				<< obs.o_x << ','
-				<< obs.o_y << ','
-				<< obs.o_z << ','
-				<< obs.o_roll << ','
-				<< obs.o_pitch << ','
-				<< obs.o_yaw << ','
-				<< obs.x_size << ','
-				<< obs.y_size << ','
-				<< obs.z_size << ','
-				<< obs.mass << ','
-				<< obs.mu << ','
-				<< movable << '\n';
-	}
-
-	State loc = m_ooi->GetCurrentState()->state;
-	auto agent_obs = m_ooi->GetObject();
-	movable = "False";
-	DATA << 999 << ',' // for visualisation purposes
-			<< agent_obs->back().Shape() << ','
-			<< agent_obs->back().type << ','
-			<< loc.at(0) << ','
-			<< loc.at(1) << ','
-			<< agent_obs->back().o_z << ','
-			<< agent_obs->back().o_roll << ','
-			<< agent_obs->back().o_pitch << ','
-			<< agent_obs->back().o_yaw << ','
-			<< agent_obs->back().x_size << ','
-			<< agent_obs->back().y_size << ','
-			<< agent_obs->back().z_size << ','
-			<< agent_obs->back().mass << ','
-			<< agent_obs->back().mu << ','
-			<< movable << '\n';
-
-	movable = "True";
-	for (const auto& a: m_agents)
-	{
-		loc = a.GetCurrentState()->state;
-		agent_obs = a.GetObject();
-		DATA << agent_obs->back().id << ','
-			<< agent_obs->back().Shape() << ','
-			<< agent_obs->back().type << ','
-			<< loc.at(0) << ','
-			<< loc.at(1) << ','
-			<< agent_obs->back().o_z << ','
-			<< agent_obs->back().o_roll << ','
-			<< agent_obs->back().o_pitch << ','
-			<< agent_obs->back().o_yaw << ','
-			<< agent_obs->back().x_size << ','
-			<< agent_obs->back().y_size << ','
-			<< agent_obs->back().z_size << ','
-			<< agent_obs->back().mass << ','
-			<< agent_obs->back().mu << ','
-			<< movable << '\n';
-	}
-
-	agent_obs = m_robot->GetObject(*(m_robot->GetCurrentState()));
-	for (const auto& robot_o: *agent_obs)
-	{
-		DATA << robot_o.id << ','
-				<< robot_o.Shape() << ','
-				<< robot_o.type << ','
-				<< robot_o.o_x << ','
-				<< robot_o.o_y << ','
-				<< robot_o.o_z << ','
-				<< robot_o.o_roll << ','
-				<< robot_o.o_pitch << ','
-				<< robot_o.o_yaw << ','
-				<< robot_o.x_size << ','
-				<< robot_o.y_size << ','
-				<< robot_o.z_size << ','
-				<< robot_o.mass << ','
-				<< robot_o.mu << ','
-				<< movable << '\n';
-	}
-
-	// write solution trajs
-	DATA << 'T' << '\n';
-	o = 1 + m_agents.size();
-	DATA << o << '\n';
-
-	auto move = m_ooi->GetMoveTraj();
-	DATA << 999 << '\n';
-	DATA << move->size() << '\n';
-	for (const auto& s: *move) {
-		DATA << s.state.at(0) << ',' << s.state.at(1) << '\n';
-	}
-
-	for (const auto& a: m_agents)
-	{
-		agent_obs = a.GetObject();
-		move = a.GetMoveTraj();
-		DATA << agent_obs->back().id << '\n';
-		DATA << move->size() << '\n';
-		for (const auto& s: *move) {
-			DATA << s.state.at(0) << ',' << s.state.at(1) << '\n';
-		}
-	}
-
-	DATA.close();
 }
 
 void Planner::setupGlobals()
