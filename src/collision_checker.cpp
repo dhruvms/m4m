@@ -16,7 +16,6 @@ m_obstacles(obstacles),
 m_rng(m_dev())
 {
 	m_fcl_immov = new fcl::DynamicAABBTreeCollisionManager();
-	m_fcl_mov = new fcl::DynamicAABBTreeCollisionManager();
 
 	// preprocess immovable obstacles
 	for (size_t i = 0; i != m_obstacles.size(); ++i)
@@ -31,13 +30,6 @@ m_rng(m_dev())
 	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
 }
 
-void CollisionChecker::InitMovableSet(const std::vector<std::shared_ptr<Agent> >& agents)
-{
-	for (size_t i = 0; i != agents->size(); ++i) {
-		m_fcl_mov->registerObject(agents.at(i)->GetFCLObject());
-	}
-}
-
 void CollisionChecker::UpdateTraj(const int& priority, const Trajectory& traj)
 {
 	if (int(m_trajs.size()) <= priority) {
@@ -45,6 +37,16 @@ void CollisionChecker::UpdateTraj(const int& priority, const Trajectory& traj)
 	}
 
 	m_trajs.at(priority) = traj;
+}
+
+bool CollisionChecker::OutOfBounds(const LatticeState& s)
+{
+	bool oob = s.state.at(0) <= (m_obstacles.at(m_base_loc).o_x - m_obstacles.at(m_base_loc).x_size);
+	oob = oob || s.state.at(0) >= (m_obstacles.at(m_base_loc).o_x + m_obstacles.at(m_base_loc).x_size);
+	oob = oob || s.state.at(1) <= (m_obstacles.at(m_base_loc).o_y - m_obstacles.at(m_base_loc).y_size);
+	oob = oob || s.state.at(1) >= (m_obstacles.at(m_base_loc).o_y + m_obstacles.at(m_base_loc).y_size);
+
+	return oob;
 }
 
 bool CollisionChecker::ImmovableCollision(const State& s, fcl::CollisionObject* o)
@@ -77,58 +79,26 @@ bool CollisionChecker::ImmovableCollision(const LatticeState& s, fcl::CollisionO
 	return collision_data.result.isCollision();
 }
 
-// // IsStateValid should only be called for priority > 1
-// bool CollisionChecker::IsStateValid(
-// 	const LatticeState& s, fcl::CollisionObject* o1, const int& priority)
-// {
-// 	// double start_time = GetTime(), time_taken;
+// called by CBS::findConflicts
+bool CollisionChecker::FCLCollision(Agent* a1, Agent* a2)
+{
+	fcl::CollisionRequest request;
+	fcl::CollisionResult result;
+	fcl::collide(a1->GetFCLObject(), a2->GetFCLObject(), request, result);
+	return result.isCollision();
+}
 
-// 	m_fcl_mov->unregisterObject(o1);
-// 	auto o1_new = m_planner->GetObject(s, priority); // updates pose
+// called by Agent::generateSuccessor
+bool CollisionChecker::FCLCollision(Agent* a1, const int& a2_id, const LatticeState& a2_q)
+{
+	Agent* a2 = m_planner->GetAgent(a2_id);
+	a2->UpdatePose(a2_q);
 
-// 	LatticeState robot;
-// 	// Check against movables' FCL manager
-// 	for (int p = 0; p < priority; ++p)
-// 	{
-// 		for (const auto& s2: m_trajs.at(p))
-// 		{
-// 			if (s.t == s2.t)
-// 			{
-// 				if (p == 0)
-// 				{
-// 					robot = s2; // store for later
-// 					break;
-// 				}
-// 				else
-// 				{
-// 					auto o2 = m_planner->GetObject(s2, p);
-// 					m_fcl_mov->update(o2);
-// 				}
-// 			}
-// 		}
-// 	}
-// 	m_fcl_mov->setup();
-// 	fcl::DefaultCollisionData collision_data;
-// 	m_fcl_mov->collide(o1, &collision_data, fcl::DefaultCollisionFunction);
-// 	bool collision = collision_data.result.isCollision();
-
-// 	// time_taken = GetTime() - start_time;
-// 	// SMPL_INFO("Movable collision check: %f seconds.", time_taken);
-
-// 	// start_time = GetTime();
-// 	// double start_time = GetTime(), time_taken;
-
-// 	//  Check against robot collision
-// 	if (!collision && !robot.state.empty()) {
-// 		collision = collision || m_planner->CheckRobotCollision(robot, priority);
-// 	}
-
-// 	// time_taken = GetTime() - start_time;
-// 	// SMPL_INFO("Robot collision check: %f seconds.", time_taken);
-
-// 	m_fcl_mov->registerObject(o1_new);
-// 	return !collision;
-// }
+	fcl::CollisionRequest request;
+	fcl::CollisionResult result;
+	fcl::collide(a1->GetFCLObject(), a2->GetFCLObject(), request, result);
+	return result.isCollision();
+}
 
 State CollisionChecker::GetRandomStateOutside(fcl::CollisionObject* o)
 {

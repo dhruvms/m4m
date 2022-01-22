@@ -60,15 +60,14 @@ public:
 	void AddObstacle(const Object& o) {
 		m_obstacles.push_back(o);
 	};
-	void InitMovableSet(const std::vector<std::shared_ptr<Agent> >& agents);
-
 
 	void UpdateTraj(const int& priority, const Trajectory& traj);
 
+	bool OutOfBounds(const LatticeState& s);
 	bool ImmovableCollision(const State& s, fcl::CollisionObject* o);
 	bool ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o);
-	// bool IsStateValid(const LatticeState& s, fcl::CollisionObject* o, const int& priority);
-	// 	const LatticeState& s, const int& priority);
+	bool FCLCollision(Agent* a1, Agent* a2);
+	bool FCLCollision(Agent* a1, const int& a2_id, const LatticeState& a2_q);
 
 	State GetRandomStateOutside(fcl::CollisionObject* o);
 
@@ -94,7 +93,6 @@ private:
 	std::uniform_real_distribution<double> m_distD;
 
 	fcl::BroadPhaseCollisionManager* m_fcl_immov = nullptr;
-	fcl::BroadPhaseCollisionManager* m_fcl_mov = nullptr;
 
 	void cleanupChildren(std::vector<int>& check);
 
