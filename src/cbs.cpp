@@ -45,11 +45,11 @@ bool CBS::Solve()
 
 		// expand CT node
 		HighLevelNode* child[2] = { new HighLevelNode() , new HighLevelNode() };
-		addConstraints(curr, child[0], child[1]);
+		addConstraints(next, child[0], child[1]);
 		for (int i = 0; i < 2; ++i)
 		{
-			if (updateChild(curr, child[i])) {
-				parent->m_children.push_back(child[i]);
+			if (updateChild(next, child[i])) {
+				next->m_children.push_back(child[i]);
 			}
 			else {
 				delete (child[i]);
@@ -62,7 +62,7 @@ bool CBS::Solve()
 	}
 }
 
-void CBS::initialiseRoot()
+bool CBS::initialiseRoot()
 {
 	auto root = new HighLevelNode();
 	root->m_g = 0;
@@ -353,10 +353,10 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 	}
 
 	findConflicts(*child);
+
 	++m_ct_generated;
 	child->m_generate = m_ct_generated;
 	child->m_OPEN_h = m_OPEN.push(child);
-
 	return true;
 }
 

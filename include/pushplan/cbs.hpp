@@ -37,7 +37,7 @@ private:
 	bool m_solved;
 	HighLevelNode* m_goal;
 
-	boost::heap::fibonacci_heap<HighLevelNode, boost::heap::compare<HighLevelNode::HeapCompare> > m_OPEN;
+	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::HeapCompare> > m_OPEN;
 
 	void initialiseRoot();
 
