@@ -131,7 +131,7 @@ int main(int argc, char** argv)
 					// }
 
 					ROS_WARN("Try planning with all objects as obstacles! Are we done?");
-					if (p.Alive() & p.PlanExtract())
+					if (p.Alive())
 					{
 						ROS_WARN("YAYAYAY! We did it!");
 						break;
@@ -139,30 +139,30 @@ int main(int argc, char** argv)
 				}
 			}
 			while (rearrange && p.Alive());
-			dead = !p.Alive();
+			// dead = !p.Alive();
 
-			if (p.Alive()) {
-				violation = p.RunSim();
+			// if (p.Alive()) {
+			// 	violation = p.RunSim();
 
-				if (violation == 0) {
-					ROS_WARN("SUCCESS!!!");
-				}
-				else {
-					ROS_ERROR("FAILURE!!!");
-				}
-			}
-			else {
-				violation |= 0x00000008;
-				ROS_ERROR("Planner terminated!!!");
-			}
+			// 	if (violation == 0) {
+			// 		ROS_WARN("SUCCESS!!!");
+			// 	}
+			// 	else {
+			// 		ROS_ERROR("FAILURE!!!");
+			// 	}
+			// }
+			// else {
+			// 	violation |= 0x00000008;
+			// 	ROS_ERROR("Planner terminated!!!");
+			// }
 
-			if (SAVE)
-			{
-				SaveData(
-					scene_id,
-					mapf_calls, mapf_sucesses, lucky, rearranged,
-					dead, rearrange, violation);
-			}
+			// if (SAVE)
+			// {
+			// 	SaveData(
+			// 		scene_id,
+			// 		mapf_calls, mapf_sucesses, lucky, rearranged,
+			// 		dead, rearrange, violation);
+			// }
 		}
 	}
 	else
