@@ -12,12 +12,16 @@ namespace clutter
 
 class Robot;
 class Agent;
+class CollisionChecker;
 
 class CBS
 {
 public:
 	CBS();
 	CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs);
+	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
+		m_cc = cc;
+	}
 
 	void SetRobot(std::shared_ptr<Robot> r) { m_robot = r; };
 	void AddObject(std::shared_ptr<Agent> o) { m_objs.push_back(o); };
@@ -28,22 +32,24 @@ public:
 	bool Solve();
 
 private:
+	std::shared_ptr<CollisionChecker> m_cc;
 	std::shared_ptr<Robot> m_robot;
 	std::vector<std::shared_ptr<Agent> > m_objs;
 	int m_num_agents;
 	std::vector<Trajectory*> m_paths;
 
 	int m_ct_generated, m_ct_expanded, m_soln_cost;
+	double m_search_time, m_time_limit;
 	bool m_solved;
 	HighLevelNode* m_goal;
 
 	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::HeapCompare> > m_OPEN;
 
-	void initialiseRoot();
+	bool initialiseRoot();
 
 	void findConflicts(HighLevelNode& node);
-	void findConflicts(HighLevelNode& curr, size_t oid);
-	void findConflicts(HighLevelNode& curr, size_t o1, size_t o2);
+	void findConflictsRobot(HighLevelNode& curr, size_t oid);
+	void findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2);
 
 	bool done(HighLevelNode* node);
 
