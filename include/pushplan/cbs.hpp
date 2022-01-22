@@ -59,6 +59,8 @@ private:
 		const HighLevelNode* curr,
 		HighLevelNode* child1, HighLevelNode* child2) const;
 	bool updateChild(HighLevelNode* parent, HighLevelNode* child);
+
+	void writeSolution(HighLevelNode* node);
 };
 
 } // namespace clutter

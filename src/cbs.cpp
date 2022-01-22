@@ -42,12 +42,15 @@ bool CBS::Solve()
 
 		selectConflict(next);
 		if (done(next)) {
+			writeSolution(next);
 			return m_solved;
 		}
 
 		double expand_time = GetTime();
 		++m_ct_expanded;
 		next->m_expand = m_ct_expanded;
+		// SMPL_ERROR("Expaning (depth, generate, expand) = (%d, %d, %d)! m_replanned = %d", next->m_depth, next->m_generate, next->m_expand, next->m_replanned);
+		writeSolution(next);
 
 		// expand CT node
 		HighLevelNode* child[2] = { new HighLevelNode() , new HighLevelNode() };
@@ -399,6 +402,198 @@ bool CBS::done(HighLevelNode* node)
 
 	// not done
 	return false;
+}
+
+void CBS::writeSolution(HighLevelNode* node)
+{
+	int makespan = node->m_makespan;
+	for (int tidx = 0; tidx < makespan; tidx += makespan/3)
+	{
+		std::string filename(__FILE__);
+		auto found = filename.find_last_of("/\\");
+		filename = filename.substr(0, found + 1) + "../dat/txt/";
+
+		std::stringstream ss;
+		ss << std::setw(4) << std::setfill('0') << node->m_expand;
+		ss << "_";
+		ss << std::setw(4) << std::setfill('0') << node->m_depth;
+		ss << "_";
+		ss << std::setw(4) << std::setfill('0') << node->m_replanned;
+		ss << "_";
+		ss << std::setw(4) << std::setfill('0') << tidx;
+		// ss << std::setw(4) << std::setfill('0') << node->m_depth;
+		std::string s = ss.str();
+
+		filename += s;
+		filename += ".txt";
+
+		std::ofstream DATA;
+		DATA.open(filename, std::ofstream::out);
+
+		DATA << 'O' << '\n';
+		int o = m_cc->NumObstacles() + m_objs.size() + 3;
+		DATA << o << '\n';
+
+		std::string movable;
+		auto obstacles = m_cc->GetObstacles();
+		for (const auto& obs: *obstacles)
+		{
+			movable = obs.movable ? "True" : "False";
+			DATA << obs.id << ','
+					<< obs.Shape() << ','
+					<< obs.type << ','
+					<< obs.o_x << ','
+					<< obs.o_y << ','
+					<< obs.o_z << ','
+					<< obs.o_roll << ','
+					<< obs.o_pitch << ','
+					<< obs.o_yaw << ','
+					<< obs.x_size << ','
+					<< obs.y_size << ','
+					<< obs.z_size << ','
+					<< obs.mass << ','
+					<< obs.mu << ','
+					<< movable << '\n';
+		}
+
+		// State loc = m_ooi->GetCurrentState()->state;
+		// auto agent_obs = m_ooi->GetObject();
+		// movable = "False";
+		// DATA << 999 << ',' // for visualisation purposes
+		// 		<< agent_obs->back().Shape() << ','
+		// 		<< agent_obs->back().type << ','
+		// 		<< loc.at(0) << ','
+		// 		<< loc.at(1) << ','
+		// 		<< agent_obs->back().o_z << ','
+		// 		<< agent_obs->back().o_roll << ','
+		// 		<< agent_obs->back().o_pitch << ','
+		// 		<< agent_obs->back().o_yaw << ','
+		// 		<< agent_obs->back().x_size << ','
+		// 		<< agent_obs->back().y_size << ','
+		// 		<< agent_obs->back().z_size << ','
+		// 		<< agent_obs->back().mass << ','
+		// 		<< agent_obs->back().mu << ','
+		// 		<< movable << '\n';
+
+		State loc;
+		const std::vector<Object>* agent_obs = nullptr;
+		movable = "True";
+		for (size_t oidx = 0; oidx < m_objs.size(); ++oidx)
+		{
+			if (m_paths[oidx+1]->size() <= tidx) {
+				loc = m_paths[oidx+1]->back().state;
+			}
+			else {
+				loc = m_paths[oidx+1]->at(tidx).state;
+			}
+
+			agent_obs = m_objs[oidx]->GetObject();
+			DATA << agent_obs->back().id << ','
+				<< agent_obs->back().Shape() << ','
+				<< agent_obs->back().type << ','
+				<< loc.at(0) << ','
+				<< loc.at(1) << ','
+				<< agent_obs->back().o_z << ','
+				<< agent_obs->back().o_roll << ','
+				<< agent_obs->back().o_pitch << ','
+				<< agent_obs->back().o_yaw << ','
+				<< agent_obs->back().x_size << ','
+				<< agent_obs->back().y_size << ','
+				<< agent_obs->back().z_size << ','
+				<< agent_obs->back().mass << ','
+				<< agent_obs->back().mu << ','
+				<< movable << '\n';
+		}
+
+		if (m_paths[0]->size() <= tidx) {
+			agent_obs = m_robot->GetObject(m_paths[0]->back());
+		}
+		else {
+			agent_obs = m_robot->GetObject(m_paths[0]->at(tidx));
+		}
+
+		for (const auto& robot_o: *agent_obs)
+		{
+			DATA << robot_o.id << ','
+					<< robot_o.Shape() << ','
+					<< robot_o.type << ','
+					<< robot_o.o_x << ','
+					<< robot_o.o_y << ','
+					<< robot_o.o_z << ','
+					<< robot_o.o_roll << ','
+					<< robot_o.o_pitch << ','
+					<< robot_o.o_yaw << ','
+					<< robot_o.x_size << ','
+					<< robot_o.y_size << ','
+					<< robot_o.z_size << ','
+					<< robot_o.mass << ','
+					<< robot_o.mu << ','
+					<< movable << '\n';
+		}
+
+		// write solution trajs
+		DATA << 'T' << '\n';
+		o = m_objs.size();
+		DATA << o << '\n';
+
+		// auto move = m_ooi->GetMoveTraj();
+		// DATA << 999 << '\n';
+		// DATA << move->size() << '\n';
+		// for (const auto& s: *move) {
+		// 	DATA << s.state.at(0) << ',' << s.state.at(1) << '\n';
+		// }
+
+		for (size_t oidx = 0; oidx < m_objs.size(); ++oidx)
+		{
+			agent_obs = m_objs[oidx]->GetObject();
+			DATA << agent_obs->back().id << '\n';
+			DATA << tidx + 1 << '\n';
+			for (int t = 0; t <= tidx; ++t)
+			{
+				if (m_paths[oidx+1]->size() <= t) {
+					DATA << m_paths[oidx+1]->back().state.at(0) << ',' << m_paths[oidx+1]->back().state.at(1) << '\n';
+				}
+				else {
+					DATA << m_paths[oidx+1]->at(t).state.at(0) << ',' << m_paths[oidx+1]->at(t).state.at(1) << '\n';
+				}
+			}
+		}
+
+		DATA << 'R' << '\n';
+		DATA << tidx + 1 << '\n';
+		for (int t = 0; t <= tidx; ++t)
+		{
+			if (m_paths[0]->size() <= t) {
+				DATA 	<< m_paths[0]->back().state.at(0) << ','
+						<< m_paths[0]->back().state.at(1) << ','
+						<< m_paths[0]->back().state.at(2) << ','
+						<< m_paths[0]->back().state.at(3) << ','
+						<< m_paths[0]->back().state.at(4) << ','
+						<< m_paths[0]->back().state.at(5) << ','
+						<< m_paths[0]->back().state.at(6) << '\n';
+			}
+			else {
+				DATA 	<< m_paths[0]->at(t).state.at(0) << ','
+						<< m_paths[0]->at(t).state.at(1) << ','
+						<< m_paths[0]->at(t).state.at(2) << ','
+						<< m_paths[0]->at(t).state.at(3) << ','
+						<< m_paths[0]->at(t).state.at(4) << ','
+						<< m_paths[0]->at(t).state.at(5) << ','
+						<< m_paths[0]->at(t).state.at(6) << '\n';
+			}
+		}
+
+		DATA << 'C' << '\n';
+		for (auto& constraint : node->m_constraints) {
+			DATA 	<< constraint->m_me << ','
+					<< constraint->m_other << ','
+					<< constraint->m_time << ','
+					<< constraint->m_q.state.at(0) << ','
+					<< constraint->m_q.state.at(1) << '\n';
+		}
+
+		DATA.close();
+	}
 }
 
 } // namespace clutter
