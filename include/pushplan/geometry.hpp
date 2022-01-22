@@ -193,6 +193,17 @@ double EuclideanDist(const State& p1, const State& p2)
 }
 
 inline
+double EuclideanDist(const Coord& p1, const Coord& p2)
+{
+	assert(p1.size() == p2.size());
+	double val = 0.0;
+	for (size_t i = 0; i < p1.size(); ++i) {
+		val += std::pow(p1.at(i) - p2.at(i), 2);
+	}
+	return std::sqrt(val);
+}
+
+inline
 double PtDistFromLine(
 	const State& p,
 	const State& A, const State& B)

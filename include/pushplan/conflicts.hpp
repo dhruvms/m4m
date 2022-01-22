@@ -45,6 +45,27 @@ struct Conflict
 	}
 };
 
+inline
+void VecConstraint(const Constraint& constraint, std::vector<double>& c_vec)
+{
+	c_vec.clear();
+	c_vec.push_back(constraint.m_time);
+	c_vec.push_back(constraint.m_other);
+	c_vec.insert(c_vec.end(), constraint.m_q.state.begin(), constraint.m_q.state.end());
+}
+
+inline
+void VecConstraints(const std::list<std::shared_ptr<Constraint> >& constraints, std::vector<std::vector<double> >& c_vecs)
+{
+	c_vecs.clear();
+	std::vector<double> c_vec;
+	for (const auto& c: constraints)
+	{
+		VecConstraint(*(c.get()), c_vec);
+		c_vecs.push_back(c_vec);
+	}
+}
+
 } // namespace clutter
 
 

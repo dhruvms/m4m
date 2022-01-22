@@ -3,10 +3,13 @@
 
 #include <pushplan/types.hpp>
 #include <pushplan/constants.hpp>
+#include <pushplan/bullet_sim.hpp>
 
 #include <smpl/time.h>
 #include <sbpl_collision_checking/shapes.h> // MeshShape etc.
 #include <geometric_shapes/shape_operations.h> // constructShapeFromMsg, createMeshFromResource
+#include <sensor_msgs/JointState.h>
+#include <ros/ros.h>
 
 #include <sys/stat.h>
 
@@ -41,7 +44,7 @@ inline
 void ContToDisc(const State& in, Coord& out)
 {
 	out.clear();
-	out.resize(in.size(), 0);
+	out.resize(2, 0);
 
 	out.at(0) = (in.at(0) / RES) + sgn(in.at(0)) * 0.5;
 	out.at(1) = (in.at(1) / RES) + sgn(in.at(1)) * 0.5;
@@ -51,7 +54,7 @@ inline
 void DiscToCont(const Coord& in, State& out)
 {
 	out.clear();
-	out.resize(in.size(), 0.0);
+	out.resize(2, 0.0);
 
 	out.at(0) = in.at(0) * RES;
 	out.at(1) = in.at(1) * RES;
@@ -212,6 +215,42 @@ static auto MakeROSShape(const smpl::collision::CollisionShape* shape)
 	default:
 		return NULL;
 	}
+}
+
+inline
+bool setupSim(BulletSim* sim, const sensor_msgs::JointState& state, const int& arm, const int& ooi_id)
+{
+	if (!sim->SetRobotState(state))
+	{
+		ROS_ERROR("Failed to set start state!");
+		return false;
+	}
+
+	if (!sim->ResetArm(1 - arm))
+	{
+		ROS_ERROR("Failed to reset other arm!");
+		return false;
+	}
+
+	int removed;
+	if (!sim->CheckScene(arm, removed))
+	{
+		ROS_ERROR("Failed to check for start state collisions with objects!");
+		return false;
+	}
+
+	if (!sim->ResetScene()) {
+		ROS_ERROR("Failed to reset scene objects!");
+		return false;
+	}
+
+	if (!sim->SetColours(ooi_id))
+	{
+		ROS_ERROR("Failed to set object colours in scene!");
+		return false;
+	}
+
+	return true;
 }
 
 }
