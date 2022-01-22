@@ -38,12 +38,12 @@ robot:
   grasp_tries: 10
   grasp_lift: 0.075
   grasp_clip: 5
-  interpolate: true
+  interpolate: false
 
 whca:
   window: 4
   goal_thresh: 0.02
-  res: 0.01
+  res: 0.05
   grid: 8
   cost_mult: 1000
   planning_time: 300.0
