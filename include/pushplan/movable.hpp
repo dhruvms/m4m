@@ -23,7 +23,7 @@ public:
 	void SetStartState(const LatticeState& s);
 	void SetGoalState(const Coord& p);
 
-	bool IsGoal(int state_id) = 0;
+	virtual bool IsGoal(int state_id) = 0;
 	virtual void GetSuccs(
 		int state_id,
 		std::vector<int>* succ_ids,
@@ -31,10 +31,9 @@ public:
 	virtual unsigned int GetGoalHeuristic(int state_id) = 0;
 	virtual unsigned int GetGoalHeuristic(const LatticeState& s) = 0;
 
-	void reset(int phase);
+	void reset();
 
-	const LatticeState* GetCurrentState() const { return &m_current; };
-	const Trajectory* GetMoveTraj() const { return &m_move; };
+	const Trajectory* GetLastTraj() const { return &m_solve; };
 
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
@@ -48,7 +47,7 @@ protected:
 	LatticeState m_init;
 	Coord m_start, m_goal;
 	State m_goalf;
-	int m_t, m_priority, m_phase;
+	int m_t, m_priority;
 
 	int m_start_id, m_goal_id, m_expansions = 0;
 	STATES m_states, m_closed;

@@ -27,6 +27,9 @@
 namespace clutter
 {
 
+class HighLevelNode;
+class Agent;
+
 class Robot
 {
 public:
@@ -36,16 +39,19 @@ public:
 
 	bool Setup();
 	bool SavePushData(int scene_id);
-	bool CheckCollision(const LatticeState& robot, Agent* a);
+
+	bool CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t);
+	bool CheckCollision(const LatticeState& robot, int t);
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
+
+	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
 	bool Init();
 	bool RandomiseStart();
-	bool SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Object& ooi);
+	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path);
 
 	void ProfileTraj(Trajectory& traj);
 	bool ComputeGrasps(
-		const std::vector<double>& pregrasp_goal,
-		const Object& ooi);
+		const std::vector<double>& pregrasp_goal);
 	void ConvertTraj(
 		const Trajectory& traj_in,
 		moveit_msgs::RobotTrajectory& traj_out);
@@ -72,6 +78,9 @@ public:
 	void SetSim(const std::shared_ptr<BulletSim>& sim) {
 		m_sim = sim;
 	}
+	void SetOOI(const std::vector<Object>* ooi) {
+		m_ooi = ooi->back();
+	}
 
 	void AnimateSolution();
 
@@ -80,8 +89,9 @@ public:
 	}
 	const std::vector<Object>* GetObject() const { return &m_objs; };
 	const std::vector<Object>* GetObject(const LatticeState& s);
+	const Trajectory* GetLastTraj() const { return &m_solve; };
 
-	Coord GetEECoord(const State& state);
+	State GetEEState(const State& state);
 	const moveit_msgs::RobotState* GetStartState() { return &m_start_state; };
 
 	void PrintFK(const trajectory_msgs::JointTrajectory& traj)
@@ -155,6 +165,8 @@ private:
 	int m_t, m_priority;
 	LatticeState m_init;
 	Trajectory m_solve;
+	Object m_ooi;
+	std::vector<moveit_msgs::CollisionObject> m_movables;
 	std::vector<Object> m_objs;
 	std::shared_ptr<CollisionChecker> m_cc;
 
@@ -198,14 +210,14 @@ private:
 		moveit_msgs::CollisionObject& obj_msg,
 		bool remove);
 	bool processCollisionObjectMsg(
-		const moveit_msgs::CollisionObject& object, bool movable=false);
+		const moveit_msgs::CollisionObject& object);
 	bool processSTLMesh(
-		const Object& object, bool remove, bool movable=false);
+		const Object& object, bool remove);
 
 	bool addCollisionObjectMsg(
-		const moveit_msgs::CollisionObject& object, bool movable);
+		const moveit_msgs::CollisionObject& object);
 	bool removeCollisionObjectMsg(
-		const moveit_msgs::CollisionObject& object, bool movable);
+		const moveit_msgs::CollisionObject& object);
 	bool checkCollisionObjectSanity(
 		const moveit_msgs::CollisionObject& object) const;
 	auto findCollisionObject(const std::string& id) const
@@ -236,7 +248,7 @@ private:
 
 	bool attachAndCheckObject(
 		const Object& object, const smpl::RobotState& state);
-	bool attachObject(const Object& ooi);
+	bool attachObject(const Object& obj);
 	bool detachObject();
 	void displayObjectMarker(const Object& object);
 };

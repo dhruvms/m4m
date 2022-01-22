@@ -9,6 +9,10 @@
 namespace clutter
 {
 
+class HighLevelNode;
+class Robot;
+class Constraint;
+
 class Agent : public Movable
 {
 public:
@@ -27,7 +31,8 @@ public:
 		const std::vector<double>& rpy);
 	bool Init() override;
 
-	bool SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path);
+	bool SatisfyPath(HighLevelNode* ct_node, Robot* robot, Trajectory** sol_path);
+	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path);
 	bool IsGoal(int state_id) override;
 	void GetSuccs(
 		int state_id,

@@ -1,5 +1,8 @@
 #include <pushplan/agent.hpp>
 #include <pushplan/geometry.hpp>
+#include <pushplan/cbs_h_node.hpp>
+#include <pushplan/robot.hpp>
+#include <pushplan/conflicts.hpp>
 
 #include <smpl/console/console.h>
 
@@ -35,8 +38,6 @@ bool Agent::SetObjectPose(
 
 bool Agent::Init()
 {
-	m_path.clear();
-
 	m_objs.back().o_x = m_orig_o.o_x;
 	m_objs.back().o_y = m_orig_o.o_y;
 
@@ -44,22 +45,55 @@ bool Agent::Init()
 	m_init.state.clear();
 	m_init.state.push_back(m_objs.back().o_x);
 	m_init.state.push_back(m_objs.back().o_y);
+	m_init.state.push_back(m_objs.back().o_z);
+	m_init.state.push_back(m_objs.back().o_roll);
+	m_init.state.push_back(m_objs.back().o_pitch);
+	m_init.state.push_back(m_objs.back().o_yaw);
 	ContToDisc(m_init.state, m_init.coord);
 
 	if (!m_wastar) {
 		m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
 	}
+	this->reset();
+	this->SetStartState(m_init);
+	this->SetGoalState(m_init.coord);
 
 	return true;
 }
 
-bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path)
+bool Agent::SatisfyPath(HighLevelNode* ct_node, Robot* robot, Trajectory** sol_path)
 {
+	m_solve.clear();
+	LatticeState s = m_init;
+	// OOI stays in place during approach
+	for (int i = 0; i < robot->GraspAt() + 2; ++i)
+	{
+		s.t = i;
+		m_solve.push_back(s);
+	}
+
+	// OOI tracks robot EE during extraction
+	auto* r_traj = robot->GetLastTraj();
+	for (int i = robot->GraspAt() + 2; i < r_traj->size(); ++i)
+	{
+		++s.t;
+		s.state = robot->GetEEState(r_traj->at(i).state);
+		ContToDisc(s.state, s.coord);
+		m_solve.push_back(s);
+	}
+	*sol_path = &(this->m_solve);
+
+	return true;
+}
+
+bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
+{
+	m_solve.clear();
 	// collect agent constraints
 	m_constraints.clear();
-	for (auto& constraint : child->m_constraints)
+	for (auto& constraint : ct_node->m_constraints)
 	{
-		if (constraint->m_me == child->m_replanned) {
+		if (constraint->m_me == ct_node->m_replanned) {
 			m_constraints.push_back(constraint);
 		}
 	}
@@ -71,15 +105,17 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path)
 	if (result)
 	{
 		convertPath(solution);
-		sol_path = &m_solve;
+		*sol_path = &(this->m_solve);
 	}
+
+	return result;
 }
 
 // As long as I am not allowed to be in this location at some later time,
 // I have not reached a valid goal state
 // Conversely, if I can remain in this location (per existing constraints),
 // I am at a valid goal state (since states in collision with immovable obstacles
-// will never enter OPEN)
+// or out of bounds will never enter OPEN)
 bool Agent::IsGoal(int state_id)
 {
 	assert(state_id >= 0);
@@ -90,7 +126,7 @@ bool Agent::IsGoal(int state_id)
 	for (const auto& constraint : m_constraints)
 	{
 		if (constraint->m_q.coord == s->coord) {
-			if (constraint->m_q.t >= s->t) {
+			if (constraint->m_time >= s->t) {
 				constrained = true;
 				break;
 			}
@@ -143,14 +179,16 @@ unsigned int Agent::GetGoalHeuristic(int state_id)
 	if (s->state.empty()) {
 		DiscToCont(s->coord, s->state);
 	}
-	double dist = EuclideanDist(s->state, m_goalf);
+	State sxy = {s->state.at(0), s->state.at(1)};
+	double dist = EuclideanDist(sxy, m_goalf);
 	return (dist * COST_MULT);
 }
 
 unsigned int Agent::GetGoalHeuristic(const LatticeState& s)
 {
 	// TODO: RRA* informed backwards Dijkstra's heuristic
-	double dist = EuclideanDist(s.state, m_goalf);
+	State sxy = {s.state.at(0), s.state.at(1)};
+	double dist = EuclideanDist(sxy, m_goalf);
 	return (dist * COST_MULT);
 }
 
@@ -167,8 +205,8 @@ void Agent::GetSE2Push(std::vector<double>& push)
 	push.resize(3, 0.0); // (x, y, yaw)
 
 	double move_dir = std::atan2(
-					m_move.back().state.at(1) - m_move.front().state.at(1),
-					m_move.back().state.at(0) - m_move.front().state.at(0));
+					m_solve.back().state.at(1) - m_solve.front().state.at(1),
+					m_solve.back().state.at(0) - m_solve.front().state.at(0));
 	push.at(0) = m_orig_o.o_x + std::cos(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
 	push.at(1) = m_orig_o.o_y + std::sin(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
 	push.at(2) = move_dir;
@@ -219,21 +257,35 @@ int Agent::generateSuccessor(
 	child.coord.at(0) += dx;
 	child.coord.at(1) += dy;
 	DiscToCont(child.coord, child.state);
+	child.state.insert(child.state.end(), parent->state.begin() + 2, parent->state.end());
 
-	if (m_cc->ImmovableCollision(child, this->GetFCLObject())) {
+	if (m_cc->OutOfBounds(child) || m_cc->ImmovableCollision(child, this->GetFCLObject())) {
 		return -1;
 	}
 
 	for (const auto& constraint : m_constraints)
 	{
-		// successor is invalid if that (position, time) configuration
-		// is constrained
-		if (constraint->m_q == child) {
-			return -1;
+		if (constraint->m_me == constraint->m_other)
+		{
+			// successor is invalid if that (position, time) configuration
+			// is constrained
+			if (constraint->m_q == child) {
+				return -1;
+			}
+		}
+		else if (child.t == constraint->m_time)
+		{
+			// CBS TODO: check FCL collision between constraint->m_me object
+			// at location child.coord and constraint->m_other object
+			// at location constraint->m_q at time constraint->m_time
+			UpdatePose(child);
+			if (m_cc->FCLCollision(this, constraint->m_other, constraint->m_q)) {
+				return -1;
+			}
 		}
 	}
 
-	succ_state_id = getOrCreateState(child);
+	int succ_state_id = getOrCreateState(child);
 	LatticeState* successor = getHashEntry(succ_state_id);
 
 	succs->push_back(succ_state_id);
@@ -246,7 +298,8 @@ unsigned int Agent::cost(
 	const LatticeState* s1,
 	const LatticeState* s2)
 {
-	double dist = std::max(1.0, EuclideanDist(s1->state, s2->state));
+	double dist = EuclideanDist(s1->coord, s2->coord);
+	dist = dist == 0.0 ? 1.0 : dist;
 	return (dist * COST_MULT);
 }
 
@@ -257,6 +310,12 @@ bool Agent::convertPath(
 
 	if (idpath.empty()) {
 		return true;
+	}
+
+	if (idpath[0] == m_goal_id)
+	{
+		SMPL_ERROR("Cannot extract a non-trivial path starting from the goal state");
+		return false;
 	}
 
 	LatticeState state;
@@ -290,15 +349,9 @@ bool Agent::convertPath(
 			opath.push_back(state);
 		}
 	}
-
-	if (idpath[0] == m_goal_id)
+	else
 	{
-		SMPL_ERROR("Cannot extract a non-trivial path starting from the goal state");
-		return false;
-	}
-
-	// grab the first point
-	{
+		// grab the first point
 		auto* entry = getHashEntry(idpath[0]);
 		if (!entry)
 		{

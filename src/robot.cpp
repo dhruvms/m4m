@@ -3,6 +3,7 @@
 #include <pushplan/geometry.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/pr2_allowed_collision_pairs.h>
+#include <pushplan/cbs_h_node.hpp>
 
 #include <smpl/stl/memory.h>
 #include <sbpl_collision_checking/shapes.h>
@@ -227,16 +228,56 @@ bool Robot::SavePushData(int scene_id)
 	m_stats["push_traj_plan_time"] = 0.0;
 }
 
-bool Robot::CheckCollision(const LatticeState& robot, Agent* a)
+bool Robot::CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t)
 {
+	if (t > m_grasp_at + 1) {
+		attachObject(m_ooi);
+	}
 	std::vector<Object> o;
 	o.push_back(a->GetObject()->back());
 	ProcessObstacles(o);
 
 	bool collision = !m_cc_i->isStateValid(robot.state);
 
+	if (t > m_grasp_at + 1) {
+		detachObject();
+	}
 	ProcessObstacles(o, true);
+
 	return collision;
+}
+
+bool Robot::CheckCollision(const LatticeState& robot, int t)
+{
+	if (t > m_grasp_at + 1) {
+		attachObject(m_ooi);
+	}
+
+	bool collision = !m_cc_i->isStateValid(robot.state);
+	// if (collision) {
+	// 	auto* vis_name = "conflict";
+	// 	auto markers = m_cc_i->getCollisionModelVisualization(robot.state);
+	// 	for (auto& marker : markers) {
+	// 		marker.ns = vis_name;
+	// 	}
+	// 	SV_SHOW_INFO_NAMED(vis_name, markers);
+	// 	SMPL_ERROR("Conflict at time %d", t);
+	// }
+
+	if (t > m_grasp_at + 1) {
+		detachObject();
+	}
+	return collision;
+}
+
+void Robot::SetMovables(const std::vector<std::shared_ptr<Agent> >& agents)
+{
+	moveit_msgs::CollisionObject mov_obj;
+	for (const auto& a: agents)
+	{
+		a->GetMoveitObj(mov_obj);
+		m_movables.push_back(mov_obj);
+	}
 }
 
 bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
@@ -278,8 +319,6 @@ bool Robot::Init()
 
 	m_init.coord = Coord(m_rm->jointVariableCount());
 	stateToCoord(m_init.state, m_init.coord);
-	Eigen::Affine3d ee_pose = m_rm->computeFK(m_init.state);
-
 	reinitObjects(m_init.state);
 
 	return true;
@@ -298,7 +337,6 @@ bool Robot::RandomiseStart()
 		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
 	m_init.coord = Coord(m_rm->jointVariableCount());
 	stateToCoord(m_init.state, m_init.coord);
-
 	reinitObjects(m_init.state);
 
 	return true;
@@ -430,51 +468,51 @@ bool Robot::detachObject()
 	return true;
 }
 
-bool Robot::attachObject(const Object& ooi)
+bool Robot::attachObject(const Object& obj)
 {
-	std::vector<Object> ooi_v = {ooi};
-	ProcessObstacles(ooi_v); // hack to compute collision object
+	std::vector<Object> obj_v = {obj};
+	ProcessObstacles(obj_v); // hack to compute collision object
 
-	smpl::collision::CollisionObject* ooi_co;
+	smpl::collision::CollisionObject* obj_co;
 	for (auto& object : m_collision_objects)
 	{
-		if (object->id == std::to_string(ooi.id))
+		if (object->id == std::to_string(obj.id))
 		{
-			ooi_co = object.get();
+			obj_co = object.get();
 			break;
 		}
 	}
 
 	std::vector<shapes::ShapeConstPtr> shapes;
 	smpl::collision::Affine3dVector transforms;
-	if (ooi_co)
+	if (obj_co)
 	{
-		for (size_t sidx = 0; sidx < ooi_co->shapes.size(); ++sidx)
+		for (size_t sidx = 0; sidx < obj_co->shapes.size(); ++sidx)
 		{
 			auto transform = Eigen::Affine3d::Identity();
 			transform.translation().x() += 0.2;
-			switch (ooi_co->shapes.at(sidx)->type)
+			switch (obj_co->shapes.at(sidx)->type)
 			{
 				case smpl::collision::ShapeType::Box:
 				{
-					auto box = static_cast<smpl::collision::BoxShape*>(ooi_co->shapes.at(sidx));
+					auto box = static_cast<smpl::collision::BoxShape*>(obj_co->shapes.at(sidx));
 					shapes::ShapeConstPtr ao_shape(new shapes::Box(box->size[0], box->size[1], box->size[2]));
 					shapes.push_back(std::move(ao_shape));
 					break;
 				}
 				case smpl::collision::ShapeType::Cylinder:
 				{
-					auto cylinder = static_cast<smpl::collision::CylinderShape*>(ooi_co->shapes.at(sidx));
+					auto cylinder = static_cast<smpl::collision::CylinderShape*>(obj_co->shapes.at(sidx));
 					shapes::ShapeConstPtr ao_shape(new shapes::Cylinder(cylinder->radius, cylinder->height));
 					shapes.push_back(std::move(ao_shape));
 					break;
 				}
 				case smpl::collision::ShapeType::Mesh:
 				{
-					shapes::ShapeConstPtr ao_shape = MakeROSShape(ooi_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape = MakeROSShape(obj_co->shapes.at(sidx));
 					shapes.push_back(std::move(ao_shape));
 
-					auto itr = YCB_OBJECT_DIMS.find(ooi.shape);
+					auto itr = YCB_OBJECT_DIMS.find(obj.shape);
 					if (itr != YCB_OBJECT_DIMS.end()) {
 						transform.translation().z() -= (m_grasp_z - m_table_z);
 					}
@@ -513,7 +551,7 @@ bool Robot::attachObject(const Object& ooi)
 	auto markers = m_cc_i->getCollisionRobotVisualization(m_postgrasp_state);
 	SV_SHOW_INFO(markers);
 
-	ProcessObstacles(ooi_v, true);
+	ProcessObstacles(obj_v, true);
 
 	return true;
 }
@@ -540,7 +578,7 @@ bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& s
 	return true;
 }
 
-bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Object& ooi)
+bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 {
 	// CBS TODO: must pick out constraints wrt planning phase:
 	// (i) for planning to pregrasp, all constraints with time <= m_grasp_at
@@ -564,10 +602,16 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Obje
 				new_constraint->m_other = constraint->m_other;
 				new_constraint->m_time = constraint->m_time - (m_grasp_at + 2);
 				new_constraint->m_q = constraint->m_q;
-				extract_constraints.push_back(new_constraint);
+				retract_constraints.push_back(new_constraint);
 			}
 		}
 	}
+
+	std::vector<std::vector<double> > approach_cvecs, retract_cvecs;
+	VecConstraints(approach_constraints, approach_cvecs);
+	VecConstraints(retract_constraints, retract_cvecs);
+	approach_constraints.clear();
+	retract_constraints.clear();
 
 	///////////////////
 	// Plan approach //
@@ -576,7 +620,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Obje
 	detachObject();
 	UpdateKDLRobot(0);
 	// setGripper(false); // closed
-	InitArmPlanner(true);
+	InitArmPlanner(false);
 
 	moveit_msgs::MotionPlanRequest req;
 	moveit_msgs::MotionPlanResponse res;
@@ -587,7 +631,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Obje
 	req.max_velocity_scaling_factor = 1.0;
 	req.num_planning_attempts = 1;
 	// req.path_constraints;
-	req.planner_id = "arastar.joint_distance.manip";
+	req.planner_id = "arastar.joint_distance.manip_cbs";
 	req.start_state = m_start_state;
 	// req.trajectory_constraints;
 	// req.workspace_parameters;
@@ -597,7 +641,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Obje
 	planning_scene.robot_state = m_start_state;
 
 	SMPL_INFO("Planning to pregrasp state.");
-	if (!m_planner->solve_with_constraints(planning_scene, req, res, approach_constraints))
+	if (!m_planner->solve_with_constraints(planning_scene, req, res, m_movables, approach_cvecs))
 	{
 		ROS_ERROR("Failed to plan to pregrasp state.");
 		return false;
@@ -612,7 +656,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Obje
 	//////////////////
 
 	m_traj = res.trajectory.joint_trajectory;
-	m_grasp_at = m_traj.points.size() - 1;
+	m_grasp_at = m_traj.points.size();
 
 	double grasp_time = profileAction(m_pregrasp_state, m_grasp_state);
 	double postgrasp_time = profileAction(m_grasp_state, m_postgrasp_state);
@@ -632,11 +676,11 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Obje
 	/////////////////////
 
 	// setGripper(true); // open
-	if (!attachAndCheckObject(ooi)) {
+	if (!attachAndCheckObject(m_ooi, m_postgrasp_state)) {
 		detachObject();
 		return false;
 	}
-	InitArmPlanner(true);
+	InitArmPlanner(false);
 
 	moveit_msgs::RobotState orig_start = m_start_state;
 	m_start_state.joint_state.position.erase(
@@ -656,7 +700,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Obje
 	addPathConstraint(req.path_constraints);
 
 	SMPL_INFO("Planning to home state with attached body.");
-	if (!m_planner->solve_with_constraints(planning_scene, req, res, extract_constraints))
+	if (!m_planner->solve_with_constraints(planning_scene, req, res, m_movables, retract_cvecs))
 	{
 		ROS_ERROR("Failed to plan to home state with attached body.");
 		detachObject();
@@ -679,6 +723,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Obje
 		m_traj.points.push_back(wp);
 	}
 
+	m_solve.clear();
 	int t = 0;
 	for (const auto& wp: m_traj.points)
 	{
@@ -689,17 +734,18 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory* sol_path, const Obje
 		s.t = t;
 
 		m_solve.push_back(s);
+		// SMPL_INFO("[m_solve] [t = %d] (%f, %f, %f, %f, %f, %f, %f)", t, m_solve.back().state.at(0), m_solve.back().state.at(1), m_solve.back().state.at(2), m_solve.back().state.at(3), m_solve.back().state.at(4), m_solve.back().state.at(5), m_solve.back().state.at(6));
 		++t;
 	}
-	sol_path = &m_solve;
+	*sol_path = &(this->m_solve);
 
 	SMPL_INFO("Robot has complete plan! m_solve.size() = %d", m_solve.size());
+	// SV_SHOW_INFO_NAMED("trajectory", makePathVisualization());
 	return true;
 }
 
 bool Robot::ComputeGrasps(
-	const std::vector<double>& pregrasp_goal,
-	const Object& ooi)
+	const std::vector<double>& pregrasp_goal)
 {
 	double start_time = GetTime();
 
@@ -716,7 +762,7 @@ bool Robot::ComputeGrasps(
 	do
 	{
 		m_grasp_z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
-		ee_pose = Eigen::Translation3d(ooi.o_x + 0.025 * std::cos(pregrasp_goal[5]), ooi.o_y + 0.025 * std::sin(pregrasp_goal[5]), m_grasp_z) *
+		ee_pose = Eigen::Translation3d(m_ooi.o_x + 0.025 * std::cos(pregrasp_goal[5]), m_ooi.o_y + 0.025 * std::sin(pregrasp_goal[5]), m_grasp_z) *
 						Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
@@ -778,7 +824,7 @@ bool Robot::ComputeGrasps(
 
 			SMPL_INFO("Found postgrasp state!!!");
 
-			if (!attachAndCheckObject(ooi, m_postgrasp_state)) {
+			if (!attachAndCheckObject(m_ooi, m_postgrasp_state)) {
 				detachObject();
 				return false;
 			}
@@ -979,13 +1025,13 @@ const std::vector<Object>* Robot::GetObject(const LatticeState& s)
 	return &m_objs;
 }
 
-Coord Robot::GetEECoord(const State& state)
+State Robot::GetEEState(const State& state)
 {
 	Eigen::Affine3d ee_pose = m_rm->computeFK(state);
-	State ee = {ee_pose.translation().x(), ee_pose.translation().y()};
-	Coord ee_coord;
-	ContToDisc(ee, ee_coord);
-	return ee_coord;
+	State ee = {ee_pose.translation().x(), ee_pose.translation().y(), ee_pose.translation().z(),
+				0.0, 0.0, 0.0};
+	smpl::angles::get_euler_zyx(ee_pose.rotation(), ee[5], ee[4], ee[3]);
+	return ee;
 }
 
 bool Robot::samplePush(
@@ -1619,13 +1665,13 @@ bool Robot::getCollisionObjectMsg(
 /// \param object The collision object to be processed
 /// \return true if the object was processed successfully; false otherwise
 bool Robot::processCollisionObjectMsg(
-	const moveit_msgs::CollisionObject& object, bool movable)
+	const moveit_msgs::CollisionObject& object)
 {
 	if (object.operation == moveit_msgs::CollisionObject::ADD) {
-		return addCollisionObjectMsg(object, movable);
+		return addCollisionObjectMsg(object);
 	}
 	else if (object.operation == moveit_msgs::CollisionObject::REMOVE) {
-		return removeCollisionObjectMsg(object, movable);
+		return removeCollisionObjectMsg(object);
 	}
 	// else if (object.operation == moveit_msgs::CollisionObject::APPEND) {
 	// 	return AppendCollisionObjectMsg(object);
@@ -1639,7 +1685,7 @@ bool Robot::processCollisionObjectMsg(
 }
 
 bool Robot::processSTLMesh(
-	const Object& object, bool remove, bool movable)
+	const Object& object, bool remove)
 {
 	if (remove)
 	{
@@ -1724,7 +1770,7 @@ bool Robot::processSTLMesh(
 }
 
 bool Robot::addCollisionObjectMsg(
-	const moveit_msgs::CollisionObject& object, bool movable)
+	const moveit_msgs::CollisionObject& object)
 {
 	if (m_cc_i->worldCollisionModel()->hasObjectWithName(object.id)) {
 		return false;
@@ -1816,7 +1862,7 @@ bool Robot::addCollisionObjectMsg(
 }
 
 bool Robot::removeCollisionObjectMsg(
-	const moveit_msgs::CollisionObject& object, bool movable)
+	const moveit_msgs::CollisionObject& object)
 {
 	// find the collision object with this name
 	auto* _object = findCollisionObject(object.id);

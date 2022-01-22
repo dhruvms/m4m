@@ -8,7 +8,7 @@ auto std::hash<clutter::LatticeState>::operator()(
 	const argument_type& s) const -> result_type
 {
 	size_t seed = 0;
-	boost::hash_combine(seed, boost::hash_range(s.coord.begin(), s.coord.end()));
+	boost::hash_combine(seed, boost::hash_range(s.coord.begin(), s.coord.begin() + 2));
 	boost::hash_combine(seed, s.t);
 	return seed;
 }
@@ -33,7 +33,7 @@ void Movable::SetGoalState(const Coord& p)
 	m_wastar->set_goal(m_goal_id);
 }
 
-void Movable::reset(int phase)
+void Movable::reset()
 {
 	// reset everything
 	for (LatticeState* s : m_states) {
@@ -46,8 +46,6 @@ void Movable::reset(int phase)
 	m_states.clear();
 
 	m_wastar->reset();
-
-	m_phase = phase;
 }
 
 // Return a pointer to the data for the input the state id
