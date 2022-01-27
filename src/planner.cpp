@@ -466,9 +466,9 @@ bool Planner::setupProblem()
 	// Set agent current positions and time
 	m_ooi->Init();
 	m_robot->Init();
-	if (!m_robot->RandomiseStart()) {
-		return false;
-	}
+	// if (!m_robot->RandomiseStart()) {
+	// 	return false;
+	// }
 	for (auto& a: m_agents) {
 		a->Init();
 	}

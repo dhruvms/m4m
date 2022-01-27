@@ -2,13 +2,13 @@ initial_configuration:
   joint_state:
     # Above table:
     - { name: torso_lift_joint,       position: 0.0 }
-    - { name: r_shoulder_pan_joint,   position: -1.69017 }
-    - { name: r_shoulder_lift_joint,  position: -0.0788625 }
-    - { name: r_upper_arm_roll_joint, position: -1.69017 }
-    - { name: r_elbow_flex_joint,     position: -1.2717 } # limit: -0.2 }
-    - { name: r_forearm_roll_joint,   position: -0.151824 }
-    - { name: r_wrist_flex_joint,     position: -1.25254 } # limit: -0.2 }
-    - { name: r_wrist_roll_joint,     position: 0.675062 }
+    - { name: r_shoulder_pan_joint,   position: -1.68651 }
+    - { name: r_shoulder_lift_joint,  position: -0.184315 }
+    - { name: r_upper_arm_roll_joint, position: -1.67611 }
+    - { name: r_elbow_flex_joint,     position: -1.66215 } # limit: -0.2 }
+    - { name: r_forearm_roll_joint,   position: 0.285096 }
+    - { name: r_wrist_flex_joint,     position: -0.658798 } # limit: -0.2 }
+    - { name: r_wrist_roll_joint,     position: 1.41563 }
 
 goal:
   x: 0.7
