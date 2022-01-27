@@ -44,7 +44,7 @@ whca:
   window: 4
   goal_thresh: 0.02
   res: 0.05
-  grid: 8
+  grid: 4
   cost_mult: 1000
   planning_time: 300.0
 
