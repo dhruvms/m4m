@@ -120,17 +120,17 @@ int main(int argc, char** argv)
 					// 	lucky = true;
 					// }
 
-					if (p.Alive()) {
-						ROS_WARN("Try rearrangement!");
-						rearrange = p.Rearrange();
-					}
+					// if (p.Alive()) {
+					// 	ROS_WARN("Try rearrangement!");
+					// 	rearrange = p.Rearrange();
+					// }
 
 					// ROS_WARN("Try extraction after rearrangement! Did we successfully rearrange?");
 					// if (p.Alive() && p.TryExtract()) {
 					// 	rearranged = true;
 					// }
 
-					ROS_WARN("Try planning with all objects as obstacles! Are we done?");
+					// ROS_WARN("Try planning with all objects as obstacles! Are we done?");
 					if (p.Alive())
 					{
 						ROS_WARN("YAYAYAY! We did it!");
