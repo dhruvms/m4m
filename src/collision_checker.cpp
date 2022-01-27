@@ -24,6 +24,10 @@ m_rng(m_dev())
 			m_base_loc = i;
 			continue;
 		}
+		LatticeState s;
+		s.state.push_back(m_obstacles.at(i).o_x);
+		s.state.push_back(m_obstacles.at(i).o_y);
+		m_obstacles.at(i).UpdatePose(s);
 		m_fcl_immov->registerObject(m_obstacles.at(i).GetFCLObject());
 	}
 
