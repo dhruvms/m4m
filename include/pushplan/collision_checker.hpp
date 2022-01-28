@@ -66,8 +66,9 @@ public:
 	bool OutOfBounds(const LatticeState& s);
 	bool ImmovableCollision(const State& s, fcl::CollisionObject* o);
 	bool ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o);
-	bool FCLCollision(Agent* a1, Agent* a2);
-	bool FCLCollision(Agent* a1, const int& a2_id, const LatticeState& a2_q);
+	bool ObjectObjectCollision(Agent* a1, Agent* a2);
+	bool ObjectObjectCollision(Agent* a1, const int& a2_id, const LatticeState& a2_q);
+	bool RobotObjectCollision(Agent* a1, const LatticeState& robot_state, int t, bool process=true);
 
 	State GetRandomStateOutside(fcl::CollisionObject* o);
 
@@ -95,6 +96,20 @@ private:
 	fcl::BroadPhaseCollisionManager* m_fcl_immov = nullptr;
 
 	void cleanupChildren(std::vector<int>& check);
+
+	bool checkCollisionObjSet(
+		const Object& o1, const State& o1_loc,
+		bool rect_o1, const std::vector<State>& o1_rect,
+		const std::vector<Object>* a2_objs);
+
+	bool rectRectCollision(
+		const std::vector<State>& r1, const std::vector<State>& r2);
+	bool rectCircCollision(
+		const std::vector<State>& r1,
+		const Object& c1, const State& c1_loc);
+	bool circCircCollision(
+		const Object& c1, const State& c1_loc,
+		const Object& c2, const State& c2_loc);
 
 };
 
