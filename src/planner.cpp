@@ -720,6 +720,8 @@ void Planner::setupGlobals()
 	m_ph.getParam("robot/speed", R_SPEED);
 	m_ph.getParam("goal/save", SAVE);
 	m_ph.getParam("occupancy_grid/res", DF_RES);
+	m_ph.getParam("goal/cc_2d", CC_2D);
+	m_ph.getParam("goal/cc_3d", CC_3D);
 }
 
 int Planner::armId()

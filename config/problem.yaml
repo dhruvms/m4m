@@ -21,6 +21,8 @@ goal:
   sim_budget: 900.0
   total_budget: 300.0
   save: true
+  cc_2d: true
+  cc_3d: false
 
 robot:
   x: 0.0
