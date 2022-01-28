@@ -164,7 +164,8 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 	for (int t = 0; t < tmin; ++t)
 	{
 		m_objs[oid]->UpdatePose(a_traj->at(t));
-		if (m_robot->CheckCollisionWithObject(r_traj->at(t), m_objs[oid].get(), t))
+		// if (m_robot->CheckCollisionWithObject(r_traj->at(t), m_objs[oid].get(), t))
+		if (m_cc->RobotObjectCollision(m_objs[oid].get(), r_traj->at(t), t))
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
 			conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, r_traj->at(t), a_traj->at(t), true);
@@ -192,7 +193,8 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 			if (robot_shorter)
 			{
 				m_objs[oid]->UpdatePose(longer->at(t));
-				if (m_robot->CheckCollisionWithObject(shorter->back(), m_objs[oid].get(), t))
+				// if (m_robot->CheckCollisionWithObject(shorter->back(), m_objs[oid].get(), t))
+				if (m_cc->RobotObjectCollision(m_objs[oid].get(), shorter->back(), t))
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
 					conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, shorter->back(), longer->at(t), true);
@@ -201,7 +203,8 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 			}
 			else
 			{
-				if (m_robot->CheckCollision(longer->at(t), t))
+				// if (m_robot->CheckCollision(longer->at(t), t))
+				if (m_cc->RobotObjectCollision(m_objs[oid].get(), longer->at(t), t false))
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
 					conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, longer->at(t), shorter->back(), true);
@@ -229,7 +232,7 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 	{
 		m_objs[o1]->UpdatePose(a1_traj->at(t));
 		m_objs[o2]->UpdatePose(a2_traj->at(t));
-		if (m_cc->FCLCollision(m_objs[o1].get(), m_objs[o2].get()))
+		if (m_cc->ObjectObjectCollision(m_objs[o1].get(), m_objs[o2].get()))
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
 			conflict->InitConflict(m_objs[o1]->GetID(), m_objs[o2]->GetID(), t, a1_traj->at(t), a2_traj->at(t), false);
@@ -250,7 +253,7 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 		for (int t = tmin; t < longer_traj->size(); ++t)
 		{
 			longer->UpdatePose(longer_traj->at(t));
-			if (m_cc->FCLCollision(shorter, longer))
+			if (m_cc->ObjectObjectCollision(shorter, longer))
 			{
 				std::shared_ptr<Conflict> conflict(new Conflict());
 				conflict->InitConflict(shorter->GetID(), longer->GetID(), t, shorter_traj->back(), longer_traj->at(t), false);
