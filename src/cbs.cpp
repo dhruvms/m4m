@@ -84,7 +84,7 @@ bool CBS::initialiseRoot()
 	if (!m_robot->SatisfyPath(root, &m_paths[0])) { // (CT node, path location)
 		return false;
 	}
-	root->m_solution.emplace_back(m_robot->GetID(), m_paths[0]);
+	root->m_solution.emplace_back(m_robot->GetID(), *(m_paths[0]));
 	root->m_g += m_paths[0]->size();
 	root->m_makespan = std::max(root->m_makespan, (int)m_paths[0]->size());
 
@@ -94,7 +94,7 @@ bool CBS::initialiseRoot()
 		if (!m_objs[i]->SatisfyPath(root, &m_paths[i+1])) {
 			return false;
 		}
-		root->m_solution.emplace_back(m_objs[i]->GetID(), m_paths[i+1]);
+		root->m_solution.emplace_back(m_objs[i]->GetID(), *(m_paths[i+1]));
 		root->m_g += m_paths[i+1]->size();
 		root->m_makespan = std::max(root->m_makespan, (int)m_paths[i+1]->size());
 	}
@@ -327,7 +327,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 		for (auto& solution : child->m_solution)
 		{
 			if (solution.first == m_robot->GetID()) {
-				solution.second = m_paths[0];
+				solution.second = *(m_paths[0]);
 				break;
 			}
 		}
@@ -360,7 +360,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 			for (auto& solution : child->m_solution)
 			{
 				if (solution.first == m_objs[i]->GetID()) {
-					solution.second = m_paths[i+1];
+					solution.second = *(m_paths[i+1]);
 					break;
 				}
 			}
@@ -410,7 +410,7 @@ bool CBS::done(HighLevelNode* node)
 void CBS::writeSolution(HighLevelNode* node)
 {
 	int makespan = node->m_makespan;
-	for (int tidx = 0; tidx < makespan; tidx += makespan/3)
+	for (int tidx = 0; tidx < makespan; tidx += 1)
 	{
 		std::string filename(__FILE__);
 		auto found = filename.find_last_of("/\\");
@@ -483,11 +483,11 @@ void CBS::writeSolution(HighLevelNode* node)
 		movable = "True";
 		for (size_t oidx = 0; oidx < m_objs.size(); ++oidx)
 		{
-			if (m_paths[oidx+1]->size() <= tidx) {
-				loc = m_paths[oidx+1]->back().state;
+			if (node->m_solution[oidx+1].second.size() <= tidx) {
+				loc = node->m_solution[oidx+1].second.back().state;
 			}
 			else {
-				loc = m_paths[oidx+1]->at(tidx).state;
+				loc = node->m_solution[oidx+1].second.at(tidx).state;
 			}
 
 			agent_obs = m_objs[oidx]->GetObject();
@@ -508,11 +508,11 @@ void CBS::writeSolution(HighLevelNode* node)
 				<< movable << '\n';
 		}
 
-		if (m_paths[0]->size() <= tidx) {
-			agent_obs = m_robot->GetObject(m_paths[0]->back());
+		if (node->m_solution[0].second->size() <= tidx) {
+			agent_obs = m_robot->GetObject(node->m_solution[0].second.back());
 		}
 		else {
-			agent_obs = m_robot->GetObject(m_paths[0]->at(tidx));
+			agent_obs = m_robot->GetObject(node->m_solution[0].second.at(tidx));
 		}
 
 		for (const auto& robot_o: *agent_obs)
@@ -553,11 +553,11 @@ void CBS::writeSolution(HighLevelNode* node)
 			DATA << tidx + 1 << '\n';
 			for (int t = 0; t <= tidx; ++t)
 			{
-				if (m_paths[oidx+1]->size() <= t) {
-					DATA << m_paths[oidx+1]->back().state.at(0) << ',' << m_paths[oidx+1]->back().state.at(1) << '\n';
+				if (node->m_solution[oidx+1].second.size() <= t) {
+					DATA << node->m_solution[oidx+1].second.back().state.at(0) << ',' << node->m_solution[oidx+1].second.back().state.at(1) << '\n';
 				}
 				else {
-					DATA << m_paths[oidx+1]->at(t).state.at(0) << ',' << m_paths[oidx+1]->at(t).state.at(1) << '\n';
+					DATA << node->m_solution[oidx+1].second.at(t).state.at(0) << ',' << node->m_solution[oidx+1].second.at(t).state.at(1) << '\n';
 				}
 			}
 		}
@@ -566,23 +566,23 @@ void CBS::writeSolution(HighLevelNode* node)
 		DATA << tidx + 1 << '\n';
 		for (int t = 0; t <= tidx; ++t)
 		{
-			if (m_paths[0]->size() <= t) {
-				DATA 	<< m_paths[0]->back().state.at(0) << ','
-						<< m_paths[0]->back().state.at(1) << ','
-						<< m_paths[0]->back().state.at(2) << ','
-						<< m_paths[0]->back().state.at(3) << ','
-						<< m_paths[0]->back().state.at(4) << ','
-						<< m_paths[0]->back().state.at(5) << ','
-						<< m_paths[0]->back().state.at(6) << '\n';
+			if (node->m_solution[0].second.size() <= t) {
+				DATA 	<< node->m_solution[0].second.back().state.at(0) << ','
+						<< node->m_solution[0].second.back().state.at(1) << ','
+						<< node->m_solution[0].second.back().state.at(2) << ','
+						<< node->m_solution[0].second.back().state.at(3) << ','
+						<< node->m_solution[0].second.back().state.at(4) << ','
+						<< node->m_solution[0].second.back().state.at(5) << ','
+						<< node->m_solution[0].second.back().state.at(6) << '\n';
 			}
 			else {
-				DATA 	<< m_paths[0]->at(t).state.at(0) << ','
-						<< m_paths[0]->at(t).state.at(1) << ','
-						<< m_paths[0]->at(t).state.at(2) << ','
-						<< m_paths[0]->at(t).state.at(3) << ','
-						<< m_paths[0]->at(t).state.at(4) << ','
-						<< m_paths[0]->at(t).state.at(5) << ','
-						<< m_paths[0]->at(t).state.at(6) << '\n';
+				DATA 	<< node->m_solution[0].second.at(t).state.at(0) << ','
+						<< node->m_solution[0].second.at(t).state.at(1) << ','
+						<< node->m_solution[0].second.at(t).state.at(2) << ','
+						<< node->m_solution[0].second.at(t).state.at(3) << ','
+						<< node->m_solution[0].second.at(t).state.at(4) << ','
+						<< node->m_solution[0].second.at(t).state.at(5) << ','
+						<< node->m_solution[0].second.at(t).state.at(6) << '\n';
 			}
 		}
 

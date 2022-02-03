@@ -55,7 +55,7 @@ public:
 private:
 	Object m_orig_o;
 	std::list<std::shared_ptr<Constraint> > m_constraints;
-	std::vector<std::pair<int, Trajectory*> >* m_cbs_solution; // all agent trajectories
+	std::vector<std::pair<int, Trajectory> >* m_cbs_solution; // all agent trajectories
 
 	int generateSuccessor(
 		const LatticeState* parent,

@@ -269,7 +269,7 @@ int Agent::generateSuccessor(
 	{
 		if (constraint->m_me == constraint->m_other)
 		{
- 			if (m_cbs_solution->at(0).second->size() <= constraint->m_time)
+ 			if (m_cbs_solution->at(0).second.size() <= constraint->m_time)
 			{
 				// This should never happen - the constraint would only have existed
 				// if this object and the robot had a conflict at that time
@@ -281,7 +281,7 @@ int Agent::generateSuccessor(
 			// is constrained
 			if (m_cc->RobotObjectCollision(
 						this, child,
-						m_cbs_solution->at(0).second->at(constraint->m_time), constraint->m_time))
+						m_cbs_solution->at(0).second.at(constraint->m_time), constraint->m_time))
 			{
 				return -1;
 			}

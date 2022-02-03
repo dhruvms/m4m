@@ -24,7 +24,7 @@ struct HighLevelNode
 	std::list<std::shared_ptr<Constraint> > m_constraints; // constraints to be satisfied (parent + 1)
 	std::list<std::shared_ptr<Conflict> > m_conflicts; // conflicts at this node
 	std::shared_ptr<Conflict> m_conflict; // selected conflict
-	std::vector<std::pair<int, Trajectory*> > m_solution; // agent solutions
+	std::vector<std::pair<int, Trajectory> > m_solution; // agent solutions
 
 	int m_g, m_depth, m_makespan, m_generate, m_expand;
 	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::HeapCompare> >::handle_type m_OPEN_h;
@@ -37,7 +37,7 @@ struct HighLevelNode
 	{
 		m_makespan = 0;
 		for (const auto& s : m_solution) {
-			m_makespan = std::max(m_makespan, (int)s.second->size());
+			m_makespan = std::max(m_makespan, (int)s.second.size());
 		}
 	}
 
