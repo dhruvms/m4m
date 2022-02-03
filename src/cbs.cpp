@@ -158,8 +158,17 @@ void CBS::findConflicts(HighLevelNode& node)
 
 void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 {
-	auto* r_traj = m_robot->GetLastTraj();
-	auto* a_traj = m_objs[oid]->GetLastTraj();
+	Trajectory* r_traj = &(curr.m_solution[0].second);
+	Trajectory* a_traj = nullptr;
+	for (auto& solution: curr.m_solution)
+	{
+		if (solution.first == m_objs[oid]->GetID())
+		{
+			a_traj = &(solution.second);
+			break;
+		}
+	}
+
 	int tmin = std::min(r_traj->size(), a_traj->size());
 	for (int t = 0; t < tmin; ++t)
 	{
@@ -225,8 +234,25 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 
 void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 {
-	auto* a1_traj = m_objs[o1]->GetLastTraj();
-	auto* a2_traj = m_objs[o2]->GetLastTraj();
+	Trajectory* a1_traj = nullptr;
+	Trajectory* a2_traj = nullptr;
+	for (auto& solution: curr.m_solution)
+	{
+		if (solution.first == m_objs[o1]->GetID())
+		{
+			a1_traj = &(solution.second);
+			continue;
+		}
+		else if (solution.first == m_objs[o2]->GetID())
+		{
+			a2_traj = &(solution.second);
+			continue;
+		}
+		else {
+			continue;
+		}
+	}
+
 	int tmin = std::min(a1_traj->size(), a2_traj->size());
 	for (int t = 0; t < tmin; ++t)
 	{
