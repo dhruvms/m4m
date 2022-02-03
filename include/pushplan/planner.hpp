@@ -41,19 +41,11 @@ public:
 		return m_agents.at(m_agent_map[id]).get();
 	}
 
-	std::vector<Agent*> GetAllAgents(){
-		std::vector<Agent*> all_agents;
-		for(int i = 0; i < m_agents.size(); i++){
-			all_agents.push_back(m_agents[i].get());
-		}
-		return all_agents;
-	}
-
 	const std::vector<Object>* Get2DRobot(const LatticeState& s) {
 		return m_robot->GetObject(s);
 	}
 	const std::vector<Object>* GetObject(int id) {
-		return m_agents.at(m_agent_map[id]).GetObject();
+		return m_agents.at(m_agent_map[id])->GetObject();
 	};
 
 	bool CheckRobotCollision(Agent* a, const LatticeState& robot_state, int t, bool process)

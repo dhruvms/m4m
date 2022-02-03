@@ -68,7 +68,10 @@ public:
 	bool ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o);
 	bool ObjectObjectCollision(Agent* a1, Agent* a2);
 	bool ObjectObjectCollision(Agent* a1, const int& a2_id, const LatticeState& a2_q);
-	bool RobotObjectCollision(Agent* a1, const LatticeState& robot_state, int t, bool process=true);
+	bool RobotObjectCollision(
+		Agent* a1, const LatticeState& a1_state,
+		const LatticeState& robot_state,
+		int t, bool process=true);
 
 	State GetRandomStateOutside(fcl::CollisionObject* o);
 

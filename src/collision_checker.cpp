@@ -104,7 +104,10 @@ bool CollisionChecker::ObjectObjectCollision(Agent* a1, const int& a2_id, const 
 	return result.isCollision();
 }
 
-bool CollisionChecker::RobotObjectCollision(Agent* a1, const LatticeState& robot_state, int t, bool process)
+bool CollisionChecker::RobotObjectCollision(
+	Agent* a1, const LatticeState& a1_state,
+	const LatticeState& robot_state,
+	int t, bool process)
 {
 	bool collision = false;
 	if (!CC_2D) {
@@ -113,7 +116,7 @@ bool CollisionChecker::RobotObjectCollision(Agent* a1, const LatticeState& robot
 	else
 	{
 		auto o1_obj = m_planner->GetObject(a1->GetID())->back();
-		State o1_loc = {s.state.at(0), s.state.at(1)};
+		State o1_loc = {a1_state.state.at(0), a1_state.state.at(1)};
 		std::vector<State> o1_rect;
 		bool rect_o1 = false;
 

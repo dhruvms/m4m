@@ -165,7 +165,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 	{
 		m_objs[oid]->UpdatePose(a_traj->at(t));
 		// if (m_robot->CheckCollisionWithObject(r_traj->at(t), m_objs[oid].get(), t))
-		if (m_cc->RobotObjectCollision(m_objs[oid].get(), r_traj->at(t), t))
+		if (m_cc->RobotObjectCollision(m_objs[oid].get(), a_traj->at(t), r_traj->at(t), t))
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
 			conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, r_traj->at(t), a_traj->at(t), true);
@@ -179,9 +179,9 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 		auto* shorter = robot_shorter ? r_traj : a_traj;
 		auto* longer = robot_shorter ? a_traj : r_traj;
 
-		m_objs[oid]->UpdatePose(a_traj->back());
 		if (!robot_shorter)
 		{
+			m_objs[oid]->UpdatePose(a_traj->back());
 			// add object to robot collision space
 			std::vector<Object> o;
 			o.push_back(m_objs[oid]->GetObject()->back());
@@ -194,7 +194,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 			{
 				m_objs[oid]->UpdatePose(longer->at(t));
 				// if (m_robot->CheckCollisionWithObject(shorter->back(), m_objs[oid].get(), t))
-				if (m_cc->RobotObjectCollision(m_objs[oid].get(), shorter->back(), t))
+				if (m_cc->RobotObjectCollision(m_objs[oid].get(), longer->at(t), shorter->back(), t))
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
 					conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, shorter->back(), longer->at(t), true);
@@ -204,7 +204,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 			else
 			{
 				// if (m_robot->CheckCollision(longer->at(t), t))
-				if (m_cc->RobotObjectCollision(m_objs[oid].get(), longer->at(t), t false))
+				if (m_cc->RobotObjectCollision(m_objs[oid].get(), a_traj->back(), longer->at(t), t, false))
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
 					conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, longer->at(t), shorter->back(), true);
