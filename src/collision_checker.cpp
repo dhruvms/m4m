@@ -164,34 +164,6 @@ State CollisionChecker::GetRandomStateOutside(fcl::CollisionObject* o)
 	return g;
 }
 
-bool CollisionChecker::FCLCollisionMultipleAgents(
-	Agent* a1,
-	const std::vector<int>& all_agent_ids,
-	const std::vector<LatticeState>& all_agent_poses){
-	/*
-	EECBS stats
-	Collision checks between a1 and all the other agents (at the current timestep)
-	*/
-
-	m_fcl_mov->unregisterObject(a1->GetFCLObject());
-
-	for(int i = 0; i < all_agent_ids.size(); i++){
-		Agent* agent = m_planner->GetAgent(all_agent_ids[i]);
-		agent->UpdatePose(all_agent_poses[i]);
-		m_fcl_mov->update(agent->GetFCLObject());
-	}
-
-	m_fcl_mov->setup();
-	fcl::DefaultCollisionData<float> collision_data;
-	m_fcl_mov->collide(a1->GetFCLObject(),
-		&collision_data, fcl::DefaultCollisionFunction);
-
-	m_fcl_mov->registerObject(a1->GetFCLObject());
-
-	return collision_data.result.isCollision();
-
-}
-
 bool CollisionChecker::checkCollisionObjSet(
 	const Object& o1, const State& o1_loc,
 	bool rect_o1, const std::vector<State>& o1_rect,

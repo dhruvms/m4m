@@ -534,7 +534,7 @@ void CBS::writeSolution(HighLevelNode* node)
 				<< movable << '\n';
 		}
 
-		if (node->m_solution[0].second->size() <= tidx) {
+		if (node->m_solution[0].second.size() <= tidx) {
 			agent_obs = m_robot->GetObject(node->m_solution[0].second.back());
 		}
 		else {
