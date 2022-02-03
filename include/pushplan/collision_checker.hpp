@@ -57,8 +57,15 @@ class CollisionChecker
 public:
 	CollisionChecker(Planner* planner, const std::vector<Object>& obstacles);
 
-	void AddObstacle(const Object& o) {
+	void AddObstacle(const Object& o)
+	{
 		m_obstacles.push_back(o);
+
+		LatticeState s;
+		s.state.push_back(m_obstacles.at(i).o_x);
+		s.state.push_back(m_obstacles.at(i).o_y);
+		m_obstacles.back().UpdatePose(s);
+		m_fcl_immov->registerObject(m_obstacles.back().GetFCLObject());
 	};
 
 	void UpdateTraj(const int& priority, const Trajectory& traj);
