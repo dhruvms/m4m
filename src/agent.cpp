@@ -97,6 +97,7 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 			m_constraints.push_back(constraint);
 		}
 	}
+	m_cbs_solution = &(ct_node->m_solution);
 
 	std::vector<int> solution;
 	int solcost;
@@ -263,13 +264,25 @@ int Agent::generateSuccessor(
 		return -1;
 	}
 
+	UpdatePose(child);
 	for (const auto& constraint : m_constraints)
 	{
 		if (constraint->m_me == constraint->m_other)
 		{
+ 			if (m_cbs_solution->at(0).second->size() <= constraint->m_time)
+			{
+				// This should never happen - the constraint would only have existed
+				// if this object and the robot had a conflict at that time
+				SMPL_WARN("How did this robot-object conflict happen with a small robot traj?");
+				continue;
+			}
+
 			// successor is invalid if that (position, time) configuration
 			// is constrained
-			if (constraint->m_q == child) {
+			if (m_cc->RobotObjectCollision(
+						this, child,
+						m_cbs_solution->at(0).second->at(constraint->m_time), constraint->m_time))
+			{
 				return -1;
 			}
 		}
@@ -278,8 +291,7 @@ int Agent::generateSuccessor(
 			// CBS TODO: check FCL collision between constraint->m_me object
 			// at location child.coord and constraint->m_other object
 			// at location constraint->m_q at time constraint->m_time
-			UpdatePose(child);
-			if (m_cc->FCLCollision(this, constraint->m_other, constraint->m_q)) {
+			if (m_cc->ObjectObjectCollision(this, constraint->m_other, constraint->m_q)) {
 				return -1;
 			}
 		}
