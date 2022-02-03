@@ -12,6 +12,8 @@ double clutter::R_MASS;
 double clutter::R_SPEED;
 bool clutter::SAVE;
 double clutter::DF_RES;
+bool clutter::CC_2D;
+bool clutter::CC_3D;
 
 const std::vector<int> clutter::YCB_OBJECTS = {2,3,4,5,6,8,9,10,19,21,25,36}; // 7,11,24,35
 const std::map<int, std::string> clutter::YCB_OBJECT_NAMES = {
