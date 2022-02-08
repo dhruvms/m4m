@@ -379,7 +379,10 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 				recalc_makespan = true;
 			}
 
-			if (!m_objs[i]->SatisfyPath(child, &m_paths[i+1])) {
+			m_objs[i]->Init();
+			if (!m_objs[i]->SatisfyPath(child, &m_paths[i+1]))
+			{
+				// SMPL_ERROR("Object %d (ID %d) failed to SatisfyPath.", i, m_objs[i]->GetID());
 				return false;
 			}
 			// update solution in CT node
