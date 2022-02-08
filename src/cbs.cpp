@@ -178,7 +178,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
 			conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, r_traj->at(t), a_traj->at(t), true);
-			curr.m_conflicts.push_front(conflict);
+			curr.m_conflicts.push_back(conflict);
 		}
 	}
 
@@ -207,7 +207,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
 					conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, shorter->back(), longer->at(t), true);
-					curr.m_conflicts.push_front(conflict);
+					curr.m_conflicts.push_back(conflict);
 				}
 			}
 			else
@@ -217,7 +217,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
 					conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, longer->at(t), shorter->back(), true);
-					curr.m_conflicts.push_front(conflict);
+					curr.m_conflicts.push_back(conflict);
 				}
 			}
 		}
