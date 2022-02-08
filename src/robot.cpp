@@ -230,18 +230,18 @@ bool Robot::SavePushData(int scene_id)
 
 bool Robot::CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t)
 {
-	if (t > m_grasp_at + 1) {
-		attachObject(m_ooi);
-	}
+	// if (t > m_grasp_at + 1) {
+	// 	attachObject(m_ooi);
+	// }
 	std::vector<Object> o;
 	o.push_back(a->GetObject()->back());
 	ProcessObstacles(o);
 
 	bool collision = !m_cc_i->isStateValid(robot.state);
 
-	if (t > m_grasp_at + 1) {
-		detachObject();
-	}
+	// if (t > m_grasp_at + 1) {
+	// 	detachObject();
+	// }
 	ProcessObstacles(o, true);
 
 	return collision;
@@ -249,9 +249,9 @@ bool Robot::CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t)
 
 bool Robot::CheckCollision(const LatticeState& robot, int t)
 {
-	if (t > m_grasp_at + 1) {
-		attachObject(m_ooi);
-	}
+	// if (t > m_grasp_at + 1) {
+	// 	attachObject(m_ooi);
+	// }
 
 	bool collision = !m_cc_i->isStateValid(robot.state);
 	// if (collision) {
@@ -264,9 +264,9 @@ bool Robot::CheckCollision(const LatticeState& robot, int t)
 	// 	SMPL_ERROR("Conflict at time %d", t);
 	// }
 
-	if (t > m_grasp_at + 1) {
-		detachObject();
-	}
+	// if (t > m_grasp_at + 1) {
+	// 	detachObject();
+	// }
 	return collision;
 }
 
@@ -462,7 +462,7 @@ bool Robot::detachObject()
 	const std::string attached_body_id = "att_obj";
 	if (!m_cc_i->detachObject(attached_body_id))
 	{
-		ROS_ERROR("Failed to detach body '%s'", attached_body_id.c_str());
+		// ROS_ERROR("Failed to detach body '%s'", attached_body_id.c_str());
 		return false;
 	}
 	return true;
@@ -587,31 +587,17 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	// are active
 
 	// Get relevant constraints - check logic per above
-	std::list<std::shared_ptr<Constraint> > approach_constraints, retract_constraints;
+	std::list<std::shared_ptr<Constraint> > approach_constraints;
 	for (auto& constraint : ct_node->m_constraints)
 	{
-		if (constraint->m_me == ct_node->m_replanned)
-		{
-			if (constraint->m_time <= m_grasp_at) {
-				approach_constraints.push_back(constraint);
-			}
-			else if (constraint->m_time >= m_grasp_at + 2)
-			{
-				std::shared_ptr<Constraint> new_constraint(new Constraint());
-				new_constraint->m_me = constraint->m_me;
-				new_constraint->m_other = constraint->m_other;
-				new_constraint->m_time = constraint->m_time - (m_grasp_at + 2);
-				new_constraint->m_q = constraint->m_q;
-				retract_constraints.push_back(new_constraint);
-			}
+		if (constraint->m_me == ct_node->m_replanned) {
+			approach_constraints.push_back(constraint);
 		}
 	}
 
-	std::vector<std::vector<double> > approach_cvecs, retract_cvecs;
+	std::vector<std::vector<double> > approach_cvecs;
 	VecConstraints(approach_constraints, approach_cvecs);
-	VecConstraints(retract_constraints, retract_cvecs);
 	approach_constraints.clear();
-	retract_constraints.clear();
 
 	///////////////////
 	// Plan approach //
@@ -640,22 +626,23 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	moveit_msgs::PlanningScene planning_scene;
 	planning_scene.robot_state = m_start_state;
 
-	SMPL_INFO("Planning to pregrasp state.");
+	// SMPL_INFO("Planning to pregrasp state.");
 	if (!m_planner->solve_with_constraints(planning_scene, req, res, m_movables, approach_cvecs))
 	{
 		ROS_ERROR("Failed to plan to pregrasp state.");
 		return false;
 	}
-	SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
+	// SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
 
 	auto planner_stats = m_planner->getPlannerStats();
 	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
+	m_traj = res.trajectory.joint_trajectory;
 
+/*
 	//////////////////
 	// Append grasp //
 	//////////////////
 
-	m_traj = res.trajectory.joint_trajectory;
 	m_grasp_at = m_traj.points.size();
 
 	double grasp_time = profileAction(m_pregrasp_state, m_grasp_state);
@@ -722,6 +709,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 		wp.time_from_start += extract_start_time;
 		m_traj.points.push_back(wp);
 	}
+*/
 
 	m_solve.clear();
 	int t = 0;
