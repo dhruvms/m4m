@@ -267,32 +267,36 @@ int Agent::generateSuccessor(
 	UpdatePose(child);
 	for (const auto& constraint : m_constraints)
 	{
-		if (constraint->m_me == constraint->m_other)
+		if (child.t == constraint->m_time)
 		{
- 			if (m_cbs_solution->at(0).second.size() <= constraint->m_time)
+			// Conflict type 1: robot-object conflict
+			if (constraint->m_me == constraint->m_other)
 			{
-				// This should never happen - the constraint would only have existed
-				// if this object and the robot had a conflict at that time
-				SMPL_WARN("How did this robot-object conflict happen with a small robot traj?");
-				continue;
-			}
+	 			if (m_cbs_solution->at(0).second.size() <= constraint->m_time)
+				{
+					// This should never happen - the constraint would only have existed
+					// if this object and the robot had a conflict at that time
+					SMPL_WARN("How did this robot-object conflict happen with a small robot traj?");
+					continue;
+				}
 
-			// successor is invalid if that (position, time) configuration
-			// is constrained
-			if (m_cc->RobotObjectCollision(
-						this, child,
-						m_cbs_solution->at(0).second.at(constraint->m_time), constraint->m_time))
-			{
-				return -1;
+				// successor is invalid if I collide in state 'child'
+				// with the robot configuration at the same time
+				if (m_cc->RobotObjectCollision(
+							this, child,
+							m_cbs_solution->at(0).second.at(constraint->m_time), constraint->m_time))
+				{
+					return -1;
+				}
 			}
-		}
-		else if (child.t == constraint->m_time)
-		{
-			// CBS TODO: check FCL collision between constraint->m_me object
-			// at location child.coord and constraint->m_other object
-			// at location constraint->m_q at time constraint->m_time
-			if (m_cc->ObjectObjectCollision(this, constraint->m_other, constraint->m_q)) {
-				return -1;
+			// Conflict type 2: object-object conflict
+			else
+			{
+				// successor is invalid if I collide in state 'child'
+				// with the constraint->m_other object in state constraint->m_q
+				if (m_cc->ObjectObjectCollision(this, constraint->m_other, constraint->m_q)) {
+					return -1;
+				}
 			}
 		}
 	}
