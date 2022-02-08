@@ -129,6 +129,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		SMPL_ERROR("Robot failed to compute grasp states!");
 		return false;
 	}
+	m_robot->ProcessObstacles({ m_ooi->GetObject()->back() });
 
 	m_simulate = m_nh.advertiseService("run_sim", &Planner::runSim, this);
 	m_animate = m_nh.advertiseService("anim_soln", &Planner::animateSolution, this);
