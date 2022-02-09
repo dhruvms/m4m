@@ -22,6 +22,7 @@ extern bool SAVE;
 extern double DF_RES;
 extern bool CC_2D;
 extern bool CC_3D;
+extern int ECBS_MULT;
 
 extern const std::vector<int> YCB_OBJECTS;
 extern const std::map<int, std::string> YCB_OBJECT_NAMES;

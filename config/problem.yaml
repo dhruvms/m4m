@@ -22,7 +22,7 @@ goal:
   total_budget: 300.0
   save: true
   cc_2d: true
-  cc_3d: false
+  cc_3d: true
 
 robot:
   x: 0.0
@@ -48,6 +48,7 @@ whca:
   res: 0.01
   grid: 4
   cost_mult: 1000
+  ecbs_mult: 1000
   planning_time: 300.0
 
 objects:
