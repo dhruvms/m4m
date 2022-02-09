@@ -56,6 +56,9 @@ private:
 	Object m_orig_o;
 	std::list<std::shared_ptr<Constraint> > m_constraints;
 	std::vector<std::pair<int, Trajectory> >* m_cbs_solution; // all agent trajectories
+	int m_cbs_id, m_max_time;
+
+	bool knownConflict(const LatticeState& state);
 
 	int generateSuccessor(
 		const LatticeState* parent,
@@ -64,7 +67,8 @@ private:
 		std::vector<unsigned int>* costs);
 	unsigned int cost(
 		const LatticeState* s1,
-		const LatticeState* s2) override;
+		const LatticeState* s2,
+		bool movable=false) override;
 	bool convertPath(
 		const std::vector<int>& idpath) override;
 };

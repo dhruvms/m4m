@@ -98,6 +98,8 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 		}
 	}
 	m_cbs_solution = &(ct_node->m_solution);
+	m_cbs_id = ct_node->m_replanned;
+	m_max_time = ct_node->m_makespan;
 
 	std::vector<int> solution;
 	int solcost;
@@ -134,7 +136,11 @@ bool Agent::IsGoal(int state_id)
 		}
 	}
 
-	return !constrained;
+	LatticeState dummy = *s;
+	dummy.t = std::max(m_max_time, s->t);
+	bool conflict = knownConflict(dummy);
+
+	return !constrained && !conflict;
 }
 
 void Agent::GetSuccs(
@@ -304,19 +310,58 @@ int Agent::generateSuccessor(
 	int succ_state_id = getOrCreateState(child);
 	LatticeState* successor = getHashEntry(succ_state_id);
 
+	// For ECBS (the state of the object is collision checked with the state of all agents
+	// and the resulting number of collisions is used as part of the cost function
+	// therefore not a hard constraint (like constraints).)
+
 	succs->push_back(succ_state_id);
-	costs->push_back(cost(parent, successor));
+	costs->push_back(cost(parent, successor, knownConflict(child)));
 
 	return succ_state_id;
 }
 
+bool Agent::knownConflict(const LatticeState& state)
+{
+	std::vector<LatticeState> other_poses;
+	std::vector<int> other_ids;
+
+	for(const auto& agent_traj: *m_cbs_solution)
+	{
+		if(agent_traj.first == m_cbs_id || agent_traj.first == 0) {
+			continue;
+		}
+
+		other_ids.push_back(agent_traj.first);
+		if(agent_traj.second.size() <= state.t) {
+			other_poses.push_back(agent_traj.second.back());
+		}
+		else {
+			other_poses.push_back(agent_traj.second.at(state.t));
+		}
+	}
+	UpdatePose(state);
+	bool conflict = m_cc->ObjectObjectsCollision(this, other_ids, other_poses);
+
+	if (m_cbs_solution->at(0).second.size() <= state.t) {
+		conflict = conflict ||
+			m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t);
+	}
+	else {
+		conflict = conflict ||
+			m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.at(state.t), state.t);
+	}
+
+	return conflict;
+}
+
 unsigned int Agent::cost(
 	const LatticeState* s1,
-	const LatticeState* s2)
+	const LatticeState* s2,
+	bool movable)
 {
 	double dist = EuclideanDist(s1->coord, s2->coord);
 	dist = dist == 0.0 ? 1.0 : dist;
-	return (dist * COST_MULT);
+	return (dist * COST_MULT)  + (movable * ECBS_MULT);;
 }
 
 bool Agent::convertPath(

@@ -64,7 +64,8 @@ protected:
 
 	virtual unsigned int cost(
 		const LatticeState* s1,
-		const LatticeState* s2) = 0;
+		const LatticeState* s2,
+		bool movable=false) = 0;
 	virtual bool convertPath(
 		const std::vector<int>& idpath) = 0;
 
