@@ -75,6 +75,10 @@ public:
 	bool ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o);
 	bool ObjectObjectCollision(Agent* a1, Agent* a2);
 	bool ObjectObjectCollision(Agent* a1, const int& a2_id, const LatticeState& a2_q);
+	bool ObjectObjectsCollision(
+			Agent* a1,
+			const std::vector<int>& other_ids,
+			const std::vector<LatticeState>& other_poses);
 	bool RobotObjectCollision(
 		Agent* a1, const LatticeState& a1_state,
 		const LatticeState& robot_state,
@@ -104,6 +108,9 @@ private:
 	std::uniform_real_distribution<double> m_distD;
 
 	fcl::BroadPhaseCollisionManager* m_fcl_immov = nullptr;
+	fcl::BroadPhaseCollisionManager* m_fcl_mov = nullptr;
+
+	void initMovableCollisionChecker();
 
 	void cleanupChildren(std::vector<int>& check);
 

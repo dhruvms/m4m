@@ -32,6 +32,18 @@ m_rng(m_dev())
 	}
 
 	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
+
+	initMovableCollisionChecker();
+}
+
+void CollisionChecker::initMovableCollisionChecker()
+{
+	m_fcl_mov = new fcl::DynamicAABBTreeCollisionManager();
+	auto movables = m_planner->GetAllAgents();
+
+	for(int i = 0; i < movables.size(); i++) {
+		m_fcl_mov->registerObject(movables[i]->GetFCLObject());
+	}
 }
 
 void CollisionChecker::UpdateTraj(const int& priority, const Trajectory& traj)
@@ -102,6 +114,30 @@ bool CollisionChecker::ObjectObjectCollision(Agent* a1, const int& a2_id, const 
 	fcl::CollisionResult result;
 	fcl::collide(a1->GetFCLObject(), a2->GetFCLObject(), request, result);
 	return result.isCollision();
+}
+
+bool CollisionChecker::ObjectObjectsCollision(
+	Agent* a1,
+	const std::vector<int>& other_ids,
+	const std::vector<LatticeState>& other_poses)
+{
+	m_fcl_mov->unregisterObject(a1->GetFCLObject());
+
+	for(int i = 0; i < other_ids.size(); i++)
+	{
+		Agent* agent = m_planner->GetAgent(other_ids[i]);
+		agent->UpdatePose(other_poses[i]);
+		m_fcl_mov->update(agent->GetFCLObject());
+	}
+
+	m_fcl_mov->setup();
+	fcl::DefaultCollisionData collision_data;
+	m_fcl_mov->collide(a1->GetFCLObject(), &collision_data, fcl::DefaultCollisionFunction);
+
+	m_fcl_mov->registerObject(a1->GetFCLObject());
+
+	return collision_data.result.isCollision();
+
 }
 
 bool CollisionChecker::RobotObjectCollision(

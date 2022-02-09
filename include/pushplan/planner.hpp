@@ -56,6 +56,15 @@ public:
 		return m_robot->CheckCollisionWithObject(robot_state, a, t);
 	}
 
+	std::vector<Agent*> GetAllAgents()
+	{
+		std::vector<Agent*> all_agents;
+		for(int i = 0; i < m_agents.size(); i++) {
+			all_agents.push_back(m_agents[i].get());
+		}
+		return all_agents;
+	}
+
 private:
 	std::string m_scene_file;
 	std::shared_ptr<CollisionChecker> m_cc;
