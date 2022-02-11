@@ -8,12 +8,12 @@ planning:
     r_wrist_flex_joint      0.017453292519943295
     r_wrist_roll_joint      0.017453292519943295
   use_xyz_snap_mprim: false
-  use_rpy_snap_mprim: true
-  use_xyzrpy_snap_mprim: false
+  use_rpy_snap_mprim: false
+  use_xyzrpy_snap_mprim: true
   use_short_dist_mprims: true
-  xyz_snap_dist_thresh: 0.00001
-  rpy_snap_dist_thresh: 0.00001
-  xyzrpy_snap_dist_thresh: 0.00001
+  xyz_snap_dist_thresh: 0.01
+  rpy_snap_dist_thresh: 0.01
+  xyzrpy_snap_dist_thresh: 0.01
   short_dist_mprims_thresh: 0.1
 
 occupancy_grid:
@@ -24,4 +24,4 @@ occupancy_grid:
   origin_x: -1.0
   origin_y: -1.5
   origin_z: 0.25
-  max_dist: 1.5
+  max_dist: 0.5
