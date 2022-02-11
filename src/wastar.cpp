@@ -23,7 +23,7 @@ m_start_id(-1),
 m_goal_id(-1)
 {
 	// Set default max planing time
-	m_time_limit = 60.0; // seconds
+	m_time_limit = 2.0; // seconds
 
 	m_open = new OPEN[1];
 	m_expands = new int[1];

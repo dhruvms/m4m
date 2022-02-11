@@ -133,7 +133,7 @@ int main(int argc, char** argv)
 					// ROS_WARN("Try planning with all objects as obstacles! Are we done?");
 					if (p.Alive())
 					{
-						ROS_WARN("YAYAYAY! We did it!");
+						// ROS_WARN("YAYAYAY! We did it!");
 						break;
 					}
 				}

@@ -607,6 +607,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	UpdateKDLRobot(0);
 	// setGripper(false); // closed
 	InitArmPlanner(false);
+	bool goal_collides = !m_cc_i->isStateValid(m_pregrasp_state);
 
 	moveit_msgs::MotionPlanRequest req;
 	moveit_msgs::MotionPlanResponse res;
@@ -617,7 +618,12 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	req.max_velocity_scaling_factor = 1.0;
 	req.num_planning_attempts = 1;
 	// req.path_constraints;
-	req.planner_id = "arastar.joint_distance.manip_cbs";
+	if (goal_collides) {
+		req.planner_id = "arastar.manip_cbs.joint_distance";
+	}
+	else {
+		req.planner_id = "mhastar.manip_cbs.bfs.joint_distance";
+	}
 	req.start_state = m_start_state;
 	// req.trajectory_constraints;
 	// req.workspace_parameters;
@@ -627,9 +633,16 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	planning_scene.robot_state = m_start_state;
 
 	// SMPL_INFO("Planning to pregrasp state.");
-	if (!m_planner->solve_with_constraints(planning_scene, req, res, m_movables, approach_cvecs))
+	if (!m_planner->init_planner(planning_scene, req, res))
+	{
+		ROS_ERROR("Failed to init planner!");
+		return false;
+	}
+	if (!m_planner->solve_with_constraints(req, res, m_movables, approach_cvecs))
 	{
 		ROS_ERROR("Failed to plan to pregrasp state.");
+		auto planner_stats = m_planner->getPlannerStats();
+		SMPL_INFO("Constraints = %d, Expansions = %f, Time = %f", approach_cvecs.size(), planner_stats["expansions"], planner_stats["initial solution planning time"]);
 		return false;
 	}
 	// SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
@@ -637,6 +650,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	auto planner_stats = m_planner->getPlannerStats();
 	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
 	m_traj = res.trajectory.joint_trajectory;
+	SMPL_INFO("Constraints = %d, Expansions = %f, Time = %f", approach_cvecs.size(), planner_stats["expansions"], planner_stats["initial solution planning time"]);
 
 /*
 	//////////////////
@@ -727,7 +741,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	}
 	*sol_path = &(this->m_solve);
 
-	SMPL_INFO("Robot has complete plan! m_solve.size() = %d", m_solve.size());
+	// SMPL_INFO("Robot has complete plan! m_solve.size() = %d", m_solve.size());
 	// SV_SHOW_INFO_NAMED("trajectory", makePathVisualization());
 	return true;
 }
@@ -915,7 +929,7 @@ bool Robot::PlanPush(
 			req.max_velocity_scaling_factor = 1.0;
 			req.num_planning_attempts = 1;
 			// req.path_constraints;
-			req.planner_id = "arastar.joint_distance.manip";
+			req.planner_id = "arastar.manip.joint_distance";
 			req.start_state = m_start_state;
 			// req.trajectory_constraints;
 			// req.workspace_parameters;
@@ -925,7 +939,13 @@ bool Robot::PlanPush(
 			planning_scene.robot_state = m_start_state;
 
 			SMPL_INFO("Found push! Plan to push start!");
-			if (!m_planner->solve(planning_scene, req, res))
+
+			if (!m_planner->init_planner(planning_scene, req, res))
+			{
+				ROS_ERROR("Failed to init planner!");
+				return false;
+			}
+			if (!m_planner->solve(req, res))
 			{
 				ROS_ERROR("Failed to plan.");
 				ProcessObstacles(obs, true);
