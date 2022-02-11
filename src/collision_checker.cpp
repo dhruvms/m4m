@@ -69,21 +69,22 @@ bool CollisionChecker::ImmovableCollision(const State& s, fcl::CollisionObject* 
 {
 	LatticeState ls;
 	ls.state = s;
-	return this->ImmovableCollision(ls, o);
-}
-
-bool CollisionChecker::ImmovableCollision(const LatticeState& s, fcl::CollisionObject* o)
-{
-	// double start_time = GetTime(), time_taken;
 
 	fcl::Transform3f pose;
 	pose.setIdentity();
 	fcl::Vec3f T(o->getTranslation());
-	T.setValue(s.state.at(0), s.state.at(1), T[2]);
+	T.setValue(ls.state.at(0), ls.state.at(1), T[2]);
 	pose.setTranslation(T);
 
 	o->setTransform(pose);
 	o->computeAABB();
+
+	return this->ImmovableCollision(o);
+}
+
+bool CollisionChecker::ImmovableCollision(fcl::CollisionObject* o)
+{
+	// double start_time = GetTime(), time_taken;
 
 	m_fcl_immov->setup();
 	fcl::DefaultCollisionData collision_data;
