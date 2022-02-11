@@ -266,11 +266,11 @@ int Agent::generateSuccessor(
 	DiscToCont(child.coord, child.state);
 	child.state.insert(child.state.end(), parent->state.begin() + 2, parent->state.end());
 
-	if (m_cc->OutOfBounds(child) || m_cc->ImmovableCollision(child, this->GetFCLObject())) {
+	UpdatePose(child);
+	if (m_cc->OutOfBounds(child) || m_cc->ImmovableCollision(this->GetFCLObject())) {
 		return -1;
 	}
 
-	UpdatePose(child);
 	for (const auto& constraint : m_constraints)
 	{
 		if (child.t == constraint->m_time)
