@@ -113,10 +113,9 @@ struct Object
 		}
 
 		// Update FCL pose
-		fcl::Transform3f fcl_pose;
-		fcl_pose.setIdentity();
-		fcl::Vec3f T(s.state.at(0), s.state.at(1), o_z);
-		fcl_pose.setTranslation(T);
+		fcl::Quaternion3f fcl_q(q.w(), q.x(), q.y(), q.z());
+		fcl::Vec3f fcl_T(s.state.at(0), s.state.at(1), o_z);
+		fcl::Transform3f fcl_pose(fcl_q, fcl_T);
 
 		fcl_obj->setTransform(fcl_pose);
 		fcl_obj->computeAABB();
@@ -198,9 +197,9 @@ bool Object::CreateCollisionObjects()
 			prim.dimensions[2] = z_size * 2;
 
 			// Create FCL collision object
-			std::shared_ptr<fcl::Box> shape =
+			std::shared_ptr<fcl::Box> fcl_shape =
 				std::make_shared<fcl::Box>(x_size * 2, y_size * 2, z_size * 2);
-			fcl_obj = new fcl::CollisionObject(shape);
+			fcl_obj = new fcl::CollisionObject(fcl_shape);
 		}
 		else if (shape == 2)
 		{
@@ -211,9 +210,9 @@ bool Object::CreateCollisionObjects()
 			prim.dimensions[1] = x_size;
 
 			// Create FCL collision object
-			std::shared_ptr<fcl::Cylinder> shape =
+			std::shared_ptr<fcl::Cylinder> fcl_shape =
 				std::make_shared<fcl::Cylinder>(x_size, z_size);
-			fcl_obj = new fcl::CollisionObject(shape);
+			fcl_obj = new fcl::CollisionObject(fcl_shape);
 		}
 
 		int table_ids = FRIDGE ? 5 : 1;
