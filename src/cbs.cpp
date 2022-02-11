@@ -31,6 +31,7 @@ m_ct_generated(0), m_ct_expanded(0), m_time_limit(3600.0)
 bool CBS::Solve()
 {
 	if (!initialiseRoot()) {
+		SMPL_ERROR("Failed to initialiseRoot");
 		return false;
 	}
 
@@ -42,6 +43,7 @@ bool CBS::Solve()
 
 		selectConflict(next);
 		if (done(next)) {
+			SMPL_WARN("YAYAYAY! We did it!");
 			writeSolution(next);
 			return m_solved;
 		}
@@ -50,7 +52,7 @@ bool CBS::Solve()
 		++m_ct_expanded;
 		next->m_expand = m_ct_expanded;
 		// SMPL_ERROR("Expaning (depth, generate, expand) = (%d, %d, %d)! m_replanned = %d", next->m_depth, next->m_generate, next->m_expand, next->m_replanned);
-		writeSolution(next);
+		// writeSolution(next);
 
 		// expand CT node
 		HighLevelNode* child[2] = { new HighLevelNode() , new HighLevelNode() };
@@ -69,6 +71,9 @@ bool CBS::Solve()
 
 		m_search_time += GetTime() - expand_time;
 	}
+
+	SMPL_ERROR("CBS high-level OPEN is empty");
+	return false;
 }
 
 bool CBS::initialiseRoot()
@@ -263,6 +268,7 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 			std::shared_ptr<Conflict> conflict(new Conflict());
 			conflict->InitConflict(m_objs[o1]->GetID(), m_objs[o2]->GetID(), t, a1_traj->at(t), a2_traj->at(t), false);
 			curr.m_conflicts.push_back(conflict);
+			// SMPL_INFO("Conflict between objects %d (ID %d) and %d (ID %d)", o1, m_objs[o1]->GetID(), o2, m_objs[o2]->GetID());
 		}
 	}
 
@@ -284,6 +290,7 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 				std::shared_ptr<Conflict> conflict(new Conflict());
 				conflict->InitConflict(shorter->GetID(), longer->GetID(), t, shorter_traj->back(), longer_traj->at(t), false);
 				curr.m_conflicts.push_back(conflict);
+				// SMPL_INFO("Conflict between objects %d (ID %d) and %d (ID %d)", o1, m_objs[o1]->GetID(), o2, m_objs[o2]->GetID());
 			}
 		}
 	}
@@ -349,6 +356,8 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 		if (!m_robot->SatisfyPath(child, &m_paths[0])) {
 			return false;
 		}
+		// SMPL_INFO("Robot found plan!");
+
 		// update solution in CT node
 		for (auto& solution : child->m_solution)
 		{
@@ -385,6 +394,8 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 				// SMPL_ERROR("Object %d (ID %d) failed to SatisfyPath.", i, m_objs[i]->GetID());
 				return false;
 			}
+			// SMPL_INFO("Object %d (ID %d) found plan!", i, m_objs[i]->GetID());
+
 			// update solution in CT node
 			for (auto& solution : child->m_solution)
 			{
