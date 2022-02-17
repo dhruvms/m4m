@@ -139,7 +139,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	m_robot->SetSim(m_sim);
 
-	m_cbs = std::make_shared<CBS>(m_robot, m_agents);
+	m_cbs = std::make_shared<CBS>(m_robot, m_agents, m_scene_id);
 	m_cbs->SetCC(m_cc);
 
 	return true;
@@ -175,6 +175,7 @@ bool Planner::Plan()
 	}
 
 	m_cbs->Solve();
+	m_cbs->SaveStats();
 
 	return true;
 }

@@ -187,7 +187,7 @@ int WAStar::replan(
 		m_search_time += GetTime() - expand_time;
 	}
 
-	// SMPL_WARN("A* failed!");
+	// SMPL_WARN("A* failed! OPEN size = %d", m_open[0].size());
 	return 0;
 }
 
