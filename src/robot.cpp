@@ -302,7 +302,7 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 		}
 	}
 
-	SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	// SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
 	return true;
 }
 
@@ -548,8 +548,8 @@ bool Robot::attachObject(const Object& obj)
 		return false;
 	}
 
-	auto markers = m_cc_i->getCollisionRobotVisualization(m_postgrasp_state);
-	SV_SHOW_INFO(markers);
+	// auto markers = m_cc_i->getCollisionRobotVisualization(m_postgrasp_state);
+	// SV_SHOW_INFO(markers);
 
 	ProcessObstacles(obj_v, true);
 
@@ -1123,22 +1123,22 @@ bool Robot::samplePush(
 		}
 	}
 
-	if (success)
-	{
-		auto* vis_name = "push_start";
-		auto markers = m_cc_i->getCollisionModelVisualization(push_start);
-		for (auto& marker : markers) {
-			marker.ns = vis_name;
-		}
-		SV_SHOW_INFO_NAMED(vis_name, markers);
+	// if (success)
+	// {
+	// 	auto* vis_name = "push_start";
+	// 	auto markers = m_cc_i->getCollisionModelVisualization(push_start);
+	// 	for (auto& marker : markers) {
+	// 		marker.ns = vis_name;
+	// 	}
+	// 	SV_SHOW_INFO_NAMED(vis_name, markers);
 
-		vis_name = "push_end";
-		markers = m_cc_i->getCollisionModelVisualization(push_end);
-		for (auto& marker : markers) {
-			marker.ns = vis_name;
-		}
-		SV_SHOW_INFO_NAMED(vis_name, markers);
-	}
+	// 	vis_name = "push_end";
+	// 	markers = m_cc_i->getCollisionModelVisualization(push_end);
+	// 	for (auto& marker : markers) {
+	// 		marker.ns = vis_name;
+	// 	}
+	// 	SV_SHOW_INFO_NAMED(vis_name, markers);
+	// }
 
 	return success;
 }
