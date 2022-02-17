@@ -578,8 +578,9 @@ bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& s
 	return true;
 }
 
-bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
+bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands)
 {
+	expands = 0;
 	// CBS TODO: must pick out constraints wrt planning phase:
 	// (i) for planning to pregrasp, all constraints with time <= m_grasp_at
 	// are active
@@ -640,9 +641,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	}
 	if (!m_planner->solve_with_constraints(req, res, m_movables, approach_cvecs))
 	{
-		ROS_ERROR("Failed to plan to pregrasp state.");
-		auto planner_stats = m_planner->getPlannerStats();
-		SMPL_INFO("Constraints = %d, Expansions = %f, Time = %f", approach_cvecs.size(), planner_stats["expansions"], planner_stats["initial solution planning time"]);
+		// ROS_ERROR("Failed to plan to pregrasp state.");
 		return false;
 	}
 	// SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
@@ -650,7 +649,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	auto planner_stats = m_planner->getPlannerStats();
 	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
 	m_traj = res.trajectory.joint_trajectory;
-	SMPL_INFO("Constraints = %d, Expansions = %f, Time = %f", approach_cvecs.size(), planner_stats["expansions"], planner_stats["initial solution planning time"]);
+	expands = planner_stats["expansions"];
 
 /*
 	//////////////////

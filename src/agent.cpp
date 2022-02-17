@@ -86,9 +86,10 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Robot* robot, Trajectory** sol_p
 	return true;
 }
 
-bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
+bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands)
 {
 	m_solve.clear();
+	expands = 0;
 	// collect agent constraints
 	m_constraints.clear();
 	for (auto& constraint : ct_node->m_constraints)
@@ -109,6 +110,7 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path)
 	{
 		convertPath(solution);
 		*sol_path = &(this->m_solve);
+		expands = m_wastar->get_n_expands();
 	}
 
 	return result;

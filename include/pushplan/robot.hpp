@@ -47,7 +47,7 @@ public:
 	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
 	bool Init();
 	bool RandomiseStart();
-	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path);
+	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands);
 
 	void ProfileTraj(Trajectory& traj);
 	bool ComputeGrasps(
