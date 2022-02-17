@@ -18,7 +18,7 @@ class CBS
 {
 public:
 	CBS();
-	CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs);
+	CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs, int scene_id=-1);
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
 	}
@@ -30,6 +30,7 @@ public:
 	};
 
 	bool Solve();
+	void SaveStats();
 
 private:
 	std::shared_ptr<CollisionChecker> m_cc;
@@ -38,8 +39,8 @@ private:
 	int m_num_agents;
 	std::vector<Trajectory*> m_paths;
 
-	int m_ct_generated, m_ct_expanded, m_soln_cost;
-	double m_search_time, m_time_limit;
+	int m_ct_generated, m_ct_deadends, m_ct_expanded, m_ll_expanded, m_soln_cost, m_scene_id;
+	double m_search_time, m_time_limit, m_ll_time, m_conflict_time;
 	bool m_solved;
 	HighLevelNode* m_goal;
 

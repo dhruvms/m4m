@@ -11,7 +11,7 @@ namespace clutter
 {
 
 CBS::CBS() :
-m_ct_generated(0), m_ct_expanded(0), m_time_limit(3600.0)
+m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(180.0)
 {
 	m_robot = nullptr;
 	m_objs.clear();
@@ -19,8 +19,9 @@ m_ct_generated(0), m_ct_expanded(0), m_time_limit(3600.0)
 	m_paths.clear();
 }
 
-CBS::CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs) :
-m_ct_generated(0), m_ct_expanded(0), m_time_limit(3600.0)
+CBS::CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs,
+	int scene_id) :
+m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(180.0), m_scene_id(scene_id)
 {
 	m_robot = r;
 	m_objs = objs;
@@ -30,25 +31,31 @@ m_ct_generated(0), m_ct_expanded(0), m_time_limit(3600.0)
 
 bool CBS::Solve()
 {
+	m_search_time = 0.0;
+	m_conflict_time = 0.0;
+	m_ll_time = 0.0;
+	double start_time = GetTime();
 	if (!initialiseRoot()) {
 		SMPL_ERROR("Failed to initialiseRoot");
 		return false;
 	}
+	m_search_time += GetTime() - start_time; // add initialiseRoot time
 
-	m_search_time = 0.0;
 	while (!m_OPEN.empty())
 	{
+		start_time = GetTime(); // reset clock with every loop iteration
+
 		auto next = m_OPEN.top();
 		m_OPEN.pop();
 
 		selectConflict(next);
 		if (done(next)) {
+			m_search_time += GetTime() - start_time;
 			SMPL_WARN("YAYAYAY! We did it!");
 			writeSolution(next);
 			return m_solved;
 		}
 
-		double expand_time = GetTime();
 		++m_ct_expanded;
 		next->m_expand = m_ct_expanded;
 		// SMPL_ERROR("Expaning (depth, generate, expand) = (%d, %d, %d)! m_replanned = %d", next->m_depth, next->m_generate, next->m_expand, next->m_replanned);
@@ -69,7 +76,7 @@ bool CBS::Solve()
 		}
 		next->clear();
 
-		m_search_time += GetTime() - expand_time;
+		m_search_time += GetTime() - start_time;
 	}
 
 	SMPL_ERROR("CBS high-level OPEN is empty");
@@ -86,9 +93,14 @@ bool CBS::initialiseRoot()
 	root->m_children.clear();
 
 	// Plan for robot
-	if (!m_robot->SatisfyPath(root, &m_paths[0])) { // (CT node, path location)
+	int expands;
+	double start_time = GetTime();
+	if (!m_robot->SatisfyPath(root, &m_paths[0], expands)) { // (CT node, path location)
+		++m_ct_deadends;
 		return false;
 	}
+	m_ll_time += GetTime() - start_time;
+	m_ll_expanded += expands;
 	root->m_solution.emplace_back(m_robot->GetID(), *(m_paths[0]));
 	root->m_g += m_paths[0]->size();
 	root->m_makespan = std::max(root->m_makespan, (int)m_paths[0]->size());
@@ -96,9 +108,13 @@ bool CBS::initialiseRoot()
 	// Plan for objects
 	for (size_t i = 0; i < m_objs.size(); ++i)
 	{
-		if (!m_objs[i]->SatisfyPath(root, &m_paths[i+1])) {
+		start_time = GetTime();
+		if (!m_objs[i]->SatisfyPath(root, &m_paths[i+1], expands)) {
+			++m_ct_deadends;
 			return false;
 		}
+		m_ll_time += GetTime() - start_time;
+		m_ll_expanded += expands;
 		root->m_solution.emplace_back(m_objs[i]->GetID(), *(m_paths[i+1]));
 		root->m_g += m_paths[i+1]->size();
 		root->m_makespan = std::max(root->m_makespan, (int)m_paths[i+1]->size());
@@ -115,6 +131,7 @@ bool CBS::initialiseRoot()
 
 void CBS::findConflicts(HighLevelNode& node)
 {
+	double start_time = GetTime();
 	if (node.m_parent == nullptr) // root node
 	{
 		// robot-object conflicts
@@ -159,6 +176,7 @@ void CBS::findConflicts(HighLevelNode& node)
 			}
 		}
 	}
+	m_conflict_time += GetTime() - start_time;
 }
 
 void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
@@ -343,9 +361,11 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 
 	// agent to be replanned for
 	child->m_replanned = child->m_constraints.back()->m_me;
+	int expands;
 
 	// replan for agent
 	bool recalc_makespan = false;
+	double start_time;
 	if (child->m_replanned == 0)
 	{
 		child->m_g -= m_paths[0]->size();
@@ -353,10 +373,13 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 			recalc_makespan = true;
 		}
 
-		if (!m_robot->SatisfyPath(child, &m_paths[0])) {
+		start_time = GetTime();
+		if (!m_robot->SatisfyPath(child, &m_paths[0], expands)) {
+			++m_ct_deadends;
 			return false;
 		}
-		// SMPL_INFO("Robot found plan!");
+		m_ll_time += GetTime() - start_time;
+		m_ll_expanded += expands;
 
 		// update solution in CT node
 		for (auto& solution : child->m_solution)
@@ -389,12 +412,14 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 			}
 
 			m_objs[i]->Init();
-			if (!m_objs[i]->SatisfyPath(child, &m_paths[i+1]))
+			start_time = GetTime();
+			if (!m_objs[i]->SatisfyPath(child, &m_paths[i+1], expands))
 			{
-				// SMPL_ERROR("Object %d (ID %d) failed to SatisfyPath.", i, m_objs[i]->GetID());
+				++m_ct_deadends;
 				return false;
 			}
-			// SMPL_INFO("Object %d (ID %d) found plan!", i, m_objs[i]->GetID());
+			m_ll_time += GetTime() - start_time;
+			m_ll_expanded += expands;
 
 			// update solution in CT node
 			for (auto& solution : child->m_solution)
@@ -457,11 +482,13 @@ void CBS::writeSolution(HighLevelNode* node)
 		filename = filename.substr(0, found + 1) + "../dat/txt/";
 
 		std::stringstream ss;
-		ss << std::setw(4) << std::setfill('0') << node->m_expand;
-		ss << "_";
-		ss << std::setw(4) << std::setfill('0') << node->m_depth;
-		ss << "_";
-		ss << std::setw(4) << std::setfill('0') << node->m_replanned;
+		// ss << std::setw(4) << std::setfill('0') << node->m_expand;
+		// ss << "_";
+		// ss << std::setw(4) << std::setfill('0') << node->m_depth;
+		// ss << "_";
+		// ss << std::setw(4) << std::setfill('0') << node->m_replanned;
+		// ss << "_";
+		ss << std::setw(6) << std::setfill('0') << m_scene_id;
 		ss << "_";
 		ss << std::setw(4) << std::setfill('0') << tidx;
 		// ss << std::setw(4) << std::setfill('0') << node->m_depth;
@@ -637,6 +664,30 @@ void CBS::writeSolution(HighLevelNode* node)
 
 		DATA.close();
 	}
+}
+
+void CBS::SaveStats()
+{
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../dat/CBS.csv";
+
+	bool exists = FileExists(filename);
+	std::ofstream STATS;
+	STATS.open(filename, std::ofstream::out | std::ofstream::app);
+	if (!exists)
+	{
+		STATS << "UID,"
+				<< "Solved?,SolveTime,SolutionCost,"
+				<< "HLGenerated,HLDeadends,HLExpanded,"
+				<< "LLExpanded,LLTime,ConflictsTime\n";
+	}
+
+	STATS << m_scene_id << ','
+			<< (int)m_solved << ',' << m_search_time << ',' << m_soln_cost << ','
+			<< m_ct_generated << ',' << m_ct_deadends << ',' << m_ct_expanded << ','
+			<< m_ll_expanded << ',' << m_ll_time << ',' << m_conflict_time << '\n';
+	STATS.close();
 }
 
 } // namespace clutter
