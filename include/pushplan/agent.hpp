@@ -59,6 +59,7 @@ private:
 	int m_cbs_id, m_max_time;
 
 	bool knownConflict(const LatticeState& state);
+	bool goalConflict(const LatticeState& state);
 
 	int generateSuccessor(
 		const LatticeState* parent,

@@ -136,11 +136,16 @@ bool Agent::IsGoal(int state_id)
 		}
 	}
 
-	LatticeState dummy = *s;
-	dummy.t = std::max(m_max_time, s->t);
-	bool conflict = knownConflict(dummy);
+	// LatticeState dummy = *s;
+	// dummy.t = std::max(m_max_time, s->t);
+	bool conflict = goalConflict(*s);
+
+	// if (!constrained && !conflict) {
+	// 	SMPL_INFO("Agent %d goal->t = %d", GetID(), s->t);
+	// }
 
 	return !constrained && !conflict;
+	// return !constrained;
 }
 
 void Agent::GetSuccs(
@@ -315,6 +320,7 @@ int Agent::generateSuccessor(
 	// therefore not a hard constraint (like constraints).)
 
 	succs->push_back(succ_state_id);
+	// costs->push_back(cost(parent, successor, false));
 	costs->push_back(cost(parent, successor, knownConflict(child)));
 
 	return succ_state_id;
@@ -325,14 +331,14 @@ bool Agent::knownConflict(const LatticeState& state)
 	std::vector<LatticeState> other_poses;
 	std::vector<int> other_ids;
 
-	for(const auto& agent_traj: *m_cbs_solution)
+	for (const auto& agent_traj: *m_cbs_solution)
 	{
-		if(agent_traj.first == m_cbs_id || agent_traj.first == 0) {
+		if (agent_traj.first == m_cbs_id || agent_traj.first == 0) {
 			continue;
 		}
 
 		other_ids.push_back(agent_traj.first);
-		if(agent_traj.second.size() <= state.t) {
+		if (agent_traj.second.size() <= state.t) {
 			other_poses.push_back(agent_traj.second.back());
 		}
 		else {
@@ -342,16 +348,76 @@ bool Agent::knownConflict(const LatticeState& state)
 	UpdatePose(state);
 	bool conflict = m_cc->ObjectObjectsCollision(this, other_ids, other_poses);
 
-	if (m_cbs_solution->at(0).second.size() <= state.t) {
-		conflict = conflict ||
-			m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t);
-	}
-	else {
-		conflict = conflict ||
-			m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.at(state.t), state.t);
+	if (!conflict)
+	{
+		if (m_cbs_solution->at(0).second.size() <= state.t) {
+			conflict = conflict ||
+				m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t);
+		}
+		else {
+			conflict = conflict ||
+				m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.at(state.t), state.t);
+		}
 	}
 
 	return conflict;
+}
+
+bool Agent::goalConflict(const LatticeState& state)
+{
+	UpdatePose(state);
+
+	LatticeState other_pose;
+	for (const auto& other_agent: *m_cbs_solution)
+	{
+		if (other_agent.first == m_cbs_id || other_agent.first == 0) {
+			continue;
+		}
+
+		// other agent trajectory is shorter than current state's time
+		// so we only collision check against the last state along the
+		// other agent trajectory
+		if (other_agent.second.size() <= state.t)
+		{
+			other_pose = other_agent.second.back();
+			if (m_cc->ObjectObjectCollision(this, other_agent.first, other_pose)) {
+				return true;
+			}
+		}
+		else
+		{
+			// if the other agent has a trajectory longer than current state's time
+			// we collision check against all states in that trajectory beyond
+			// the current state's time
+			for (int t = state.t; t < (int)other_agent.second.size(); ++t)
+			{
+				other_pose = other_agent.second.at(t);
+				if (m_cc->ObjectObjectCollision(this, other_agent.first, other_pose)) {
+					return true;
+				}
+			}
+		}
+	}
+
+	// same logic for robot
+	if (m_cbs_solution->at(0).second.size() <= state.t)
+	{
+		if (m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t)) {
+			return true;
+		}
+	}
+	else
+	{
+		for (int t = state.t; t < (int)m_cbs_solution->at(0).second.size(); ++t)
+		{
+			other_pose = m_cbs_solution->at(0).second.at(t);
+			if (m_cc->RobotObjectCollision(this, state, other_pose, state.t)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 unsigned int Agent::cost(
