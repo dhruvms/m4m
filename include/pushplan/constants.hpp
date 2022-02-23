@@ -32,6 +32,24 @@ extern const std::map<int, std::string> EXEC_TRAJ_FAIL;
 
 extern double DEG5;
 
+enum LowLevelConflictHeuristic
+{
+	BINARY,
+	COUNT,
+	LLHC_TYPES
+};
+extern LowLevelConflictHeuristic LLHC;
+
+enum HighLevelConflictHeuristic
+{
+	CONFLICT_COUNT,
+	AGENT_COUNT,
+	AGENT_PAIRS,
+	HLHC_TYPES
+};
+
+extern HighLevelConflictHeuristic HLHC;
+
 } // namespace clutter
 
 
