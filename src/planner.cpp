@@ -726,6 +726,14 @@ void Planner::setupGlobals()
 	m_ph.getParam("goal/cc_2d", CC_2D);
 	m_ph.getParam("goal/cc_3d", CC_3D);
 	m_ph.getParam("whca/eecbs_mult", ECBS_MULT);
+
+	int llhc;
+	m_ph.getParam("whca/llhc", llhc);
+	LLHC = static_cast<LowLevelConflictHeuristic>(llhc);
+
+	int hlhc;
+	m_ph.getParam("whca/hlhc", hlhc);
+	HLHC = static_cast<HighLevelConflictHeuristic>(hlhc);
 }
 
 int Planner::armId()
