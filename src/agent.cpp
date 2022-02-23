@@ -86,10 +86,11 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Robot* robot, Trajectory** sol_p
 	return true;
 }
 
-bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands)
+bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
 {
 	m_solve.clear();
 	expands = 0;
+	min_f = 0;
 	// collect agent constraints
 	m_constraints.clear();
 	for (auto& constraint : ct_node->m_constraints)
@@ -104,13 +105,14 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 
 	std::vector<int> solution;
 	int solcost;
-	bool result = m_wastar->replan(&solution, &solcost);
+	bool result = m_focal->replan(&solution, &solcost);
 
 	if (result)
 	{
 		convertPath(solution);
 		*sol_path = &(this->m_solve);
-		expands = m_wastar->get_n_expands();
+		expands = m_focal->get_n_expands();
+		min_f = m_focal->get_min_f();
 	}
 
 	return result;

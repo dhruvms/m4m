@@ -578,9 +578,10 @@ bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& s
 	return true;
 }
 
-bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands)
+bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
 {
 	expands = 0;
+	min_f = 0;
 	// CBS TODO: must pick out constraints wrt planning phase:
 	// (i) for planning to pregrasp, all constraints with time <= m_grasp_at
 	// are active
@@ -650,6 +651,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
 	m_traj = res.trajectory.joint_trajectory;
 	expands = planner_stats["expansions"];
+	min_f = planner_stats["min f val"];
 
 /*
 	//////////////////

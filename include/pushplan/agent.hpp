@@ -32,7 +32,7 @@ public:
 	bool Init() override;
 
 	bool SatisfyPath(HighLevelNode* ct_node, Robot* robot, Trajectory** sol_path);
-	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands);
+	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f);
 	bool IsGoal(int state_id) override;
 	void GetSuccs(
 		int state_id,

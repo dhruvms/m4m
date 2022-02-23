@@ -3,7 +3,7 @@
 
 #include <pushplan/types.hpp>
 #include <pushplan/collision_checker.hpp>
-#include <pushplan/wastar.hpp>
+#include <pushplan/focal.hpp>
 
 #include <smpl/types.h>
 
@@ -54,7 +54,7 @@ protected:
 	Trajectory m_solve;
 
 	std::shared_ptr<CollisionChecker> m_cc;
-	std::unique_ptr<WAStar> m_wastar;
+	std::unique_ptr<Focal> m_focal;
 
 	// maps from coords to stateID
 	typedef LatticeState StateKey;
