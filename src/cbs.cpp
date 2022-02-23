@@ -11,22 +11,24 @@ namespace clutter
 {
 
 CBS::CBS() :
-m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(180.0)
+m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(180.0), m_soln_lb(0), m_wf(1000)
 {
 	m_robot = nullptr;
 	m_objs.clear();
 	m_num_agents = 0;
 	m_paths.clear();
+	m_min_fs.clear();
 }
 
 CBS::CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs,
 	int scene_id) :
-m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(180.0), m_scene_id(scene_id)
+m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(180.0), m_scene_id(scene_id), m_soln_lb(0), m_wf(1000)
 {
 	m_robot = r;
 	m_objs = objs;
 	m_num_agents = (int)m_objs.size() + 1;
 	m_paths.resize(m_num_agents, nullptr);
+	m_min_fs.resize(m_num_agents, 0);
 }
 
 bool CBS::Solve()
@@ -45,8 +47,22 @@ bool CBS::Solve()
 	{
 		start_time = GetTime(); // reset clock with every loop iteration
 
-		auto next = m_OPEN.top();
-		m_OPEN.pop();
+		// select high level node
+		if (m_OPEN.top()->m_g > m_soln_lb)
+		{
+			int f_thresh = m_wf * m_soln_lb;
+			m_soln_lb = std::max(m_soln_lb, m_OPEN.top()->m_g);
+			int new_f_thresh = m_wf * m_soln_lb;
+			for (auto& n : m_OPEN)
+			{
+				if (n->m_g > f_thresh && n->m_g <= new_f_thresh) {
+					n->m_FOCAL_h = m_FOCAL.push(n);
+				}
+			}
+		}
+		auto next = m_FOCAL.top();
+		m_FOCAL.pop();
+		m_OPEN.erase(next->m_OPEN_h);
 
 		selectConflict(next);
 		if (done(next)) {
@@ -54,6 +70,16 @@ bool CBS::Solve()
 			SMPL_WARN("YAYAYAY! We did it!");
 			writeSolution(next);
 			return m_solved;
+		}
+
+		if (!next->m_h_computed) {
+			next->computeH();
+			if (next->m_g > m_wf * m_soln_lb)
+			{
+				// no idea wtf this is about
+				next->m_OPEN_h = m_OPEN.push(next);
+				continue;
+			}
 		}
 
 		++m_ct_expanded;
@@ -87,46 +113,62 @@ bool CBS::initialiseRoot()
 {
 	auto root = new HighLevelNode();
 	root->m_g = 0;
-	root->m_makespan = 0;
+	root->m_soc = 0;
 	root->m_depth = 0;
+	root->m_makespan = 0;
 	root->m_parent = nullptr;
 	root->m_children.clear();
 
 	// Plan for robot
-	int expands;
+	int expands, min_f;
 	double start_time = GetTime();
-	if (!m_robot->SatisfyPath(root, &m_paths[0], expands)) { // (CT node, path location)
+	if (!m_robot->SatisfyPath(root, &m_paths[0], expands, min_f)) { // (CT node, path location)
 		++m_ct_deadends;
 		return false;
 	}
 	m_ll_time += GetTime() - start_time;
 	m_ll_expanded += expands;
+	m_min_fs[0] = min_f;
 	root->m_solution.emplace_back(m_robot->GetID(), *(m_paths[0]));
-	root->m_g += m_paths[0]->size();
+	root->m_g += m_min_fs[0];
+	root->m_soc += m_paths[0]->size();
 	root->m_makespan = std::max(root->m_makespan, (int)m_paths[0]->size());
 
 	// Plan for objects
 	for (size_t i = 0; i < m_objs.size(); ++i)
 	{
 		start_time = GetTime();
-		if (!m_objs[i]->SatisfyPath(root, &m_paths[i+1], expands)) {
+		if (!m_objs[i]->SatisfyPath(root, &m_paths[i+1], expands, min_f)) {
 			++m_ct_deadends;
 			return false;
 		}
 		m_ll_time += GetTime() - start_time;
 		m_ll_expanded += expands;
+		m_min_fs[i+1] = min_f;
 		root->m_solution.emplace_back(m_objs[i]->GetID(), *(m_paths[i+1]));
-		root->m_g += m_paths[i+1]->size();
+		root->m_g += m_min_fs[i+1];
+		root->m_soc += m_paths[i+1]->size();
 		root->m_makespan = std::max(root->m_makespan, (int)m_paths[i+1]->size());
 	}
 
 	findConflicts(*root);
 
-	++m_ct_generated;
-	root->m_generate = m_ct_generated;
-	root->m_OPEN_h = m_OPEN.push(root);
+	root->m_h = 0;
+	root->m_h_computed = false;
+	root->updateDistanceToGo();
 
+	pushNode(root);
 	return true;
+}
+
+void CBS::pushNode(HighLevelNode* node)
+{
+	++m_ct_generated;
+	node->m_generate = m_ct_generated;
+	node->m_OPEN_h = m_OPEN.push(node);
+	if (node->m_g <= m_wf * m_soln_lb){
+		node->m_FOCAL_h = m_FOCAL.push(node);
+	}
 }
 
 void CBS::findConflicts(HighLevelNode& node)
@@ -353,6 +395,7 @@ void CBS::addConstraints(const HighLevelNode* curr, HighLevelNode* child1, HighL
 bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 {
 	child->m_g = parent->m_g; // for now
+	child->m_soc = parent->m_soc; // for now
 	child->m_makespan = parent->m_makespan; // for now
 	child->m_solution = parent->m_solution; // for now
 	child->m_depth = parent->m_depth + 1;
@@ -361,20 +404,21 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 
 	// agent to be replanned for
 	child->m_replanned = child->m_constraints.back()->m_me;
-	int expands;
+	int expands, min_f;
 
 	// replan for agent
 	bool recalc_makespan = false;
 	double start_time;
 	if (child->m_replanned == 0)
 	{
-		child->m_g -= m_paths[0]->size();
+		child->m_g -= m_min_fs[0];
+		child->m_soc -= m_paths[0]->size();
 		if (child->m_makespan == m_paths[0]->size()) {
 			recalc_makespan = true;
 		}
 
 		start_time = GetTime();
-		if (!m_robot->SatisfyPath(child, &m_paths[0], expands)) {
+		if (!m_robot->SatisfyPath(child, &m_paths[0], expands, min_f)) {
 			++m_ct_deadends;
 			return false;
 		}
@@ -390,7 +434,9 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 			}
 		}
 
-		child->m_g += m_paths[0]->size();
+		child->m_g += min_f;
+		child->m_soc += m_paths[0]->size();
+		m_min_fs[0] = min_f;
 		if (recalc_makespan) {
 			child->recalcMakespan();
 		}
@@ -406,14 +452,15 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 				continue;
 			}
 
-			child->m_g -= m_paths[i+1]->size();
+			child->m_g -= m_min_fs[i+1];
+			child->m_soc -= m_paths[i+1]->size();
 			if (child->m_makespan == m_paths[i+1]->size()) {
 				recalc_makespan = true;
 			}
 
 			m_objs[i]->Init();
 			start_time = GetTime();
-			if (!m_objs[i]->SatisfyPath(child, &m_paths[i+1], expands))
+			if (!m_objs[i]->SatisfyPath(child, &m_paths[i+1], expands, min_f))
 			{
 				++m_ct_deadends;
 				return false;
@@ -430,7 +477,9 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 				}
 			}
 
-			child->m_g += m_paths[i+1]->size();
+			child->m_g += min_f;
+			child->m_soc += m_paths[i+1]->size();
+			m_min_fs[i+1] = min_f;
 			if (recalc_makespan) {
 				child->recalcMakespan();
 			}
@@ -444,9 +493,11 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 
 	findConflicts(*child);
 
-	++m_ct_generated;
-	child->m_generate = m_ct_generated;
-	child->m_OPEN_h = m_OPEN.push(child);
+	child->m_h = std::max(0, parent->m_g + parent->m_h - child->m_g);
+	child->m_h_computed = false;
+	child->updateDistanceToGo();
+
+	pushNode(child);
 	return true;
 }
 

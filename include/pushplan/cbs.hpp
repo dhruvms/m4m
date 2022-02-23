@@ -1,7 +1,7 @@
 #ifndef CBS_HPP
 #define CBS_HPP
 
-#include <pushplan/cbs_h_node.hpp>
+#include <pushplan/cbs_nodes.hpp>
 
 #include <boost/heap/fibonacci_heap.hpp>
 
@@ -38,15 +38,18 @@ private:
 	std::vector<std::shared_ptr<Agent> > m_objs;
 	int m_num_agents;
 	std::vector<Trajectory*> m_paths;
+	std::vector<unsigned int> m_min_fs;
 
-	int m_ct_generated, m_ct_deadends, m_ct_expanded, m_ll_expanded, m_soln_cost, m_scene_id;
+	int m_ct_generated, m_ct_deadends, m_ct_expanded, m_ll_expanded, m_soln_cost, m_scene_id, m_soln_lb, m_wf;
 	double m_search_time, m_time_limit, m_ll_time, m_conflict_time;
 	bool m_solved;
 	HighLevelNode* m_goal;
 
-	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::HeapCompare> > m_OPEN;
+	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::OPENCompare> > m_OPEN;
+	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::FOCALCompare> > m_FOCAL;
 
 	bool initialiseRoot();
+	void pushNode(HighLevelNode* node);
 
 	void findConflicts(HighLevelNode& node);
 	void findConflictsRobot(HighLevelNode& curr, size_t oid);
