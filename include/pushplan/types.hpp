@@ -29,7 +29,7 @@ struct LatticeState
 {
 	Coord coord;
 	State state;
-	int t;
+	int t, hc;
 };
 
 typedef std::vector<LatticeState> Trajectory;

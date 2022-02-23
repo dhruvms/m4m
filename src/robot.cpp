@@ -3,7 +3,7 @@
 #include <pushplan/geometry.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/pr2_allowed_collision_pairs.h>
-#include <pushplan/cbs_h_node.hpp>
+#include <pushplan/cbs_nodes.hpp>
 
 #include <smpl/stl/memory.h>
 #include <sbpl_collision_checking/shapes.h>

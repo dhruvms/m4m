@@ -29,6 +29,7 @@ public:
 		std::vector<int>* succ_ids,
 		std::vector<unsigned int>* costs) = 0;
 	virtual unsigned int GetGoalHeuristic(int state_id) = 0;
+	virtual unsigned int GetConflictHeuristic(int state_id) = 0;
 	virtual unsigned int GetGoalHeuristic(const LatticeState& s) = 0;
 
 	void reset();
@@ -64,8 +65,7 @@ protected:
 
 	virtual unsigned int cost(
 		const LatticeState* s1,
-		const LatticeState* s2,
-		bool movable=false) = 0;
+		const LatticeState* s2) = 0;
 	virtual bool convertPath(
 		const std::vector<int>& idpath) = 0;
 
@@ -77,11 +77,13 @@ protected:
 	int createHashEntry(
 		const Coord& coord,
 		const State& state,
-		const int& t);
+		const int& t,
+		const int& hc);
 	int getOrCreateState(
 		const Coord& coord,
 		const State& state,
-		const int& t);
+		const int& t,
+		const int& hc);
 	int getOrCreateState(const LatticeState& s);
 	int getOrCreateState(const Coord& p);
 };

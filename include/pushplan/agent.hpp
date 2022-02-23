@@ -40,6 +40,7 @@ public:
 		std::vector<unsigned int>* costs) override;
 
 	unsigned int GetGoalHeuristic(int state_id) override;
+	unsigned int GetConflictHeuristic(int state_id) override;
 	unsigned int GetGoalHeuristic(const LatticeState& s) override;
 
 	void GetSE2Push(std::vector<double>& push);
@@ -58,7 +59,7 @@ private:
 	std::vector<std::pair<int, Trajectory> >* m_cbs_solution; // all agent trajectories
 	int m_cbs_id, m_max_time;
 
-	bool knownConflict(const LatticeState& state);
+	int conflictHeuristic(const LatticeState& state);
 	bool goalConflict(const LatticeState& state);
 
 	int generateSuccessor(
@@ -68,8 +69,7 @@ private:
 		std::vector<unsigned int>* costs);
 	unsigned int cost(
 		const LatticeState* s1,
-		const LatticeState* s2,
-		bool movable=false) override;
+		const LatticeState* s2) override;
 	bool convertPath(
 		const std::vector<int>& idpath) override;
 };

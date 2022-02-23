@@ -21,7 +21,7 @@ void Movable::SetStartState(const LatticeState& s)
 	m_start_id = getOrCreateState(s);
 	m_start = s.coord;
 
-	m_wastar->set_start(m_start_id);
+	m_focal->set_start(m_start_id);
 }
 
 void Movable::SetGoalState(const Coord& p)
@@ -30,7 +30,7 @@ void Movable::SetGoalState(const Coord& p)
 	m_goal = p;
 	DiscToCont(m_goal, m_goalf);
 
-	m_wastar->set_goal(m_goal_id);
+	m_focal->set_goal(m_goal_id);
 }
 
 void Movable::reset()
@@ -45,7 +45,7 @@ void Movable::reset()
 	m_state_to_id.clear();
 	m_states.clear();
 
-	m_wastar->reset();
+	m_focal->reset();
 }
 
 // Return a pointer to the data for the input the state id
@@ -95,7 +95,8 @@ int Movable::reserveHashEntry()
 int Movable::createHashEntry(
 	const Coord& coord,
 	const State& state,
-	const int& t)
+	const int& t,
+	const int& hc)
 {
 	int state_id = reserveHashEntry();
 	LatticeState* entry = getHashEntry(state_id);
@@ -103,6 +104,7 @@ int Movable::createHashEntry(
 	entry->coord = coord;
 	entry->state = state;
 	entry->t = t;
+	entry->hc = hc;
 
 	// map state -> state id
 	m_state_to_id[entry] = state_id;
@@ -113,24 +115,25 @@ int Movable::createHashEntry(
 int Movable::getOrCreateState(
 	const Coord& coord,
 	const State& state,
-	const int& t)
+	const int& t,
+	const int& hc)
 {
 	int state_id = getHashEntry(coord, t);
 	if (state_id < 0) {
-		state_id = createHashEntry(coord, state, t);
+		state_id = createHashEntry(coord, state, t, hc);
 	}
 	return state_id;
 }
 
 int Movable::getOrCreateState(const LatticeState& s)
 {
-	return getOrCreateState(s.coord, s.state, s.t);
+	return getOrCreateState(s.coord, s.state, s.t, s.hc);
 }
 
 int Movable::getOrCreateState(const Coord& p)
 {
 	State temp;
-	return getOrCreateState(p, temp, -1);
+	return getOrCreateState(p, temp, -1, -1);
 }
 
 } // namespace clutter

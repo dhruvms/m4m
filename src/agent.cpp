@@ -1,6 +1,6 @@
 #include <pushplan/agent.hpp>
 #include <pushplan/geometry.hpp>
-#include <pushplan/cbs_h_node.hpp>
+#include <pushplan/cbs_nodes.hpp>
 #include <pushplan/robot.hpp>
 #include <pushplan/conflicts.hpp>
 
@@ -42,6 +42,7 @@ bool Agent::Init()
 	m_objs.back().o_y = m_orig_o.o_y;
 
 	m_init.t = 0;
+	m_init.hc = 0;
 	m_init.state.clear();
 	m_init.state.push_back(m_objs.back().o_x);
 	m_init.state.push_back(m_objs.back().o_y);
@@ -51,8 +52,8 @@ bool Agent::Init()
 	m_init.state.push_back(m_objs.back().o_yaw);
 	ContToDisc(m_init.state, m_init.coord);
 
-	if (!m_wastar) {
-		m_wastar = std::make_unique<WAStar>(this, 1.0); // make A* search object
+	if (!m_focal) {
+		m_focal = std::make_unique<Focal>(this, 1.0); // make A* search object
 	}
 	this->reset();
 	this->SetStartState(m_init);
@@ -200,6 +201,15 @@ unsigned int Agent::GetGoalHeuristic(int state_id)
 	return (dist * COST_MULT);
 }
 
+unsigned int Agent::GetConflictHeuristic(int state_id)
+{
+	assert(state_id >= 0);
+	LatticeState* s = getHashEntry(state_id);
+	assert(s);
+
+	return (s->hc * COST_MULT);
+}
+
 unsigned int Agent::GetGoalHeuristic(const LatticeState& s)
 {
 	// TODO: RRA* informed backwards Dijkstra's heuristic
@@ -269,6 +279,7 @@ int Agent::generateSuccessor(
 {
 	LatticeState child;
 	child.t = parent->t + 1;
+	child.hc = parent->hc;
 	child.coord = parent->coord;
 	child.coord.at(0) += dx;
 	child.coord.at(1) += dy;
@@ -316,6 +327,8 @@ int Agent::generateSuccessor(
 		}
 	}
 
+	child.hc += conflictHeuristic(child);
+
 	int succ_state_id = getOrCreateState(child);
 	LatticeState* successor = getHashEntry(succ_state_id);
 
@@ -324,47 +337,98 @@ int Agent::generateSuccessor(
 	// therefore not a hard constraint (like constraints).)
 
 	succs->push_back(succ_state_id);
-	// costs->push_back(cost(parent, successor, false));
-	costs->push_back(cost(parent, successor, knownConflict(child)));
+	costs->push_back(cost(parent, successor));
 
 	return succ_state_id;
 }
 
-bool Agent::knownConflict(const LatticeState& state)
+int Agent::conflictHeuristic(const LatticeState& state)
 {
-	std::vector<LatticeState> other_poses;
-	std::vector<int> other_ids;
-
-	for (const auto& agent_traj: *m_cbs_solution)
-	{
-		if (agent_traj.first == m_cbs_id || agent_traj.first == 0) {
-			continue;
-		}
-
-		other_ids.push_back(agent_traj.first);
-		if (agent_traj.second.size() <= state.t) {
-			other_poses.push_back(agent_traj.second.back());
-		}
-		else {
-			other_poses.push_back(agent_traj.second.at(state.t));
-		}
-	}
+	int hc = 0;
 	UpdatePose(state);
-	bool conflict = m_cc->ObjectObjectsCollision(this, other_ids, other_poses);
 
-	if (!conflict)
+	switch (LLHC)
 	{
-		if (m_cbs_solution->at(0).second.size() <= state.t) {
-			conflict = conflict ||
-				m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t);
+		case LowLevelConflictHeuristic::BINARY:
+		{
+			std::vector<LatticeState> other_poses;
+			std::vector<int> other_ids;
+
+			for (const auto& agent_traj: *m_cbs_solution)
+			{
+				if (agent_traj.first == m_cbs_id || agent_traj.first == 0) {
+					continue;
+				}
+
+				other_ids.push_back(agent_traj.first);
+				if (agent_traj.second.size() <= state.t) {
+					other_poses.push_back(agent_traj.second.back());
+				}
+				else {
+					other_poses.push_back(agent_traj.second.at(state.t));
+				}
+			}
+			bool conflict = m_cc->ObjectObjectsCollision(this, other_ids, other_poses);
+
+			if (!conflict)
+			{
+				if (m_cbs_solution->at(0).second.size() <= state.t) {
+					conflict = conflict ||
+						m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t);
+				}
+				else {
+					conflict = conflict ||
+						m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.at(state.t), state.t);
+				}
+			}
+
+			hc = (int)conflict;
+			break;
 		}
-		else {
-			conflict = conflict ||
-				m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.at(state.t), state.t);
+		case LowLevelConflictHeuristic::COUNT:
+		{
+			LatticeState other_pose;
+			for (const auto& other_agent: *m_cbs_solution)
+			{
+				if (other_agent.first == m_cbs_id || other_agent.first == 0) {
+					continue;
+				}
+
+				// other agent trajectory is shorter than current state's time
+				// so we only collision check against the last state along the
+				// other agent trajectory
+				if (other_agent.second.size() <= state.t) {
+					other_pose = other_agent.second.back();
+				}
+				else {
+					// if the other agent has a trajectory longer than current state's time
+					// we collision check against the current state's time
+					other_pose = other_agent.second.at(state.t);
+				}
+				if (m_cc->ObjectObjectCollision(this, other_agent.first, other_pose)) {
+					++hc;
+				}
+			}
+
+			// same logic for robot
+			if (m_cbs_solution->at(0).second.size() <= state.t) {
+				other_pose = m_cbs_solution->at(0).second.back();
+			}
+			else {
+				other_pose = m_cbs_solution->at(0).second.at(state.t);
+			}
+			if (m_cc->RobotObjectCollision(this, state, other_pose, state.t)) {
+				++hc;
+			}
+			break;
+		}
+		default:
+		{
+			SMPL_ERROR("Unknown conflict heuristic type!");
 		}
 	}
 
-	return conflict;
+	return hc;
 }
 
 bool Agent::goalConflict(const LatticeState& state)
@@ -426,12 +490,11 @@ bool Agent::goalConflict(const LatticeState& state)
 
 unsigned int Agent::cost(
 	const LatticeState* s1,
-	const LatticeState* s2,
-	bool movable)
+	const LatticeState* s2)
 {
 	double dist = EuclideanDist(s1->coord, s2->coord);
 	dist = dist == 0.0 ? 1.0 : dist;
-	return (dist * COST_MULT)  + (movable * ECBS_MULT);;
+	return (dist * COST_MULT);
 }
 
 bool Agent::convertPath(
