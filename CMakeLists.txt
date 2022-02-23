@@ -50,6 +50,7 @@ add_library(
 	src/agent.cpp
 	src/robot.cpp
 	src/wastar.cpp
+	src/focal.cpp
 	src/constants.cpp)
 target_link_libraries(PUSHPLAN ${catkin_LIBRARIES} smpl::smpl) # -lprofiler
 
