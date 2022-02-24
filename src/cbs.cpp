@@ -71,6 +71,7 @@ bool CBS::Solve()
 			writeSolution(next);
 			return m_solved;
 		}
+		// writeSolution(next);
 
 		if (!next->m_h_computed) {
 			next->computeH();
@@ -84,8 +85,6 @@ bool CBS::Solve()
 
 		++m_ct_expanded;
 		next->m_expand = m_ct_expanded;
-		// SMPL_ERROR("Expaning (depth, generate, expand) = (%d, %d, %d)! m_replanned = %d", next->m_depth, next->m_generate, next->m_expand, next->m_replanned);
-		// writeSolution(next);
 
 		// expand CT node
 		HighLevelNode* child[2] = { new HighLevelNode() , new HighLevelNode() };
@@ -493,7 +492,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 
 	findConflicts(*child);
 
-	child->m_h = std::max(0, parent->m_g + parent->m_h - child->m_g);
+	child->m_h = std::max(0, parent->m_g + (COST_MULT * parent->m_h) - child->m_g);
 	child->m_h_computed = false;
 	child->updateDistanceToGo();
 
@@ -507,7 +506,7 @@ bool CBS::done(HighLevelNode* node)
 	{
 		m_solved = true;
 		m_goal = node;
-		m_soln_cost = m_goal->m_g;
+		m_soln_cost = m_goal->m_soc;
 		return true;
 	}
 
