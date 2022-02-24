@@ -193,11 +193,7 @@ unsigned int Agent::GetGoalHeuristic(int state_id)
 	LatticeState* s = getHashEntry(state_id);
 	assert(s);
 
-	if (s->state.empty()) {
-		DiscToCont(s->coord, s->state);
-	}
-	State sxy = {s->state.at(0), s->state.at(1)};
-	double dist = EuclideanDist(sxy, m_goalf);
+	double dist = EuclideanDist(s->coord, m_goal);
 	return (dist * COST_MULT);
 }
 
@@ -213,8 +209,7 @@ unsigned int Agent::GetConflictHeuristic(int state_id)
 unsigned int Agent::GetGoalHeuristic(const LatticeState& s)
 {
 	// TODO: RRA* informed backwards Dijkstra's heuristic
-	State sxy = {s.state.at(0), s.state.at(1)};
-	double dist = EuclideanDist(sxy, m_goalf);
+	double dist = EuclideanDist(s.coord, m_goal);
 	return (dist * COST_MULT);
 }
 
