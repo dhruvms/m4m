@@ -50,6 +50,8 @@ whca:
   cost_mult: 1000
   ecbs_mult: 1000
   planning_time: 300.0
+  llhc: 1
+  hlhc: 2
 
 objects:
   min_size: 0.03
