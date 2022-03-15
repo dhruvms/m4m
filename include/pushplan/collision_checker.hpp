@@ -2,6 +2,7 @@
 #define COLLISION_CHECKER_HPP
 
 #include <pushplan/types.hpp>
+#include <pushplan/object.hpp>
 
 #include <boost/functional/hash.hpp>
 #include <fcl/broadphase/broadphase.h>

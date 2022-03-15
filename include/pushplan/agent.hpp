@@ -2,6 +2,7 @@
 #define AGENT_HPP
 
 #include <pushplan/types.hpp>
+#include <pushplan/object.hpp>
 #include <pushplan/movable.hpp>
 
 #include <memory>

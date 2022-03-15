@@ -45,6 +45,7 @@ add_library(
 	src/planner.cpp
 	src/cbs.cpp
 	src/collision_checker.cpp
+	src/object.cpp
 	src/movable.cpp
 	src/bullet_sim.cpp
 	src/agent.cpp

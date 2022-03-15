@@ -4,6 +4,7 @@
 #include <pushplan/types.hpp>
 
 #include <memory>
+#include <list>
 
 namespace clutter
 {

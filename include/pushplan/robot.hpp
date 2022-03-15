@@ -2,6 +2,7 @@
 #define ROBOT_HPP
 
 #include <pushplan/types.hpp>
+#include <pushplan/object.hpp>
 #include <pushplan/collision_checker.hpp>
 #include <pushplan/bullet_sim.hpp>
 #include <comms/ObjectsPoses.h>
