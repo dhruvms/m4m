@@ -470,46 +470,35 @@ bool Robot::detachObject()
 
 bool Robot::attachObject(const Object& obj)
 {
-	std::vector<Object> obj_v = {obj};
-	ProcessObstacles(obj_v); // hack to compute collision object
-
-	smpl::collision::CollisionObject* obj_co;
-	for (auto& object : m_collision_objects)
-	{
-		if (object->id == std::to_string(obj.id))
-		{
-			obj_co = object.get();
-			break;
-		}
-	}
+	smpl::collision::CollisionObject* obj_co = obj.smpl_co;
 
 	std::vector<shapes::ShapeConstPtr> shapes;
 	smpl::collision::Affine3dVector transforms;
-	if (obj_co)
+	if (obj.smpl_co)
 	{
-		for (size_t sidx = 0; sidx < obj_co->shapes.size(); ++sidx)
+		for (size_t sidx = 0; sidx < obj.smpl_co->shapes.size(); ++sidx)
 		{
 			auto transform = Eigen::Affine3d::Identity();
 			transform.translation().x() += 0.2;
-			switch (obj_co->shapes.at(sidx)->type)
+			switch (obj.smpl_co->shapes.at(sidx)->type)
 			{
 				case smpl::collision::ShapeType::Box:
 				{
-					auto box = static_cast<smpl::collision::BoxShape*>(obj_co->shapes.at(sidx));
+					auto box = static_cast<smpl::collision::BoxShape*>(obj.smpl_co->shapes.at(sidx));
 					shapes::ShapeConstPtr ao_shape(new shapes::Box(box->size[0], box->size[1], box->size[2]));
 					shapes.push_back(std::move(ao_shape));
 					break;
 				}
 				case smpl::collision::ShapeType::Cylinder:
 				{
-					auto cylinder = static_cast<smpl::collision::CylinderShape*>(obj_co->shapes.at(sidx));
+					auto cylinder = static_cast<smpl::collision::CylinderShape*>(obj.smpl_co->shapes.at(sidx));
 					shapes::ShapeConstPtr ao_shape(new shapes::Cylinder(cylinder->radius, cylinder->height));
 					shapes.push_back(std::move(ao_shape));
 					break;
 				}
 				case smpl::collision::ShapeType::Mesh:
 				{
-					shapes::ShapeConstPtr ao_shape = MakeROSShape(obj_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape = MakeROSShape(obj.smpl_co->shapes.at(sidx));
 					shapes.push_back(std::move(ao_shape));
 
 					auto itr = YCB_OBJECT_DIMS.find(obj.shape);
@@ -550,8 +539,6 @@ bool Robot::attachObject(const Object& obj)
 
 	// auto markers = m_cc_i->getCollisionRobotVisualization(m_postgrasp_state);
 	// SV_SHOW_INFO(markers);
-
-	ProcessObstacles(obj_v, true);
 
 	return true;
 }
