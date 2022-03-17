@@ -35,20 +35,8 @@ public:
 		const std::vector<double>& xyz,
 		const std::vector<double>& rpy);
 	bool Init();
-	void reset();
 
-	void SetStartState(const LatticeState& s);
-	void SetGoalState(const Coord& p);
 	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f);
-	bool IsGoal(int state_id);
-	void GetSuccs(
-		int state_id,
-		std::vector<int>* succ_ids,
-		std::vector<unsigned int>* costs);
-
-	unsigned int GetGoalHeuristic(int state_id);
-	unsigned int GetConflictHeuristic(int state_id);
-	unsigned int GetGoalHeuristic(const LatticeState& s);
 
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
@@ -85,44 +73,6 @@ private:
 
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<Focal> m_focal;
-
-	// maps from coords to stateID
-	typedef LatticeState StateKey;
-	typedef smpl::PointerValueHash<StateKey> StateHash;
-	typedef smpl::PointerValueEqual<StateKey> StateEqual;
-	smpl::hash_map<StateKey*, int, StateHash, StateEqual> m_state_to_id;
-
-	LatticeState* getHashEntry(int state_id) const;
-	int getHashEntry(
-		const Coord& coord,
-		const int& t);
-	int reserveHashEntry();
-	int createHashEntry(
-		const Coord& coord,
-		const State& state,
-		const int& t,
-		const int& hc);
-	int getOrCreateState(
-		const Coord& coord,
-		const State& state,
-		const int& t,
-		const int& hc);
-	int getOrCreateState(const LatticeState& s);
-	int getOrCreateState(const Coord& p);
-
-	int conflictHeuristic(const LatticeState& state);
-	bool goalConflict(const LatticeState& state);
-
-	int generateSuccessor(
-		const LatticeState* parent,
-		int dx, int dy,
-		std::vector<int>* succs,
-		std::vector<unsigned int>* costs);
-	unsigned int cost(
-		const LatticeState* s1,
-		const LatticeState* s2);
-	bool convertPath(
-		const std::vector<int>& idpath);
 };
 
 } // namespace clutter
