@@ -1,7 +1,8 @@
 #include <pushplan/object.hpp>
 
-#include <smpl/stl/memory.h>
+#include <sbpl_collision_checking/collision_model_config.h>
 #include <sbpl_collision_checking/voxel_operations.h>
+#include <smpl/stl/memory.h>
 #include <fcl/shape/geometric_shapes.h>
 #include <fcl/BVH/BVH_model.h>
 #include <geometric_shapes/shapes.h>
@@ -134,33 +135,33 @@ bool Object::CreateCollisionObjects()
 		// Create FCL collision object
 		auto object_mesh = moveit_obj->meshes[0];
 
-	    std::vector<fcl::Vec3f> vertices;
-	    std::vector<fcl::Triangle> triangles;
+		std::vector<fcl::Vec3f> vertices;
+		std::vector<fcl::Triangle> triangles;
 
-	    vertices.reserve(object_mesh.vertices.size());
-	    for (unsigned int i = 0; i < object_mesh.vertices.size(); ++i) {
-	        double x = object_mesh.vertices[i].x;
-	        double y = object_mesh.vertices[i].y;
-	        double z = object_mesh.vertices[i].z;
-	        vertices.push_back(fcl::Vec3f(x, y, z));
-	    }
+		vertices.reserve(object_mesh.vertices.size());
+		for (unsigned int i = 0; i < object_mesh.vertices.size(); ++i) {
+			double x = object_mesh.vertices[i].x;
+			double y = object_mesh.vertices[i].y;
+			double z = object_mesh.vertices[i].z;
+			vertices.push_back(fcl::Vec3f(x, y, z));
+		}
 
-	    triangles.reserve(object_mesh.triangles.size());
-	    for (unsigned int i = 0; i < object_mesh.triangles.size(); ++i) {
-	        fcl::Triangle t;
-	        t[0] = object_mesh.triangles[i].vertex_indices[0];
-	        t[1] = object_mesh.triangles[i].vertex_indices[1];
-	        t[2] = object_mesh.triangles[i].vertex_indices[2];
-	        triangles.push_back(t);
-	    }
-	    typedef fcl::BVHModel<fcl::OBBRSS> Model;
-	    std::shared_ptr<Model> mesh_geom = std::make_shared<Model>();
+		triangles.reserve(object_mesh.triangles.size());
+		for (unsigned int i = 0; i < object_mesh.triangles.size(); ++i) {
+			fcl::Triangle t;
+			t[0] = object_mesh.triangles[i].vertex_indices[0];
+			t[1] = object_mesh.triangles[i].vertex_indices[1];
+			t[2] = object_mesh.triangles[i].vertex_indices[2];
+			triangles.push_back(t);
+		}
+		typedef fcl::BVHModel<fcl::OBBRSS> Model;
+		std::shared_ptr<Model> mesh_geom = std::make_shared<Model>();
 
-	    mesh_geom->beginModel();
-	    mesh_geom->addSubModel(vertices, triangles);
-	    mesh_geom->endModel();
+		mesh_geom->beginModel();
+		mesh_geom->addSubModel(vertices, triangles);
+		mesh_geom->endModel();
 
-	    fcl_obj = new fcl::CollisionObject(mesh_geom);
+		fcl_obj = new fcl::CollisionObject(mesh_geom);
 	}
 
 	return true;
@@ -247,66 +248,66 @@ bool Object::CreateSMPLCollisionObject()
 }
 
 
-bool Object::TransformAndVoxelise(
-	const Eigen::Affine3d& transform,
-	const double& res, const Eigen::Vector3d& origin,
-	const Eigen::Vector3d& gmin, const Eigen::Vector3d& gmax)
-{
-	// geometry_msgs::Pose pose;
-	// Eigen::Quaterniond q;
-	// if (!ycb)
-	// {
-	// 	pose.position.x = transform.translation().x();
-	// 	pose.position.y = transform.translation().y();
-	// 	pose.position.z = transform.translation().z();
+// bool Object::TransformAndVoxelise(
+// 	const Eigen::Affine3d& transform,
+// 	const double& res, const Eigen::Vector3d& origin,
+// 	const Eigen::Vector3d& gmin, const Eigen::Vector3d& gmax)
+// {
+// 	// geometry_msgs::Pose pose;
+// 	// Eigen::Quaterniond q;
+// 	// if (!ycb)
+// 	// {
+// 	// 	pose.position.x = transform.translation().x();
+// 	// 	pose.position.y = transform.translation().y();
+// 	// 	pose.position.z = transform.translation().z();
 
-	// 	q = Eigen::Quaterniond(transform.rotation());
-	// 	tf::quaternionEigenToMsg(q, orientation);
+// 	// 	q = Eigen::Quaterniond(transform.rotation());
+// 	// 	tf::quaternionEigenToMsg(q, orientation);
 
-	// 	pose.orientation = orientation;
-	// 	moveit_obj->primitive_poses.at(0) = pose;
-	// }
-	// else
-	// {
-	// 	pose.position.x = transform.translation().x();
-	// 	pose.position.y = transform.translation().y();
-	// 	pose.position.z = transform.translation().z();
+// 	// 	pose.orientation = orientation;
+// 	// 	moveit_obj->primitive_poses.at(0) = pose;
+// 	// }
+// 	// else
+// 	// {
+// 	// 	pose.position.x = transform.translation().x();
+// 	// 	pose.position.y = transform.translation().y();
+// 	// 	pose.position.z = transform.translation().z();
 
-	// 	double yaw_offset = 0.0;
-	// 	auto itr2 = YCB_OBJECT_DIMS.find(shape);
-	// 	if (itr2 != YCB_OBJECT_DIMS.end()) {
-	// 		yaw_offset = itr2->second.at(3);
-	// 	}
+// 	// 	double yaw_offset = 0.0;
+// 	// 	auto itr2 = YCB_OBJECT_DIMS.find(shape);
+// 	// 	if (itr2 != YCB_OBJECT_DIMS.end()) {
+// 	// 		yaw_offset = itr2->second.at(3);
+// 	// 	}
 
-	// 	double roll, pitch, yaw;
-	// 	smpl::angles::get_euler_zyx(transform.rotation(), yaw, pitch, roll);
-	// 	smpl::angles::from_euler_zyx(
-	// 			yaw - yaw_offset, pitch, roll, q);
-	// 	tf::quaternionEigenToMsg(q, orientation);
-	// 	pose.orientation = orientation;
+// 	// 	double roll, pitch, yaw;
+// 	// 	smpl::angles::get_euler_zyx(transform.rotation(), yaw, pitch, roll);
+// 	// 	smpl::angles::from_euler_zyx(
+// 	// 			yaw - yaw_offset, pitch, roll, q);
+// 	// 	tf::quaternionEigenToMsg(q, orientation);
+// 	// 	pose.orientation = orientation;
 
-	// 	moveit_obj->mesh_poses.at(0) = pose;
-	// }
+// 	// 	moveit_obj->mesh_poses.at(0) = pose;
+// 	// }
 
-	smpl::collision::AlignedVector<Eigen::Affine3d> shape_poses;
-	// auto& prim_pose = moveit_obj->primitive_poses[i];
-	// tf::poseMsgToEigen(prim_pose, transform);
-	shape_poses.push_back(transform);
-	smpl_co->shape_poses = std::move(shape_poses);
+// 	smpl::collision::AlignedVector<Eigen::Affine3d> shape_poses;
+// 	// auto& prim_pose = moveit_obj->primitive_poses[i];
+// 	// tf::poseMsgToEigen(prim_pose, transform);
+// 	shape_poses.push_back(transform);
+// 	smpl_co->shape_poses = std::move(shape_poses);
 
-	return Voxelise(res, origin, gmin, gmax);
-}
+// 	return Voxelise(res, origin, gmin, gmax);
+// }
 
-bool Object::Voxelise(
-	const double& res, const Eigen::Vector3d& origin,
-	const Eigen::Vector3d& gmin, const Eigen::Vector3d& gmax)
-{
-	if (!smpl::collision::VoxelizeObject(*smpl_co, res, origin, gmin, gmax, obj_voxels)) {
-		return false;
-	}
+// bool Object::Voxelise(
+// 	const double& res, const Eigen::Vector3d& origin,
+// 	const Eigen::Vector3d& gmin, const Eigen::Vector3d& gmax)
+// {
+// 	if (!smpl::collision::VoxelizeObject(*smpl_co, res, origin, gmin, gmax, obj_voxels)) {
+// 		return false;
+// 	}
 
-	return true;
-}
+// 	return true;
+// }
 
 
 void Object::UpdatePose(const LatticeState& s)
@@ -348,6 +349,205 @@ void Object::UpdatePose(const LatticeState& s)
 
 	fcl_obj->setTransform(fcl_pose);
 	fcl_obj->computeAABB();
+}
+
+bool Object::GenerateCollisionModels()
+{
+	std::vector<shapes::ShapeConstPtr> shapes;
+	smpl::collision::Affine3dVector transforms;
+	if (smpl_co)
+	{
+		for (size_t sidx = 0; sidx < smpl_co->shapes.size(); ++sidx)
+		{
+			auto transform = Eigen::Affine3d::Identity();
+			switch (smpl_co->shapes.at(sidx)->type)
+			{
+				case smpl::collision::ShapeType::Box:
+				{
+					auto box = static_cast<smpl::collision::BoxShape*>(smpl_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape(new shapes::Box(box->size[0], box->size[1], box->size[2]));
+					shapes.push_back(std::move(ao_shape));
+					break;
+				}
+				case smpl::collision::ShapeType::Cylinder:
+				{
+					auto cylinder = static_cast<smpl::collision::CylinderShape*>(smpl_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape(new shapes::Cylinder(cylinder->radius, cylinder->height));
+					shapes.push_back(std::move(ao_shape));
+					break;
+				}
+				case smpl::collision::ShapeType::Mesh:
+				{
+					shapes::ShapeConstPtr ao_shape = MakeROSShape(smpl_co->shapes.at(sidx));
+					shapes.push_back(std::move(ao_shape));
+
+					auto itr = YCB_OBJECT_DIMS.find(obj.shape);
+					if (itr != YCB_OBJECT_DIMS.end()) {
+						transform.translation().z() -= (m_grasp_z - m_table_z);
+					}
+
+					break;
+				}
+				case smpl::collision::ShapeType::Sphere:
+				case smpl::collision::ShapeType::Cone:
+				case smpl::collision::ShapeType::Plane:
+				case smpl::collision::ShapeType::OcTree:
+				default:
+				{
+					ROS_ERROR("Incompatible shape type!");
+					return false;
+				}
+			}
+			transforms.push_back(transform);
+		}
+	}
+	else
+	{
+		ROS_ERROR("Collision object not found!");
+		return false;
+	}
+
+	if (!createSpheresModel(shapes, transforms)) {
+		return false;
+	}
+	if (!createVoxelsModel(shapes, transforms)) {
+		return false;
+	}
+
+	return true;
+}
+
+bool Object::createSpheresModel(
+	const std::vector<shapes::ShapeConstPtr>& shapes,
+	const smpl::collision::Affine3dVector& transforms)
+{
+	ROS_DEBUG_NAMED(ABM_LOGGER, "  Generate spheres model");
+
+	// create configuration spheres and a spheres model for this body
+	smpl::collision::CollisionSpheresModelConfig config;
+	if (!generateSpheresModel(shapes, transforms, config)) {
+		return false;
+	}
+
+	// initialize a new spheres model
+	spheres_model = new smpl::collision::CollisionSpheresModel;
+	spheres_model->link_index = 0;
+	spheres_model->spheres.buildFrom(config.spheres);
+	ROS_DEBUG_NAMED(ABM_LOGGER, "  Spheres Model: %p", spheres_model);
+
+	// TODO: possible make this more automatic?
+	for (auto& sphere : spheres_model->spheres.m_tree) {
+		sphere.parent = spheres_model;
+	}
+
+	return true;
+}
+
+bool Object::createVoxelsModel(
+	const std::vector<shapes::ShapeConstPtr>& shapes,
+	const smpl::collision::Affine3dVector& transforms)
+{
+	ROS_DEBUG_NAMED(ABM_LOGGER, "  Generate voxels model");
+
+	// create configuration voxels model for this body
+	smpl::collision::CollisionVoxelModelConfig config;
+	generateVoxelsModel(config);
+
+	// alloc voxels models
+	voxels_model = new smpl::collision::CollisionVoxelsModel;
+
+	// attach to the object
+	voxels_model->link_index = 0;
+
+	const double AB_VOXEL_RES = 0.01;
+	voxels_model->voxel_res = AB_VOXEL_RES;
+
+	if (!voxelizeAttachedBody(shapes, transforms, *voxels_model)) {
+		ROS_ERROR_NAMED(ABM_LOGGER, "Failed to voxelize object '%d'", id);
+		return false;
+		// TODO: anything to do in this case
+	}
+
+	return true;
+}
+
+bool Object::generateSpheresModel(
+	const std::vector<shapes::ShapeConstPtr>& shapes,
+	const smpl::collision::Affine3dVector& transforms,
+	smpl::collision::CollisionSpheresModelConfig& spheres_model)
+{
+	assert(std::all_of(shapes.begin(), shapes.end(),
+			[](const shapes::ShapeConstPtr& shape) { return (bool)shape; }));
+	assert(shapes.size() == transforms.size());
+
+	ROS_DEBUG_NAMED(ABM_LOGGER, "Generate spheres model configuration");
+
+	// TODO: reserve a special character so as to guarantee sphere uniqueness
+	// here and disallow use of the special character on config-generated
+	// spheres
+
+	// TODO: yeah...
+	const double object_enclosing_sphere_radius = 0.025;
+
+	// voxelize the object
+	std::vector<Eigen::Vector3d> voxels;
+	for (size_t i = 0; i < shapes.size(); ++i) {
+		if (!VoxelizeShape(
+				*shapes[i], transforms[i],
+				object_enclosing_sphere_radius / std::sqrt(2),
+				Eigen::Vector3d::Zero(),
+				voxels))
+		{
+			ROS_ERROR_NAMED(ABM_LOGGER, "Failed to voxelize object shape for sphere generation");
+			return false;
+		}
+	}
+
+	spheres_model.autogenerate = false;
+	spheres_model.link_name = std::to_string(id);
+	spheres_model.spheres.clear();
+
+	for (size_t i = 0; i < voxels.size(); ++i) {
+		CollisionSphereConfig sphere_config;
+		sphere_config.name = std::to_string(id) + "/" + std::to_string(i);
+		sphere_config.x = voxels[i].x();
+		sphere_config.y = voxels[i].y();
+		sphere_config.z = voxels[i].z();
+		sphere_config.radius = object_enclosing_sphere_radius;
+
+		spheres_model.spheres.push_back(std::move(sphere_config));
+	}
+
+	ROS_DEBUG_NAMED(ABM_LOGGER, "Generated spheres model with %zu spheres", spheres_model.spheres.size());
+}
+
+void Object::generateVoxelsModel(
+	smpl::collision::CollisionVoxelModelConfig& voxels_model)
+{
+	ROS_DEBUG_NAMED(ABM_LOGGER, "Generate voxels model configuration");
+	voxels_model.link_name = std::to_string(id);
+}
+
+bool Object::voxelizeAttachedBody(
+	const std::vector<shapes::ShapeConstPtr>& shapes,
+	const smpl::collision::Affine3dVector& transforms,
+	smpl::collision::CollisionVoxelsModel& model) const
+{
+	if (shapes.size() != transforms.size()) {
+		ROS_ERROR_NAMED(ABM_LOGGER, "shapes array and transforms array must have equal length");
+		return false;
+	}
+
+	std::vector<Eigen::Vector3d> voxels;
+	for (size_t i = 0; i < shapes.size(); ++i) {
+		const shapes::Shape& shape = *shapes[i];
+		const Eigen::Affine3d& transform = transforms[i];
+		VoxelizeShape(
+				shape, transform,
+				model.voxel_res, Eigen::Vector3d::Zero(), model.voxels);
+	}
+
+	return true;
 }
 
 } // namespace clutter

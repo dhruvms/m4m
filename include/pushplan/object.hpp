@@ -3,6 +3,7 @@
 
 #include <pushplan/types.hpp>
 
+#include <sbpl_collision_checking/base_collision_models.h>
 #include <sbpl_collision_checking/shapes.h>
 #include <fcl/collision_object.h>
 #include <moveit_msgs/CollisionObject.h>
@@ -23,7 +24,8 @@ struct Object
 
 	smpl::collision::CollisionShape* smpl_shape = nullptr;
 	smpl::collision::CollisionObject* smpl_co = nullptr;
-	std::vector<std::vector<Eigen::Vector3d>> obj_voxels;
+	smpl::collision::CollisionSpheresModel* spheres_model = nullptr;
+    smpl::collision::CollisionVoxelsModel* voxels_model = nullptr;
 
 	moveit_msgs::CollisionObject* moveit_obj = nullptr;
 	fcl::CollisionObject* fcl_obj = nullptr;
@@ -31,14 +33,15 @@ struct Object
 	int Shape() const;
 	bool CreateCollisionObjects();
 	bool CreateSMPLCollisionObject();
+	bool GenerateCollisionModels();
 
-	bool TransformAndVoxelise(
-		const Eigen::Affine3d& transform,
-		const double& res, const Eigen::Vector3d& origin,
-		const Eigen::Vector3d& gmin, const Eigen::Vector3d& gmax);
-	bool Voxelise(
-		const double& res, const Eigen::Vector3d& origin,
-		const Eigen::Vector3d& gmin, const Eigen::Vector3d& gmax);
+	// bool TransformAndVoxelise(
+	// 	const Eigen::Affine3d& transform,
+	// 	const double& res, const Eigen::Vector3d& origin,
+	// 	const Eigen::Vector3d& gmin, const Eigen::Vector3d& gmax);
+	// bool Voxelise(
+	// 	const double& res, const Eigen::Vector3d& origin,
+	// 	const Eigen::Vector3d& gmin, const Eigen::Vector3d& gmax);
 
 	void UpdatePose(const LatticeState& s);
 
@@ -46,6 +49,24 @@ struct Object
 		msg = *moveit_obj;
 	};
 	fcl::CollisionObject* GetFCLObject() { return fcl_obj; };
+
+private:
+	bool createSpheresModel(
+		const std::vector<shapes::ShapeConstPtr>& shapes,
+	    const smpl::collision::Affine3dVector& transforms);
+	bool createVoxelsModel(
+		const std::vector<shapes::ShapeConstPtr>& shapes,
+	    const smpl::collision::Affine3dVector& transforms);
+	bool generateSpheresModel(
+		const std::vector<shapes::ShapeConstPtr>& shapes,
+		const smpl::collision::Affine3dVector& transforms,
+		smpl::collision::CollisionSpheresModelConfig& spheres_model);
+	void generateVoxelsModel(
+		smpl::collision::CollisionVoxelModelConfig& voxels_model);
+	bool voxelizeAttachedBody(
+		const std::vector<shapes::ShapeConstPtr>& shapes,
+		const smpl::collision::Affine3dVector& transforms,
+		smpl::collision::CollisionVoxelsModel& model) const;
 };
 
 } // namespace clutter
