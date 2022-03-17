@@ -3,11 +3,21 @@
 #include <pushplan/cbs_nodes.hpp>
 #include <pushplan/robot.hpp>
 #include <pushplan/conflicts.hpp>
+#include <pushplan/constants.hpp>
 
 #include <smpl/console/console.h>
 
 #include <iostream>
 #include <algorithm>
+
+auto std::hash<clutter::LatticeState>::operator()(
+	const argument_type& s) const -> result_type
+{
+	size_t seed = 0;
+	boost::hash_combine(seed, boost::hash_range(s.coord.begin(), s.coord.begin() + 2));
+	boost::hash_combine(seed, s.t);
+	return seed;
+}
 
 namespace clutter
 {
@@ -62,29 +72,36 @@ bool Agent::Init()
 	return true;
 }
 
-bool Agent::SatisfyPath(HighLevelNode* ct_node, Robot* robot, Trajectory** sol_path)
+void Agent::reset()
 {
-	m_solve.clear();
-	LatticeState s = m_init;
-	// OOI stays in place during approach
-	for (int i = 0; i < robot->GraspAt() + 2; ++i)
-	{
-		s.t = i;
-		m_solve.push_back(s);
+	// reset everything
+	for (LatticeState* s : m_states) {
+		if (s != nullptr) {
+			delete s;
+			s = nullptr;
+		}
 	}
+	m_state_to_id.clear();
+	m_states.clear();
 
-	// OOI tracks robot EE during extraction
-	auto* r_traj = robot->GetLastTraj();
-	for (int i = robot->GraspAt() + 2; i < r_traj->size(); ++i)
-	{
-		++s.t;
-		s.state = robot->GetEEState(r_traj->at(i).state);
-		ContToDisc(s.state, s.coord);
-		m_solve.push_back(s);
-	}
-	*sol_path = &(this->m_solve);
+	m_focal->reset();
+}
 
-	return true;
+void Agent::SetStartState(const LatticeState& s)
+{
+	m_start_id = getOrCreateState(s);
+	m_start = s.coord;
+
+	m_focal->set_start(m_start_id);
+}
+
+void Agent::SetGoalState(const Coord& p)
+{
+	m_goal_id = getOrCreateState(p);
+	m_goal = p;
+	DiscToCont(m_goal, m_goalf);
+
+	m_focal->set_goal(m_goal_id);
 }
 
 bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
@@ -574,6 +591,94 @@ bool Agent::convertPath(
 	}
 	m_solve = std::move(opath);
 	return true;
+}
+
+// Return a pointer to the data for the input the state id
+// if it exists, else return nullptr
+LatticeState* Agent::getHashEntry(int state_id) const
+{
+	if (state_id < 0 || state_id >= (int)m_states.size()) {
+		return nullptr;
+	}
+
+	return m_states[state_id];
+}
+
+// Return the state id of the state with the given data or -1 if the
+// state has not yet been allocated.
+int Agent::getHashEntry(
+	const Coord& coord,
+	const int& t)
+{
+	LatticeState s;
+	s.coord = coord;
+	s.t = t;
+
+	auto sit = m_state_to_id.find(&s);
+	if (sit == m_state_to_id.end()) {
+		return -1;
+	}
+	return sit->second;
+}
+
+int Agent::reserveHashEntry()
+{
+	LatticeState* entry = new LatticeState;
+	int state_id = (int)m_states.size();
+
+	// map state id -> state
+	m_states.push_back(entry);
+
+	// // map planner state -> graph state
+	// int* pinds = new int[NUMOFINDICES_STATEID2IND];
+	// std::fill(pinds, pinds + NUMOFINDICES_STATEID2IND, -1);
+	// StateID2IndexMapping.push_back(pinds);
+
+	return state_id;
+}
+
+int Agent::createHashEntry(
+	const Coord& coord,
+	const State& state,
+	const int& t,
+	const int& hc)
+{
+	int state_id = reserveHashEntry();
+	LatticeState* entry = getHashEntry(state_id);
+
+	entry->coord = coord;
+	entry->state = state;
+	entry->t = t;
+	entry->hc = hc;
+
+	// map state -> state id
+	m_state_to_id[entry] = state_id;
+
+	return state_id;
+}
+
+int Agent::getOrCreateState(
+	const Coord& coord,
+	const State& state,
+	const int& t,
+	const int& hc)
+{
+	int state_id = getHashEntry(coord, t);
+	if (state_id < 0) {
+		state_id = createHashEntry(coord, state, t, hc);
+	}
+	return state_id;
+}
+
+int Agent::getOrCreateState(const LatticeState& s)
+{
+	return getOrCreateState(s.coord, s.state, s.t, s.hc);
+}
+
+int Agent::getOrCreateState(const Coord& p)
+{
+	State temp;
+	return getOrCreateState(p, temp, -1, -1);
 }
 
 } // namespace clutter

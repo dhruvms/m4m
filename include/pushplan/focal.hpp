@@ -11,13 +11,13 @@
 namespace clutter
 {
 
-class Movable;
+class Agent;
 
 class Focal : public Search
 {
 public:
 	Focal(
-		Movable* movable,
+		Agent* agent,
 		double wf=1.0, double wo=1.0);
 	~Focal();
 
@@ -34,7 +34,7 @@ public:
 		std::vector<int>* solution_path, int* solution_cost) override;
 
 private:
-	Movable* m_movable = nullptr;
+	Agent* m_agent = nullptr;
 
 	boost::heap::fibonacci_heap<LowLevelNode*, boost::heap::compare<LowLevelNode::OPENCompare> > m_OPEN;
 	boost::heap::fibonacci_heap<LowLevelNode*, boost::heap::compare<LowLevelNode::FOCALCompare> > m_FOCAL;

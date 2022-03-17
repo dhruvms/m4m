@@ -46,7 +46,6 @@ add_library(
 	src/cbs.cpp
 	src/collision_checker.cpp
 	src/object.cpp
-	src/movable.cpp
 	src/bullet_sim.cpp
 	src/agent.cpp
 	src/robot.cpp

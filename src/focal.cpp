@@ -1,7 +1,7 @@
 #include <pushplan/focal.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/types.hpp>
-#include <pushplan/movable.hpp>
+#include <pushplan/agent.hpp>
 #include <pushplan/helpers.hpp>
 
 #include <smpl/console/console.h>
@@ -13,10 +13,10 @@ namespace clutter
 {
 
 Focal::Focal(
-	Movable* movable,
+	Agent* agent,
 	double wf, double wo)
 :
-m_movable(movable),
+m_agent(agent),
 m_call_number(0),
 m_wf(wf), m_wo(wo),
 m_start_id(-1),
@@ -178,7 +178,7 @@ void Focal::expand(LowLevelNode* s)
 
 	std::vector<int> succ_ids;
 	std::vector<unsigned int> costs;
-	m_movable->GetSuccs(s->state_id, &succ_ids, &costs);
+	m_agent->GetSuccs(s->state_id, &succ_ids, &costs);
 
 	for (size_t sidx = 0; sidx < succ_ids.size(); ++sidx)
 	{
@@ -248,18 +248,18 @@ void Focal::expand(LowLevelNode* s)
 
 bool Focal::is_goal(int state_id)
 {
-	return m_movable->IsGoal(state_id);
+	return m_agent->IsGoal(state_id);
 }
 
 unsigned int Focal::compute_heuristic(int state_id)
 {
-	return m_movable->GetGoalHeuristic(state_id);
+	return m_agent->GetGoalHeuristic(state_id);
 
 }
 
 unsigned int Focal::compute_conflict_heuristic(int state_id)
 {
-	return m_movable->GetConflictHeuristic(state_id);
+	return m_agent->GetConflictHeuristic(state_id);
 
 }
 
