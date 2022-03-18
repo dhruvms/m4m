@@ -1120,4 +1120,26 @@ std::string BulletSim::getPartialFilename(int id)
 	return filename;
 }
 
+void BulletSim::GetShelfParams(
+		double& ox, double& oy, double& oz,
+		double& sx, double& sy, double& sz);
+{
+	ox = m_immov.at(0)[0] - m_immov.at(0)[6];
+	oy = m_immov.at(0)[1] - m_immov.at(0)[7];
+	oz = m_immov.at(0)[2];
+	sx = m_immov.at(0)[6] * 2.0;
+	sy = m_immov.at(0)[7] * 2.0;
+
+	if (m_tables == 1)
+	{
+		double zlim;
+		m_nh.param("objects/z_size", zlim, 1.0);
+		sz = m_immov.at(0)[2] + (zlim * 2.0);
+	}
+	else
+	{
+		sz = m_immov.at(2)[2] - m_immov.at(0)[2];
+	}
+}
+
 } // namespace clutter

@@ -54,6 +54,9 @@ public:
 		return &m_mov_ids;
 	};
 
+	void GetShelfParams(
+		double& ox, double& oy, double& oz,
+		double& sx, double& sy, double& sz);
 private:
 	int m_num_immov, m_num_mov, m_robot_id, m_tables;
 
