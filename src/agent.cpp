@@ -13,28 +13,59 @@
 namespace clutter
 {
 
-bool Agent::Setup()
-{
-	m_orig_o = m_objs.back();
-}
+// void Agent::ResetObject()
+// {
+// 	m_obj_desc.o_x = m_obj_desc.o_x;
+// 	m_obj_desc.o_y = m_obj_desc.o_y;
+// }
 
-void Agent::ResetObject()
-{
-	m_objs.back().o_x = m_orig_o.o_x;
-	m_objs.back().o_y = m_orig_o.o_y;
-}
+// bool Agent::SetObjectPose(
+// 	const std::vector<double>& xyz,
+// 	const std::vector<double>& rpy)
+// {
+// 	m_obj_desc.o_x = xyz.at(0);
+// 	m_obj_desc.o_y = xyz.at(1);
+// 	m_obj_desc.o_z = xyz.at(2);
 
-bool Agent::SetObjectPose(
-	const std::vector<double>& xyz,
-	const std::vector<double>& rpy)
-{
-	m_objs.back().o_x = xyz.at(0);
-	m_objs.back().o_y = xyz.at(1);
-	m_objs.back().o_z = xyz.at(2);
+// 	m_obj_desc.o_roll = rpy.at(0);
+// 	m_obj_desc.o_pitch = rpy.at(1);
+// 	m_obj_desc.o_yaw = rpy.at(2);
+// }
 
-	m_objs.back().o_roll = rpy.at(0);
-	m_objs.back().o_pitch = rpy.at(1);
-	m_objs.back().o_yaw = rpy.at(2);
+bool Agent::Init()
+{
+	// m_obj_desc.o_x = m_obj_desc.o_x;
+	// m_obj_desc.o_y = m_obj_desc.o_y;
+
+	// m_init.t = 0;
+	// m_init.hc = 0;
+	// m_init.state.clear();
+	// m_init.state.push_back(m_obj_desc.o_x);
+	// m_init.state.push_back(m_obj_desc.o_y);
+	// m_init.state.push_back(m_obj_desc.o_z);
+	// m_init.state.push_back(m_obj_desc.o_roll);
+	// m_init.state.push_back(m_obj_desc.o_pitch);
+	// m_init.state.push_back(m_obj_desc.o_yaw);
+	// ContToDisc(m_init.state, m_init.coord);
+
+	// if (!m_focal) {
+	// 	m_focal = std::make_unique<Focal>(this, 1.0); // make A* search object
+	// }
+	// this->reset();
+	// this->SetStartState(m_init);
+	// this->SetGoalState(m_init.coord);
+
+	for (int gx = 0; gx < m_ngr->getDistanceField()->numCellsX(); ++gx) {
+	for (int gy = 0; gy < m_ngr->getDistanceField()->numCellsY(); ++gy) {
+	for (int gz = 0; gz < m_ngr->getDistanceField()->numCellsZ(); ++gz) {
+			double wx, wy, wz;
+			m_ngr->gridToWorld(gx, gy, gz, wx, wy, wz);
+			m_ngr_complement.emplace_back(wx, wy, wz);
+	}
+	}
+	}
+
+	return true;
 }
 
 bool Agent::Init()
@@ -112,8 +143,8 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 
 const std::vector<Object>* Agent::GetObject(const LatticeState& s)
 {
-	m_objs.back().o_x = s.state.at(0);
-	m_objs.back().o_y = s.state.at(1);
+	m_obj_desc.o_x = s.state.at(0);
+	m_obj_desc.o_y = s.state.at(1);
 	return &m_objs;
 }
 
@@ -125,20 +156,20 @@ void Agent::GetSE2Push(std::vector<double>& push)
 	double move_dir = std::atan2(
 					m_solve.back().state.at(1) - m_solve.front().state.at(1),
 					m_solve.back().state.at(0) - m_solve.front().state.at(0));
-	push.at(0) = m_orig_o.o_x + std::cos(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
-	push.at(1) = m_orig_o.o_y + std::sin(move_dir + M_PI) * (m_objs.back().x_size + 0.05);
+	push.at(0) = m_obj_desc.o_x + std::cos(move_dir + M_PI) * (m_obj_desc.x_size + 0.05);
+	push.at(1) = m_obj_desc.o_y + std::sin(move_dir + M_PI) * (m_obj_desc.x_size + 0.05);
 	push.at(2) = move_dir;
 
-	if (m_objs.back().shape == 0)
+	if (m_obj_desc.shape == 0)
 	{
 		// get my object rectangle
 		std::vector<State> rect;
-		State o = {m_orig_o.o_x, m_orig_o.o_y};
-		GetRectObjAtPt(o, m_objs.back(), rect);
+		State o = {m_obj_desc.o_x, m_obj_desc.o_y};
+		GetRectObjAtPt(o, m_obj_desc, rect);
 
 		// find rectangle side away from push direction
-		push.at(0) = m_orig_o.o_x + std::cos(move_dir + M_PI) * 0.5;
-		push.at(1) = m_orig_o.o_y + std::sin(move_dir + M_PI) * 0.5;
+		push.at(0) = m_obj_desc.o_x + std::cos(move_dir + M_PI) * 0.5;
+		push.at(1) = m_obj_desc.o_y + std::sin(move_dir + M_PI) * 0.5;
 		State p = {push.at(0), push.at(1)}, intersection;
 		double op = EuclideanDist(o, p);
 		int side = 0;
