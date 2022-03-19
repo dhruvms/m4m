@@ -6,6 +6,7 @@
 #include <pushplan/constants.hpp>
 
 #include <smpl/console/console.h>
+#include <smpl/ros/propagation_distance_field.h>
 
 #include <iostream>
 #include <algorithm>
@@ -68,45 +69,46 @@ bool Agent::Init()
 	return true;
 }
 
-bool Agent::Init()
+void Agent::UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels)
 {
-	m_objs.back().o_x = m_orig_o.o_x;
-	m_objs.back().o_y = m_orig_o.o_y;
-
-	m_init.t = 0;
-	m_init.hc = 0;
-	m_init.state.clear();
-	m_init.state.push_back(m_objs.back().o_x);
-	m_init.state.push_back(m_objs.back().o_y);
-	m_init.state.push_back(m_objs.back().o_z);
-	m_init.state.push_back(m_objs.back().o_roll);
-	m_init.state.push_back(m_objs.back().o_pitch);
-	m_init.state.push_back(m_objs.back().o_yaw);
-	ContToDisc(m_init.state, m_init.coord);
-
-	if (!m_focal) {
-		m_focal = std::make_unique<Focal>(this, 1.0); // make A* search object
+	for (auto& voxel_list : voxels) {
+		m_ngr->addPointsToField(voxel_list);
 	}
-	this->reset();
-	this->SetStartState(m_init);
-	this->SetGoalState(m_init.coord);
-
-	return true;
 }
 
-void Agent::reset()
+void Agent::ComputeNGRComplement()
 {
-	// reset everything
-	for (LatticeState* s : m_states) {
-		if (s != nullptr) {
-			delete s;
-			s = nullptr;
+	std::vector<Eigen::Vector3d> ngr_voxels, obs_voxels, complement;
+	m_ngr->getOccupiedVoxels(ngr_voxels);
+	m_obs_grid->getOccupiedVoxels(ngr_voxels);
+
+	// get all cells in shelf that are not immovable obstacles
+	std::set_difference(
+			m_ngr_complement.begin(), m_ngr_complement.end(),
+			obs_voxels.begin(), obs_voxels.end(),
+			std::back_inserter(complement));
+	m_ngr_complement = complement;
+	complement.clear();
+
+	// get all cells from non-obstacle cells that are also not in NGR
+	std::set_difference(
+			m_ngr_complement.begin(), m_ngr_complement.end(),
+			ngr_voxels.begin(), ngr_voxels.end(),
+			std::back_inserter(complement));
+	m_ngr_complement = complement;
+	complement.clear();
+
+	// store one z-slice (middle) of true NGR complement
+	double dx, dy, zmid;
+	m_ngr->gridToWorld(0, 0, (m_ngr->getDistanceField()->numCellsZ())/2, dx, dy, zmid);
+	for (const auto& c: m_ngr_complement)
+	{
+		if (c[2] == zmid) {
+			complement.push_back(c);
 		}
 	}
-	m_state_to_id.clear();
-	m_states.clear();
-
-	m_focal->reset();
+	m_ngr_complement = complement;
+	complement.clear();
 }
 
 bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
@@ -192,6 +194,27 @@ void Agent::GetSE2Push(std::vector<double>& push)
 		push.at(0) = intersection.at(0);
 		push.at(1) = intersection.at(1);
 	}
+}
+
+void Agent::initNGR(
+	double ox, double oy, double oz,
+	double sx, double sy, double sz,
+	double max_distance, const std::string& planning_frame)
+{
+	m_planning_frame = planning_frame;
+
+	using DistanceMapType = smpl::PropagationDistanceField;
+	bool propagate_negative_distances = true;
+
+	m_df = std::make_shared<DistanceMapType>(
+			ox, oy, oz,
+			sx, sy, sz,
+			DF_RES,
+			max_distance, propagate_negative_distances);
+
+	bool ref_counted = false;
+	m_ngr = std::make_unique<smpl::OccupancyGrid>(m_df, ref_counted);
+	m_ngr->setReferenceFrame(m_planning_frame);
 }
 
 } // namespace clutter

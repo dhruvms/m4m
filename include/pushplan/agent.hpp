@@ -9,7 +9,9 @@
 #include <pushplan/conflicts.hpp>
 #include <pushplan/agent_lattice.hpp>
 
-#include <smpl/types.h>
+#include <smpl/distance_map/distance_map_interface.h>
+#include <smpl/occupancy_grid.h>
+#include <ros/ros.h>
 
 #include <vector>
 #include <string>
@@ -38,11 +40,16 @@ public:
 	// 	const std::vector<double>& xyz,
 	// 	const std::vector<double>& rpy);
 	bool Init();
+	void UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels);
+	void ComputeNGRComplement();
 
 	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f);
 
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
+	}
+	void SetObstacleGrid(const std::shared_ptr<smpl::OccupancyGrid>& obs_grid) {
+		m_obs_grid = obs_grid;
 	}
 
 	void GetSE2Push(std::vector<double>& push);
@@ -81,6 +88,8 @@ private:
 
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<Focal> m_focal;
+
+	void initNGR();
 };
 
 } // namespace clutter
