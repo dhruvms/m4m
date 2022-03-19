@@ -13,7 +13,7 @@
 namespace clutter
 {
 
-struct Object
+struct ObjectDesc
 {
 	int id, shape, type;
 	double o_x, o_y, o_z;
@@ -21,6 +21,11 @@ struct Object
 	double x_size, y_size, z_size;
 	double mass, mu;
 	bool movable, locked, ycb;
+};
+
+struct Object
+{
+	ObjectDesc desc;
 
 	smpl::collision::CollisionShape* smpl_shape = nullptr;
 	smpl::collision::CollisionObject* smpl_co = nullptr;

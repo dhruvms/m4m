@@ -1,4 +1,5 @@
 #include <pushplan/object.hpp>
+#include <pushplan/constants.hpp>
 
 #include <sbpl_collision_checking/collision_model_config.h>
 #include <sbpl_collision_checking/voxel_operations.h>
@@ -16,14 +17,14 @@ namespace clutter
 
 int Object::Shape() const
 {
-	if (!ycb) {
-		return shape;
+	if (!desc.ycb) {
+		return desc.shape;
 	}
 	else {
-		if (shape == 36) {
+		if (desc.shape == 36) {
 			return 0;
 		}
-		int s = x_size == y_size ? 2 : 0;
+		int s = desc.x_size == desc.y_size ? 2 : 0;
 		return s;
 	}
 }
@@ -31,40 +32,40 @@ int Object::Shape() const
 bool Object::CreateCollisionObjects()
 {
 	moveit_obj = new moveit_msgs::CollisionObject();
-	moveit_obj->id = std::to_string(id);
+	moveit_obj->id = std::to_string(desc.id);
 
 	geometry_msgs::Pose pose;
 	Eigen::Quaterniond q;
 	geometry_msgs::Quaternion orientation;
-	if (!ycb)
+	if (!desc.ycb)
 	{
 		shape_msgs::SolidPrimitive prim;
 
-		if (shape == 0)
+		if (desc.shape == 0)
 		{
 			// Create Moveit collision object shape
 			prim.type = shape_msgs::SolidPrimitive::BOX;
 			prim.dimensions.resize(3);
-			prim.dimensions[0] = x_size * 2;
-			prim.dimensions[1] = y_size * 2;
-			prim.dimensions[2] = z_size * 2;
+			prim.dimensions[0] = desc.x_size * 2;
+			prim.dimensions[1] = desc.y_size * 2;
+			prim.dimensions[2] = desc.z_size * 2;
 
 			// Create FCL collision object
 			std::shared_ptr<fcl::Box> fcl_shape =
-				std::make_shared<fcl::Box>(x_size * 2, y_size * 2, z_size * 2);
+				std::make_shared<fcl::Box>(desc.x_size * 2, desc.y_size * 2, desc.z_size * 2);
 			fcl_obj = new fcl::CollisionObject(fcl_shape);
 		}
-		else if (shape == 2)
+		else if (desc.shape == 2)
 		{
 			// Create Moveit collision object shape
 			prim.type = shape_msgs::SolidPrimitive::CYLINDER;
 			prim.dimensions.resize(2);
-			prim.dimensions[0] = z_size;
-			prim.dimensions[1] = x_size;
+			prim.dimensions[0] = desc.z_size;
+			prim.dimensions[1] = desc.x_size;
 
 			// Create FCL collision object
 			std::shared_ptr<fcl::Cylinder> fcl_shape =
-				std::make_shared<fcl::Cylinder>(x_size, z_size);
+				std::make_shared<fcl::Cylinder>(desc.x_size, desc.z_size);
 			fcl_obj = new fcl::CollisionObject(fcl_shape);
 		}
 
@@ -76,11 +77,11 @@ bool Object::CreateCollisionObjects()
 			prim.dimensions[2] *= (1.0 + (sqrt(3) * DF_RES));
 		}
 
-		pose.position.x = o_x;
-		pose.position.y = o_y;
-		pose.position.z = o_z;
+		pose.position.x = desc.o_x;
+		pose.position.y = desc.o_y;
+		pose.position.z = desc.o_z;
 
-		smpl::angles::from_euler_zyx(o_yaw, o_pitch, o_roll, q);
+		smpl::angles::from_euler_zyx(desc.o_yaw, desc.o_pitch, desc.o_roll, q);
 		tf::quaternionEigenToMsg(q, orientation);
 
 		pose.orientation = orientation;
@@ -94,7 +95,7 @@ bool Object::CreateCollisionObjects()
 		auto found = stl_mesh.find_last_of("/\\");
 		stl_mesh = stl_mesh.substr(0, found + 1) + "../../dat/ycb/?/tsdf/nontextured.stl";
 
-		auto itr1 = YCB_OBJECT_NAMES.find(shape);
+		auto itr1 = YCB_OBJECT_NAMES.find(desc.shape);
 		std::string object_name(itr1->second);
 		found = stl_mesh.find_last_of("?");
 		stl_mesh.insert(found, object_name);
@@ -114,18 +115,18 @@ bool Object::CreateCollisionObjects()
 			return false;
 		}
 
-		pose.position.x = o_x;
-		pose.position.y = o_y;
-		pose.position.z = o_z;
+		pose.position.x = desc.o_x;
+		pose.position.y = desc.o_y;
+		pose.position.z = desc.o_z;
 
 		double yaw_offset = 0.0;
-		auto itr2 = YCB_OBJECT_DIMS.find(shape);
+		auto itr2 = YCB_OBJECT_DIMS.find(desc.shape);
 		if (itr2 != YCB_OBJECT_DIMS.end()) {
 			yaw_offset = itr2->second.at(3);
 		}
 
 		smpl::angles::from_euler_zyx(
-				o_yaw - yaw_offset, o_pitch, o_roll, q);
+				desc.o_yaw - yaw_offset, desc.o_pitch, desc.o_roll, q);
 		tf::quaternionEigenToMsg(q, orientation);
 		pose.orientation = orientation;
 
@@ -205,10 +206,10 @@ bool Object::CreateSMPLCollisionObject()
 		shapes.push_back(smpl_shape);
 
 		auto& prim_pose = moveit_obj->primitive_poses[i];
-		Eigen::Affine3d transform = Eigen::Translation3d(o_x, o_y, o_z) *
-						Eigen::AngleAxisd(o_yaw, Eigen::Vector3d::UnitZ()) *
-						Eigen::AngleAxisd(o_pitch, Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(o_roll, Eigen::Vector3d::UnitX());;
+		Eigen::Affine3d transform = Eigen::Translation3d(desc.o_x, desc.o_y, desc.o_z) *
+						Eigen::AngleAxisd(desc.o_yaw, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(desc.o_pitch, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(desc.o_roll, Eigen::Vector3d::UnitX());;
 		tf::poseMsgToEigen(prim_pose, transform);
 		shape_poses.push_back(transform);
 	}
@@ -255,7 +256,7 @@ bool Object::CreateSMPLCollisionObject()
 // {
 // 	// geometry_msgs::Pose pose;
 // 	// Eigen::Quaterniond q;
-// 	// if (!ycb)
+// 	// if (!desc.ycb)
 // 	// {
 // 	// 	pose.position.x = transform.translation().x();
 // 	// 	pose.position.y = transform.translation().y();
@@ -274,7 +275,7 @@ bool Object::CreateSMPLCollisionObject()
 // 	// 	pose.position.z = transform.translation().z();
 
 // 	// 	double yaw_offset = 0.0;
-// 	// 	auto itr2 = YCB_OBJECT_DIMS.find(shape);
+// 	// 	auto itr2 = YCB_OBJECT_DIMS.find(desc.shape);
 // 	// 	if (itr2 != YCB_OBJECT_DIMS.end()) {
 // 	// 		yaw_offset = itr2->second.at(3);
 // 	// 	}
@@ -319,23 +320,23 @@ void Object::UpdatePose(const LatticeState& s)
 
 	moveit_pose.position.x = s.state.at(0);
 	moveit_pose.position.y = s.state.at(1);
-	moveit_pose.position.z = o_z;
+	moveit_pose.position.z = desc.o_z;
 
 	double yaw_offset = 0.0;
-	if (ycb)
+	if (desc.ycb)
 	{
-		auto itr2 = YCB_OBJECT_DIMS.find(shape);
+		auto itr2 = YCB_OBJECT_DIMS.find(desc.shape);
 		if (itr2 != YCB_OBJECT_DIMS.end()) {
 			yaw_offset = itr2->second.at(3);
 		}
 	}
 
-	smpl::angles::from_euler_zyx(o_yaw - yaw_offset, o_pitch, o_roll, q);
+	smpl::angles::from_euler_zyx(desc.o_yaw - yaw_offset, desc.o_pitch, desc.o_roll, q);
 	tf::quaternionEigenToMsg(q, orientation);
 
 	moveit_pose.orientation = orientation;
 
-	if (ycb) {
+	if (desc.ycb) {
 		moveit_obj->mesh_poses[0] = moveit_pose;
 	}
 	else {
@@ -344,7 +345,7 @@ void Object::UpdatePose(const LatticeState& s)
 
 	// Update FCL pose
 	fcl::Quaternion3f fcl_q(q.w(), q.x(), q.y(), q.z());
-	fcl::Vec3f fcl_T(s.state.at(0), s.state.at(1), o_z);
+	fcl::Vec3f fcl_T(s.state.at(0), s.state.at(1), desc.o_z);
 	fcl::Transform3f fcl_pose(fcl_q, fcl_T);
 
 	fcl_obj->setTransform(fcl_pose);
@@ -381,7 +382,7 @@ bool Object::GenerateCollisionModels()
 					shapes::ShapeConstPtr ao_shape = MakeROSShape(smpl_co->shapes.at(sidx));
 					shapes.push_back(std::move(ao_shape));
 
-					auto itr = YCB_OBJECT_DIMS.find(obj.shape);
+					auto itr = YCB_OBJECT_DIMS.find(desc.shape);
 					if (itr != YCB_OBJECT_DIMS.end()) {
 						transform.translation().z() -= (m_grasp_z - m_table_z);
 					}
