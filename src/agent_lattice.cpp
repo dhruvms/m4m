@@ -12,6 +12,21 @@ auto std::hash<clutter::LatticeState>::operator()(
 namespace clutter
 {
 
+void AgentLattice::reset()
+{
+	// reset everything
+	for (LatticeState* s : m_states) {
+		if (s != nullptr) {
+			delete s;
+			s = nullptr;
+		}
+	}
+	m_state_to_id.clear();
+	m_states.clear();
+
+	m_focal->reset();
+}
+
 void AgentLattice::SetStartState(const LatticeState& s)
 {
 	m_start_id = getOrCreateState(s);

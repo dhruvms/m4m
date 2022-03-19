@@ -5,6 +5,9 @@
 #include <pushplan/object.hpp>
 #include <pushplan/collision_checker.hpp>
 #include <pushplan/focal.hpp>
+#include <pushplan/cbs_nodes.hpp>
+#include <pushplan/conflicts.hpp>
+#include <pushplan/agent_lattice.hpp>
 
 #include <smpl/types.h>
 
@@ -14,9 +17,6 @@
 
 namespace clutter
 {
-
-class HighLevelNode;
-class Constraint;
 
 class Agent
 {
@@ -78,10 +78,6 @@ private:
 	Coord m_start, m_goal;
 	State m_goalf;
 	int m_t, m_priority;
-
-	int m_start_id, m_goal_id, m_expansions = 0;
-	STATES m_states, m_closed;
-	Trajectory m_solve;
 
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<Focal> m_focal;

@@ -1,12 +1,21 @@
 #ifndef AGENT_LATTICE_HPP
 #define AGENT_LATTICE_HPP
 
+#include <pushplan/types.hpp>
+#include <pushplan/agent.hpp>
+
+#include <smpl/types.h>
+
+#include <vector>
+
 namespace clutter
 {
 
 class AgentLattice
 {
 public:
+
+	void init(Agent* agent);
 	void reset();
 
 	void SetStartState(const LatticeState& s);
@@ -22,6 +31,12 @@ public:
 	unsigned int GetConflictHeuristic(int state_id);
 	unsigned int GetGoalHeuristic(const LatticeState& s);
 private:
+
+	Agent* m_agent = nullptr;
+
+	int m_start_id, m_goal_id, m_expansions = 0;
+	STATES m_states, m_closed;
+	Trajectory m_solve;
 
 	// maps from coords to stateID
 	typedef LatticeState StateKey;
