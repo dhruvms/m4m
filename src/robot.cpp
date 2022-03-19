@@ -565,29 +565,8 @@ bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& s
 	return true;
 }
 
-bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
+bool Robot::planApproach(const std::vector<std::vector<double> >& approach_cvecs)
 {
-	expands = 0;
-	min_f = 0;
-	// CBS TODO: must pick out constraints wrt planning phase:
-	// (i) for planning to pregrasp, all constraints with time <= m_grasp_at
-	// are active
-	// (ii) for planning to home, all constraints with times >= m_grasp_at + 2
-	// are active
-
-	// Get relevant constraints - check logic per above
-	std::list<std::shared_ptr<Constraint> > approach_constraints;
-	for (auto& constraint : ct_node->m_constraints)
-	{
-		if (constraint->m_me == ct_node->m_replanned) {
-			approach_constraints.push_back(constraint);
-		}
-	}
-
-	std::vector<std::vector<double> > approach_cvecs;
-	VecConstraints(approach_constraints, approach_cvecs);
-	approach_constraints.clear();
-
 	///////////////////
 	// Plan approach //
 	///////////////////
@@ -633,10 +612,116 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 		return false;
 	}
 	// SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
+	m_traj = res.trajectory.joint_trajectory;
+
+	return true;
+}
+
+void Robot::VoxeliseTrajectory(
+	std::vector<std::vector<Eigen::Vector3d>>& voxels)
+{
+	double start_time = GetTime();
+
+	int sphere_count = 0;
+	for (const auto& wp: m_traj.points)
+	{
+		auto markers = m_cc_i->getCollisionModelVisualization(wp.positions);
+		for (auto& marker : markers)
+		{
+			std::unique_ptr<smpl::collision::CollisionShape> shape;
+			shape = smpl::make_unique<smpl::collision::SphereShape>(boost::get<smpl::visual::Ellipse>(marker.shape).axis_x);
+
+			std::vector<smpl::collision::CollisionShape*> shapes;
+			shapes.push_back(shape.get());
+
+			geometry_msgs::Pose pose;
+			pose.position.x = marker.pose.position[0];
+			pose.position.y = marker.pose.position[1];
+			pose.position.z = marker.pose.position[2];
+			geometry_msgs::Quaternion orientation;
+			tf::quaternionEigenToMsg(marker.pose.orientation, orientation);
+			pose.orientation = orientation;
+
+			smpl::collision::AlignedVector<Eigen::Affine3d> shape_poses;
+			Eigen::Affine3d transform;
+			tf::poseMsgToEigen(pose, transform);
+			shape_poses.push_back(transform);
+
+			// create the collision object
+			smpl::collision::CollisionObject co;
+			co.id = std::to_string(sphere_count++);
+			co.shapes = std::move(shapes);
+			co.shape_poses = std::move(shape_poses);
+
+			const double res = m_grid_traj->resolution();
+			const Eigen::Vector3d origin(
+					m_grid_traj->originX(), m_grid_traj->originY(), m_grid_traj->originZ());
+
+			const Eigen::Vector3d gmin(
+					m_grid_traj->originX(), m_grid_traj->originY(), m_grid_traj->originZ());
+
+			const Eigen::Vector3d gmax(
+					m_grid_traj->originX() + m_grid_traj->sizeX(),
+					m_grid_traj->originY() + m_grid_traj->sizeY(),
+					m_grid_traj->originZ() + m_grid_traj->sizeZ());
+
+			if (!VoxelizeObject(co, res, origin, gmin, gmax, voxels)) {
+				continue;
+			}
+		}
+	}
+
+	ROS_INFO("Robot trajectory voxelisation took %f seconds", GetTime() - start_time);
+
+	// TODO: make this faster by looping over cells in a sphere octant
+	// and computing the rest via symmetry
+	// start_time = GetTime();
+
+	// int sphere_count = 0;
+	// for (const auto& wp: m_traj.points)
+	// {
+	// 	auto markers = m_cc_i->getCollisionModelVisualization(wp.positions);
+	// 	for (auto& marker : markers)
+	// 	{
+	// 	}
+	// }
+}
+
+bool Robot::PlanOnce()
+{
+	std::vector<std::vector<double> > dummy;
+	return planApproach(dummy);
+}
+
+bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
+{
+	expands = 0;
+	min_f = 0;
+	// CBS TODO: must pick out constraints wrt planning phase:
+	// (i) for planning to pregrasp, all constraints with time <= m_grasp_at
+	// are active
+	// (ii) for planning to home, all constraints with times >= m_grasp_at + 2
+	// are active
+
+	// Get relevant constraints - check logic per above
+	std::list<std::shared_ptr<Constraint> > approach_constraints;
+	for (auto& constraint : ct_node->m_constraints)
+	{
+		if (constraint->m_me == ct_node->m_replanned) {
+			approach_constraints.push_back(constraint);
+		}
+	}
+
+	std::vector<std::vector<double> > approach_cvecs;
+	VecConstraints(approach_constraints, approach_cvecs);
+	approach_constraints.clear();
+
+	if (!planApproach(approach_cvecs)) {
+		return false;
+	}
 
 	auto planner_stats = m_planner->getPlannerStats();
 	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
-	m_traj = res.trajectory.joint_trajectory;
 	expands = planner_stats["expansions"];
 	min_f = planner_stats["min f val"];
 

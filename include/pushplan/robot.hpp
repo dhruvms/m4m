@@ -48,7 +48,10 @@ public:
 	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
 	bool Init();
 	bool RandomiseStart();
+	bool PlanOnce();
 	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f);
+	void VoxeliseTrajectory(
+		std::vector<std::vector<Eigen::Vector3d>>& voxels);
 
 	void ProfileTraj(Trajectory& traj);
 	bool ComputeGrasps(
@@ -117,6 +120,10 @@ public:
 		return (m_stats["attach_fails"] > 0) || (m_stats["attach_collides"] > 0);
 	}
 
+	auto Grid() const -> const std::shared_ptr<smpl::OccupancyGrid>& {
+		return m_grid_i;
+	}
+
 private:
 	int m_id;
 	ros::NodeHandle m_nh, m_ph;
@@ -149,7 +156,7 @@ private:
 	std::normal_distribution<> m_distG;
 
 	std::shared_ptr<smpl::DistanceMapInterface> m_df_i;
-	std::unique_ptr<smpl::OccupancyGrid> m_grid_i;
+	std::shared_ptr<smpl::OccupancyGrid> m_grid_i;
 	std::unique_ptr<smpl::collision::CollisionSpace> m_cc_i;
 	std::vector<std::unique_ptr<smpl::collision::CollisionShape>> m_collision_shapes;
 	std::vector<std::unique_ptr<smpl::collision::CollisionObject>> m_collision_objects;
@@ -252,6 +259,8 @@ private:
 	bool attachObject(const Object& obj);
 	bool detachObject();
 	void displayObjectMarker(const Object& object);
+
+	bool planApproach(const std::vector<std::vector<double> >& approach_cvecs);
 };
 
 } // namespace clutter
