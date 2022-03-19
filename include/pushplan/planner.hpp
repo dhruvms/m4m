@@ -26,10 +26,11 @@ public:
 	Planner() : m_num_objs(-1), m_scene_id(-1),
 				m_ph("~") {};
 	bool Init(const std::string& scene_file, int scene_id, bool ycb);
+	bool Alive();
+	bool SetupAgentNGRs();
 
 	bool Plan();
 	bool SaveData();
-	bool Alive();
 	bool Rearrange();
 	std::uint32_t RunSim();
 	bool TryExtract();

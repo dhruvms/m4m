@@ -168,6 +168,22 @@ bool Planner::Alive()
 	return true;
 }
 
+bool Planner::SetupAgentNGRs()
+{
+	if (!m_robot->PlanOnce()) {
+		return false;
+	}
+
+	std::vector<std::vector<Eigen::Vector3d>> ngr_voxels;
+	m_robot->VoxeliseTrajectory(ngr_voxels);
+	for (auto& a: m_agents) {
+		a->UpdateNGR(ngr_voxels);
+		a->SetObstacleGrid(m_robot->Grid());
+	}
+
+	return true;
+}
+
 bool Planner::Plan()
 {
 	while (!setupProblem()) {
