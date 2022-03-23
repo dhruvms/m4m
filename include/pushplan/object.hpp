@@ -19,7 +19,7 @@ struct ObjectDesc
 	double o_x, o_y, o_z;
 	double o_roll, o_pitch, o_yaw;
 	double x_size, y_size, z_size;
-	double mass, mu;
+	double mass, mu, yaw_offset;
 	bool movable, locked, ycb;
 };
 
@@ -29,8 +29,11 @@ struct Object
 
 	smpl::collision::CollisionShape* smpl_shape = nullptr;
 	smpl::collision::CollisionObject* smpl_co = nullptr;
+
 	smpl::collision::CollisionSpheresModel* spheres_model = nullptr;
+	smpl::collision::CollisionSpheresState* spheres_state = nullptr;
     smpl::collision::CollisionVoxelsModel* voxels_model = nullptr;
+    smpl::collision::CollisionVoxelsState* voxels_state = nullptr;
 
 	moveit_msgs::CollisionObject* moveit_obj = nullptr;
 	fcl::CollisionObject* fcl_obj = nullptr;
@@ -40,6 +43,9 @@ struct Object
 	bool CreateSMPLCollisionObject();
 	bool GenerateCollisionModels();
 
+	void SetTransform(const Eigen::Affine3d& T) { m_T = T; };
+	void updateSphereState(const smpl::collision::SphereIndex& sidx);
+
 	// bool TransformAndVoxelise(
 	// 	const Eigen::Affine3d& transform,
 	// 	const double& res, const Eigen::Vector3d& origin,
@@ -47,6 +53,9 @@ struct Object
 	// bool Voxelise(
 	// 	const double& res, const Eigen::Vector3d& origin,
 	// 	const Eigen::Vector3d& gmin, const Eigen::Vector3d& gmax);
+
+	auto SpheresState() -> smpl::collision::CollisionSpheresState* { return spheres_state; }
+	auto VoxelsState() -> smpl::collision::CollisionVoxelsState* { return voxels_state; }
 
 	void UpdatePose(const LatticeState& s);
 
@@ -56,6 +65,8 @@ struct Object
 	fcl::CollisionObject* GetFCLObject() { return fcl_obj; };
 
 private:
+	Eigen::Affine3d m_T;
+
 	bool createSpheresModel(
 		const std::vector<shapes::ShapeConstPtr>& shapes,
 	    const smpl::collision::Affine3dVector& transforms);

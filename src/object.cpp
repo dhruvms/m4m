@@ -119,14 +119,14 @@ bool Object::CreateCollisionObjects()
 		pose.position.y = desc.o_y;
 		pose.position.z = desc.o_z;
 
-		double yaw_offset = 0.0;
+		desc.yaw_offset = 0.0;
 		auto itr2 = YCB_OBJECT_DIMS.find(desc.shape);
 		if (itr2 != YCB_OBJECT_DIMS.end()) {
-			yaw_offset = itr2->second.at(3);
+			desc.yaw_offset = itr2->second.at(3);
 		}
 
 		smpl::angles::from_euler_zyx(
-				desc.o_yaw - yaw_offset, desc.o_pitch, desc.o_roll, q);
+				desc.o_yaw - desc.yaw_offset, desc.o_pitch, desc.o_roll, q);
 		tf::quaternionEigenToMsg(q, orientation);
 		pose.orientation = orientation;
 
@@ -322,16 +322,7 @@ void Object::UpdatePose(const LatticeState& s)
 	moveit_pose.position.y = s.state.at(1);
 	moveit_pose.position.z = desc.o_z;
 
-	double yaw_offset = 0.0;
-	if (desc.ycb)
-	{
-		auto itr2 = YCB_OBJECT_DIMS.find(desc.shape);
-		if (itr2 != YCB_OBJECT_DIMS.end()) {
-			yaw_offset = itr2->second.at(3);
-		}
-	}
-
-	smpl::angles::from_euler_zyx(desc.o_yaw - yaw_offset, desc.o_pitch, desc.o_roll, q);
+	smpl::angles::from_euler_zyx(desc.o_yaw - desc.yaw_offset, desc.o_pitch, desc.o_roll, q);
 	tf::quaternionEigenToMsg(q, orientation);
 
 	moveit_pose.orientation = orientation;
@@ -360,7 +351,7 @@ bool Object::GenerateCollisionModels()
 	{
 		for (size_t sidx = 0; sidx < smpl_co->shapes.size(); ++sidx)
 		{
-			auto transform = Eigen::Affine3d::Identity();
+			auto transform = smpl_co->shape_poses.at(sidx); // Eigen::Affine3d::Identity();
 			switch (smpl_co->shapes.at(sidx)->type)
 			{
 				case smpl::collision::ShapeType::Box:
@@ -418,6 +409,12 @@ bool Object::GenerateCollisionModels()
 	return true;
 }
 
+void updateSphereState(const smpl::collision::SphereIndex& sidx)
+{
+	smpl::collision::CollisionSphereState& sphere_state = spheres_state->spheres[sidx.s];
+    sphere_state.pos = m_T * sphere_state.model->center;
+}
+
 bool Object::createSpheresModel(
 	const std::vector<shapes::ShapeConstPtr>& shapes,
 	const smpl::collision::Affine3dVector& transforms)
@@ -440,6 +437,10 @@ bool Object::createSpheresModel(
 	for (auto& sphere : spheres_model->spheres.m_tree) {
 		sphere.parent = spheres_model;
 	}
+
+	spheres_state = new smpl::collision::CollisionSpheresState;
+	spheres_state->model = spheres_model;
+	spheres_state->spheres.buildFrom(spheres_state);
 
 	return true;
 }
@@ -468,6 +469,10 @@ bool Object::createVoxelsModel(
 		return false;
 		// TODO: anything to do in this case
 	}
+
+	voxels_state = new smpl::collision::CollisionVoxelsState;
+	voxels_state->model = voxels_model;
+    voxels_state->voxels = voxels_model->voxels;
 
 	return true;
 }
