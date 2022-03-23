@@ -65,8 +65,9 @@ struct HighLevelNode
 	std::list<std::shared_ptr<Conflict> > m_conflicts; // conflicts at this node
 	std::shared_ptr<Conflict> m_conflict; // selected conflict
 	std::vector<std::pair<int, Trajectory> > m_solution; // agent solutions
+	std::set<std::pair<int, int> > m_priorities;
 
-	int m_g, m_soc, m_depth, m_makespan, m_generate, m_expand;
+	int m_g, m_flowtime, m_depth, m_makespan, m_generate, m_expand;
 	int m_h, m_d;
 	bool m_h_computed;
 
