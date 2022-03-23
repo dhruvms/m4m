@@ -19,22 +19,22 @@ struct HighLevelNode
 	{
 		bool operator()(const HighLevelNode* p, const HighLevelNode* q) const
 		{
-			if (p->m_g + (COST_MULT * p->m_h) == q->m_g + (COST_MULT * q->m_h))
+			if (p->fval() == q->fval())
 			{
 				if (p->m_d == q->m_d)
 				{
-					if (p->m_soc == q->m_soc)
+					if (p->m_flowtime == q->m_flowtime)
 					{
 						return p->m_h >= q->m_h;
 					}
 
-					return p->m_soc >= q->m_soc;
+					return p->m_flowtime >= q->m_flowtime;
 				}
 
 				return p->m_d >= q->m_d;
 			}
 
-			return p->m_g + (COST_MULT * p->m_h) >= q->m_g + (COST_MULT * q->m_h);
+			return p->fval() >= q->fval();
 		}
 	};
 
@@ -44,17 +44,17 @@ struct HighLevelNode
 		{
 			if (p->m_d == q->m_d)
 			{
-				if (p->m_g + (COST_MULT * p->m_h) == q->m_g + (COST_MULT * q->m_h))
+				if (p->fval() == q->fval())
 				{
-					if (p->m_soc == q->m_soc)
+					if (p->m_flowtime == q->m_flowtime)
 					{
 						return p->m_h >= q->m_h;
 					}
 
-					return p->m_soc >= q->m_soc;
+					return p->m_flowtime >= q->m_flowtime;
 				}
 
-				return p->m_g + (COST_MULT * p->m_h) >= q->m_g + (COST_MULT * q->m_h);
+				return p->fval() >= q->fval();
 			}
 
 			return p->m_d >= q->m_d;
@@ -137,6 +137,8 @@ struct HighLevelNode
 		}
 		m_h = std::max(h, m_h);
 	}
+
+	int fval() { return this->m_g + (COST_MULT * this->m_h); };
 };
 
 struct LowLevelNode

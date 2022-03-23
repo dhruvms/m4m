@@ -48,10 +48,10 @@ bool CBS::Solve()
 		start_time = GetTime(); // reset clock with every loop iteration
 
 		// select high level node
-		if (m_OPEN.top()->m_g > m_soln_lb)
+		if (m_OPEN.top()->fval() > m_soln_lb)
 		{
 			int f_thresh = m_wf * m_soln_lb;
-			m_soln_lb = std::max(m_soln_lb, m_OPEN.top()->m_g);
+			m_soln_lb = std::max(m_soln_lb, m_OPEN.top()->fval());
 			int new_f_thresh = m_wf * m_soln_lb;
 			for (auto& n : m_OPEN)
 			{
@@ -86,26 +86,31 @@ bool CBS::Solve()
 		++m_ct_expanded;
 		next->m_expand = m_ct_expanded;
 
-		// expand CT node
-		HighLevelNode* child[2] = { new HighLevelNode() , new HighLevelNode() };
-		addConstraints(next, child[0], child[1]);
-		for (int i = 0; i < 2; ++i)
-		{
-			if (updateChild(next, child[i])) {
-				next->m_children.push_back(child[i]);
-			}
-			else {
-				delete (child[i]);
-				continue;
-			}
-		}
-		next->clear();
+		growConstraintTree(next);
 
 		m_search_time += GetTime() - start_time;
 	}
 
 	SMPL_ERROR("CBS high-level OPEN is empty");
 	return false;
+}
+
+void CBS::growConstraintTree(HighLevelNode* parent)
+{
+	// expand CT node
+	HighLevelNode* child[2] = { new HighLevelNode() , new HighLevelNode() };
+	addConstraints(parent, child[0], child[1]);
+	for (int i = 0; i < 2; ++i)
+	{
+		if (updateChild(parent, child[i])) {
+			parent->m_children.push_back(child[i]);
+		}
+		else {
+			delete (child[i]);
+			continue;
+		}
+	}
+	parent->clear();
 }
 
 bool CBS::initialiseRoot()

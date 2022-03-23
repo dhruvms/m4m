@@ -32,7 +32,7 @@ public:
 	bool Solve();
 	void SaveStats();
 
-private:
+protected:
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::shared_ptr<Robot> m_robot;
 	std::vector<std::shared_ptr<Agent> > m_objs;
@@ -48,7 +48,8 @@ private:
 	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::OPENCompare> > m_OPEN;
 	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::FOCALCompare> > m_FOCAL;
 
-	bool initialiseRoot();
+	virtual bool initialiseRoot();
+	virtual void growConstraintTree(HighLevelNode* parent);
 	void pushNode(HighLevelNode* node);
 
 	void findConflicts(HighLevelNode& node);
