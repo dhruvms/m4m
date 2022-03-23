@@ -102,10 +102,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		SMPL_ERROR("Robot setup failed!");
 		return false;
 	}
-	m_ooi->Setup();
-	for (auto& a: m_agents) {
-		a->Setup();
-	}
 
 	if (!m_robot->ProcessObstacles(all_obstacles))
 	{
@@ -114,7 +110,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	}
 	all_obstacles.clear();
 	m_robot->SetOOI(m_ooi->GetObject());
-	m_robot->SetMovables(m_agents);
+	// m_robot->SetMovables(m_agents);
 
 	int t = 0, grasp_tries;
 	m_ph.getParam("robot/grasp_tries", grasp_tries);
@@ -483,8 +479,7 @@ bool Planner::setupProblem()
 	}
 
 	// Set agent current positions and time
-	m_ooi->Init();
-	m_robot->Init();
+	// m_robot->Init();
 	// if (!m_robot->RandomiseStart()) {
 	// 	return false;
 	// }
