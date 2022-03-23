@@ -97,32 +97,32 @@ bool CollisionChecker::ImmovableCollision(fcl::CollisionObject* o)
 }
 
 // called by CBS::findConflicts
-bool CollisionChecker::ObjectObjectCollision(Agent* a1, Agent* a2)
+bool CollisionChecker::ObjectObjectCollision(fcl::CollisionObject* o1, fcl::CollisionObject* o2)
 {
 	fcl::CollisionRequest request;
 	fcl::CollisionResult result;
-	fcl::collide(a1->GetFCLObject(), a2->GetFCLObject(), request, result);
+	fcl::collide(o1, o2, request, result);
 	return result.isCollision();
 }
 
 // called by Agent::generateSuccessor
-bool CollisionChecker::ObjectObjectCollision(Agent* a1, const int& a2_id, const LatticeState& a2_q)
+bool CollisionChecker::ObjectObjectCollision(fcl::CollisionObject* o1, const int& a2_id, const LatticeState& a2_q)
 {
 	Agent* a2 = m_planner->GetAgent(a2_id);
 	a2->UpdatePose(a2_q);
 
 	fcl::CollisionRequest request;
 	fcl::CollisionResult result;
-	fcl::collide(a1->GetFCLObject(), a2->GetFCLObject(), request, result);
+	fcl::collide(o1, a2->GetFCLObject(), request, result);
 	return result.isCollision();
 }
 
 bool CollisionChecker::ObjectObjectsCollision(
-	Agent* a1,
+	fcl::CollisionObject* o1,
 	const std::vector<int>& other_ids,
 	const std::vector<LatticeState>& other_poses)
 {
-	m_fcl_mov->unregisterObject(a1->GetFCLObject());
+	m_fcl_mov->unregisterObject(o1);
 
 	for(int i = 0; i < other_ids.size(); i++)
 	{
@@ -133,9 +133,9 @@ bool CollisionChecker::ObjectObjectsCollision(
 
 	m_fcl_mov->setup();
 	fcl::DefaultCollisionData collision_data;
-	m_fcl_mov->collide(a1->GetFCLObject(), &collision_data, fcl::DefaultCollisionFunction);
+	m_fcl_mov->collide(o1, &collision_data, fcl::DefaultCollisionFunction);
 
-	m_fcl_mov->registerObject(a1->GetFCLObject());
+	m_fcl_mov->registerObject(o1);
 
 	return collision_data.result.isCollision();
 

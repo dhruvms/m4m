@@ -74,8 +74,8 @@ public:
 	bool OutOfBounds(const LatticeState& s);
 	bool ImmovableCollision(const State& s, fcl::CollisionObject* o);
 	bool ImmovableCollision(fcl::CollisionObject* o);
-	bool ObjectObjectCollision(Agent* a1, Agent* a2);
-	bool ObjectObjectCollision(Agent* a1, const int& a2_id, const LatticeState& a2_q);
+	bool ObjectObjectCollision(fcl::CollisionObject* o1, fcl::CollisionObject* o2);
+	bool ObjectObjectCollision(fcl::CollisionObject* o1, const int& a2_id, const LatticeState& a2_q);
 	bool ObjectObjectsCollision(
 			Agent* a1,
 			const std::vector<int>& other_ids,
