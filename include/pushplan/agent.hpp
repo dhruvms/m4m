@@ -75,6 +75,8 @@ private:
 	ros::NodeHandle m_ph;
 	Object m_obj;
 	ObjectDesc m_obj_desc;
+	LatticeState m_init;
+	Coord m_goal;
 
 	std::unique_ptr<AgentLattice> m_lattice;
 	std::string m_planning_frame;
@@ -82,18 +84,12 @@ private:
 	std::unique_ptr<smpl::OccupancyGrid> m_ngr;
 	std::shared_ptr<smpl::OccupancyGrid> m_obs_grid;
 	std::vector<Eigen::Vector3d> m_ngr_complement;
+	std::vector<LatticeState> m_ngr_complement_states;
 
-	std::list<std::shared_ptr<Constraint> > m_constraints;
-	std::vector<std::pair<int, Trajectory> >* m_cbs_solution; // all agent trajectories
-	int m_cbs_id, m_max_time;
-
-	LatticeState m_init;
-	Coord m_start, m_goal;
 	State m_goalf;
-	int m_t, m_priority;
 
 	std::shared_ptr<CollisionChecker> m_cc;
-	std::unique_ptr<Focal> m_focal;
+	std::unique_ptr<Search> m_search;
 
 	void initNGR();
 	bool computeGoal(bool backwards);

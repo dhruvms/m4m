@@ -35,26 +35,12 @@ namespace clutter
 
 bool Agent::Init()
 {
-	// m_obj_desc.o_x = m_obj_desc.o_x;
-	// m_obj_desc.o_y = m_obj_desc.o_y;
-
-	// m_init.t = 0;
-	// m_init.hc = 0;
-	// m_init.state.clear();
-	// m_init.state.push_back(m_obj_desc.o_x);
-	// m_init.state.push_back(m_obj_desc.o_y);
-	// m_init.state.push_back(m_obj_desc.o_z);
-	// m_init.state.push_back(m_obj_desc.o_roll);
-	// m_init.state.push_back(m_obj_desc.o_pitch);
-	// m_init.state.push_back(m_obj_desc.o_yaw);
-	// ContToDisc(m_init.state, m_init.coord);
-
-	// if (!m_focal) {
-	// 	m_focal = std::make_unique<Focal>(this, 1.0); // make A* search object
-	// }
-	// this->reset();
-	// this->SetStartState(m_init);
-	// this->SetGoalState(m_init.coord);
+	m_init.t = 0;
+	m_init.hc = 0;
+	m_init.state.clear();
+	m_init.state = { 	m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z,
+						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };
+	ContToDisc(m_init.state, m_init.coord);
 
 	for (int gx = 0; gx < m_ngr->getDistanceField()->numCellsX(); ++gx) {
 	for (int gy = 0; gy < m_ngr->getDistanceField()->numCellsY(); ++gy) {
@@ -101,14 +87,139 @@ void Agent::ComputeNGRComplement()
 	// store one z-slice (middle) of true NGR complement
 	double dx, dy, zmid;
 	m_ngr->gridToWorld(0, 0, (m_ngr->getDistanceField()->numCellsZ())/2, dx, dy, zmid);
-	for (const auto& c: m_ngr_complement)
+	for (const auto& cell: m_ngr_complement)
 	{
-		if (c[2] == zmid) {
+		if (cell[2] == zmid)
+		{
 			complement.push_back(c);
+
+			LatticeState s;
+			s.t = 0;
+			s.hc = 0;
+			s.state = {	cell[0], cell[1], m_obj_desc.o_z,
+						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };
+			ContToDisc(s.state, s.coord);
+			m_ngr_complement_states.push_back(s);
 		}
 	}
 	m_ngr_complement = complement;
 	complement.clear();
+}
+
+// find best NGR complement cell
+// 1. if object is fully outside NGR, this is the initial location
+// 2. if object is partially inside NGR, this is the "farthest" object cell
+// 3. if object is fully inside NGR, this is the closest cell outside NGR
+// (ideally would inflate the NGR by the object and then find such a cell)
+bool Agent::computeGoal(bool backwards)
+{
+	if (backwards) {
+		m_goal = m_init.coord;
+		return true;
+	}
+
+	if (isStateValidNGR(m_init))
+	{
+		m_goal = m_init.coord;
+		return true;
+	}
+	else
+	{
+		Eigen::Affine3d T = Eigen::Translation3d(m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z) *
+						Eigen::AngleAxisd(m_obj_desc.o_yaw, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(m_obj_desc.o_pitch, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(m_obj_desc.o_roll, Eigen::Vector3d::UnitX());
+		auto voxels_state = m_obj->VoxelsState();
+		// transform voxels into the model frame
+		std::vector<Eigen::Vector3d> new_voxels(voxels_state->model->voxels.size());
+		for (size_t i = 0; i < voxels_state->model->voxels.size(); ++i) {
+			new_voxels[i] = T * voxels_state->model->voxels[i];
+		}
+
+		voxels_state->voxels = std::move(new_voxels);
+
+		double best_pos_dist = std::numeric_limits<double>::lowest();
+		double best_neg_dist = std::numeric_limits<double>::lowest();
+		Eigen::Vector3i best_outside_pos, best_inside_pos;
+		bool inside = false, outside = false;
+		for (const Eigen::Vector3d& v : voxels_state->voxels)
+		{
+			auto cell = std::dynamic_pointer_cast<smpl::PropagationDistanceField>(m_df)->getNearestCell(v[0], v[1], v[2], dist, pos);
+			if (dist > 0 && dist > best_pos_dist)
+			{
+				best_pos_dist = dist;
+				best_outside_pos = pos;
+				if (!outside) {
+					outside = true;
+				}
+			}
+			if (dist < 0 && dist > best_neg_dist)
+			{
+				best_neg_dist = dist;
+				best_inside_pos = pos; // actually the nearest free space (boundary?) cell
+				if (!inside) {
+					inside = true;
+				}
+			}
+		}
+		if (!inside) {
+			SMPL_ERROR("How is m_init not valid with NGR but we are not inside?");
+		}
+
+		double wx, wy, wz;
+		if (inside && outside) {
+			m_df->gridToWorld(best_outside_pos[0], best_outside_pos[1], best_outside_pos[2], wx, wy, wz);
+		}
+		else {
+			m_df->gridToWorld(best_inside_pos[0], best_inside_pos[1], best_inside_pos[2], wx, wy, wz);
+		}
+
+		State goal = {wx, wy};
+		ContToDisc(goal, m_goal);
+
+		return true;
+	}
+}
+
+bool Agent::CreateLatticeAndSearch(bool backwards)
+{
+	if (!computeGoal(backwards)) {
+		return false;
+	}
+	m_lattice = std::make_unique<AgentLattice>();
+	m_lattice->init(this, backwards);
+	m_lattice->reset();
+
+	if (backwards)
+	{
+		m_search = std::make_unique<WAStar>(m_lattice.get(), 1.0);
+		m_search->reset();
+
+		for (const auto& s : m_ngr_complement_states)
+		{
+			int start_id = m_lattice->PushStart(s);
+			m_search->push_start(start_id);
+		}
+		int goal_id = m_lattice->PushGoal(m_goal);
+		m_search->push_goal(goal_id);
+	}
+	else
+	{
+		m_search = std::make_unique<Focal>(m_lattice.get(), 100.0);
+		m_search->reset();
+
+		int start_id = m_lattice->PushStart(m_init);
+		m_search->push_start(start_id);
+		int goal_id = m_lattice->PushGoal(m_goal);
+		m_search->push_goal(goal_id);
+	}
+
+	return true;
+}
+
+bool Agent::ImmovableCollision(const LatticeState& s)
+{
+	return isStateValidObs(s);
 }
 
 bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
@@ -116,28 +227,20 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 	m_solve.clear();
 	expands = 0;
 	min_f = 0;
+
 	// collect agent constraints
-	m_constraints.clear();
-	for (auto& constraint : ct_node->m_constraints)
-	{
-		if (constraint->m_me == ct_node->m_replanned) {
-			m_constraints.push_back(constraint);
-		}
-	}
-	m_cbs_solution = &(ct_node->m_solution);
-	m_cbs_id = ct_node->m_replanned;
-	m_max_time = ct_node->m_makespan;
+	m_lattice->SetCTNode(ct_node);
 
 	std::vector<int> solution;
 	int solcost;
-	bool result = m_focal->replan(&solution, &solcost);
+	bool result = m_search->replan(&solution, &solcost);
 
 	if (result)
 	{
 		convertPath(solution);
 		*sol_path = &(this->m_solve);
-		expands = m_focal->get_n_expands();
-		min_f = m_focal->get_min_f();
+		expands = m_search->get_n_expands();
+		min_f = m_search->get_min_f();
 	}
 
 	return result;
