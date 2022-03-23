@@ -143,6 +143,33 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 	return result;
 }
 
+bool Agent::UpdatePose(const LatticeState&s)
+{
+	m_obj.UpdatePose(s);
+}
+
+bool Agent::OutOfBounds(const LatticeState& s)
+{
+	return m_cc->OutOfBounds(s);
+}
+
+bool Agent::ImmovableCollision()
+{
+	return m_cc->ImmovableCollision(m_obj.GetFCLObject());
+}
+
+bool ObjectObjectCollision(const int& a2_id, const LatticeState& a2_q)
+{
+	return m_cc->ObjectObjectCollision(m_obj.GetFCLObject(), a2_id, a2_q);
+}
+
+bool Agent::ObjectObjectsCollision(
+	const std::vector<int>& other_ids,
+	const std::vector<LatticeState>& other_poses)
+{
+	return m_cc->ObjectObjectsCollision(m_obj.GetFCLObject(), other_ids, other_poses);
+}
+
 const std::vector<Object>* Agent::GetObject(const LatticeState& s)
 {
 	m_obj_desc.o_x = s.state.at(0);
@@ -215,6 +242,28 @@ void Agent::initNGR(
 	bool ref_counted = false;
 	m_ngr = std::make_unique<smpl::OccupancyGrid>(m_df, ref_counted);
 	m_ngr->setReferenceFrame(m_planning_frame);
+}
+
+bool Agent::isStateValidObs(const LatticeState& s)
+{
+	m_obj->UpdatePose(s);
+	return m_cc->ImmovableCollision(m_obj->GetFCLObject());
+}
+
+bool Agent::isStateValidNGR(const LatticeState& s)
+{
+	Eigen::Affine3d T = Eigen::Translation3d(s.state[0], s.state[1], m_obj_desc.o_z) *
+						Eigen::AngleAxisd(m_obj_desc.o_yaw, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(m_obj_desc.o_pitch, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(m_obj_desc.o_roll, Eigen::Vector3d::UnitX());
+
+	m_obj->SetTransform(T);
+	std::vector<const smpl::collision::CollisionSphereState*> q = {
+									m_obj->SpheresState()->spheres.root() };
+
+	double padding = 0.0, dist;
+	return smpl::collision::CheckVoxelsCollisions(
+							*(m_obj.get()), q, *(m_ngr.get()), padding, dist);
 }
 
 } // namespace clutter

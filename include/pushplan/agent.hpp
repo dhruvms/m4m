@@ -4,7 +4,6 @@
 #include <pushplan/types.hpp>
 #include <pushplan/object.hpp>
 #include <pushplan/collision_checker.hpp>
-#include <pushplan/focal.hpp>
 #include <pushplan/cbs_nodes.hpp>
 #include <pushplan/conflicts.hpp>
 #include <pushplan/agent_lattice.hpp>
@@ -63,7 +62,14 @@ public:
 		m_obj.GetMoveitObj(msg);
 	};
 
-	void UpdatePose(const LatticeState&s) { m_obj.UpdatePose(s); };
+	void UpdatePose(const LatticeState&s);
+	bool OutOfBounds(const LatticeState& s);
+	bool ImmovableCollision();
+	bool ObjectObjectCollision(
+		const LatticeState& s, const int& a2_id, const LatticeState& a2_q);
+	bool ObjectObjectsCollision(
+			const std::vector<int>& other_ids,
+			const std::vector<LatticeState>& other_poses);
 
 private:
 	ros::NodeHandle m_ph;
@@ -90,6 +96,12 @@ private:
 	std::unique_ptr<Focal> m_focal;
 
 	void initNGR();
+	bool computeGoal(bool backwards);
+
+	// check collisions with static obstacles
+	bool isStateValidObs(const LatticeState$ s);
+	// check collisions with NGR
+	bool isStateValidNGR(const LatticeState$ s);
 };
 
 } // namespace clutter
