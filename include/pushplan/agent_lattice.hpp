@@ -3,6 +3,7 @@
 
 #include <pushplan/types.hpp>
 #include <pushplan/agent.hpp>
+#include <pushplan/cbs_nodes.hpp>
 
 #include <smpl/types.h>
 
@@ -18,8 +19,10 @@ public:
 	void init(Agent* agent);
 	void reset();
 
-	void SetStartState(const LatticeState& s);
-	void SetGoalState(const Coord& p);
+	void PushStart(const LatticeState& s);
+	void PushGoal(const Coord& p);
+
+	void SetCTNode(HighLevelNode* ct_node);
 
 	bool IsGoal(int state_id);
 	void GetSuccs(
@@ -34,9 +37,14 @@ private:
 
 	Agent* m_agent = nullptr;
 
-	int m_start_id, m_goal_id, m_expansions = 0;
+	std::vector<int> m_start_ids;
+	std::vector<int> m_goal_ids;
+	bool m_backwards;
 	STATES m_states, m_closed;
-	Trajectory m_solve;
+
+	std::list<std::shared_ptr<Constraint> > m_constraints;
+	std::vector<std::pair<int, Trajectory> >* m_cbs_solution; // all agent trajectories
+	int m_cbs_id, m_max_time;
 
 	// maps from coords to stateID
 	typedef LatticeState StateKey;

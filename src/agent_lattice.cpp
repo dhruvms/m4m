@@ -12,6 +12,12 @@ auto std::hash<clutter::LatticeState>::operator()(
 namespace clutter
 {
 
+void AgentLattice::init(Agent* agent, bool backwards)
+{
+	m_agent = agent;
+	m_backwards = backwards;
+}
+
 void AgentLattice::reset()
 {
 	// reset everything
@@ -21,27 +27,39 @@ void AgentLattice::reset()
 			s = nullptr;
 		}
 	}
+
+	m_start_ids.clear();
+	m_goal_ids.clear();
 	m_state_to_id.clear();
 	m_states.clear();
-
-	m_focal->reset();
 }
 
-void AgentLattice::SetStartState(const LatticeState& s)
+void AgentLattice::PushStart(const LatticeState& s)
 {
-	m_start_id = getOrCreateState(s);
-	m_start = s.coord;
-
-	m_focal->set_start(m_start_id);
+	int start_id = getOrCreateState(s);
+	m_start_ids.push_back(start_id);
 }
 
-void AgentLattice::SetGoalState(const Coord& p)
+void AgentLattice::PushGoal(const Coord& p)
 {
-	m_goal_id = getOrCreateState(p);
+	int goal_id = getOrCreateState(s);
+	m_goal_ids.push_back(goal_id);
 	m_goal = p;
-	DiscToCont(m_goal, m_goalf);
+}
 
-	m_focal->set_goal(m_goal_id);
+void AgentLattice::SetCTNode(HighLevelNode* ct_node)
+{
+	m_constraints.clear();
+	for (auto& constraint : ct_node->m_constraints)
+	{
+		if (constraint->m_me == ct_node->m_replanned) {
+			m_constraints.push_back(constraint);
+		}
+	}
+
+	m_cbs_solution = &(ct_node->m_solution);
+	m_cbs_id = ct_node->m_replanned;
+	m_max_time = ct_node->m_makespan;
 }
 
 // As long as I am not allowed to be in this location at some later time,
@@ -145,7 +163,7 @@ int AgentLattice::generateSuccessor(
 	std::vector<unsigned int>* costs)
 {
 	LatticeState child;
-	child.t = parent->t + 1;
+	child.t = parent->t + (m_backwards ? 0 : 1);
 	child.hc = parent->hc;
 	child.coord = parent->coord;
 	child.coord.at(0) += dx;
@@ -153,8 +171,8 @@ int AgentLattice::generateSuccessor(
 	DiscToCont(child.coord, child.state);
 	child.state.insert(child.state.end(), parent->state.begin() + 2, parent->state.end());
 
-	UpdatePose(child);
-	if (m_cc->OutOfBounds(child) || m_cc->ImmovableCollision(this->GetFCLObject())) {
+	m_agent->UpdatePose(child);
+	if (m_agent->OutOfBounds(child) || m_agent->ImmovableCollision()) {
 		return -1;
 	}
 
@@ -165,29 +183,29 @@ int AgentLattice::generateSuccessor(
 			// Conflict type 1: robot-object conflict
 			if (constraint->m_me == constraint->m_other)
 			{
-	 			if (m_cbs_solution->at(0).second.size() <= constraint->m_time)
-				{
-					// This should never happen - the constraint would only have existed
-					// if this object and the robot had a conflict at that time
-					SMPL_WARN("How did this robot-object conflict happen with a small robot traj?");
-					continue;
-				}
+	 		// 	if (m_cbs_solution->at(0).second.size() <= constraint->m_time)
+				// {
+				// 	// This should never happen - the constraint would only have existed
+				// 	// if this object and the robot had a conflict at that time
+				// 	SMPL_WARN("How did this robot-object conflict happen with a small robot traj?");
+				// 	continue;
+				// }
 
-				// successor is invalid if I collide in state 'child'
-				// with the robot configuration at the same time
-				if (m_cc->RobotObjectCollision(
-							this, child,
-							m_cbs_solution->at(0).second.at(constraint->m_time), constraint->m_time))
-				{
-					return -1;
-				}
+				// // successor is invalid if I collide in state 'child'
+				// // with the robot configuration at the same time
+				// if (m_cc->RobotObjectCollision(
+				// 			this, child,
+				// 			m_cbs_solution->at(0).second.at(constraint->m_time), constraint->m_time))
+				// {
+				// 	return -1;
+				// }
 			}
 			// Conflict type 2: object-object conflict
 			else
 			{
 				// successor is invalid if I collide in state 'child'
 				// with the constraint->m_other object in state constraint->m_q
-				if (m_cc->ObjectObjectCollision(this, constraint->m_other, constraint->m_q)) {
+				if (m_agent->ObjectObjectCollision(constraint->m_other, constraint->m_q)) {
 					return -1;
 				}
 			}
@@ -221,8 +239,6 @@ unsigned int AgentLattice::cost(
 int AgentLattice::conflictHeuristic(const LatticeState& state)
 {
 	int hc = 0;
-	UpdatePose(state);
-
 	switch (LLHC)
 	{
 		case LowLevelConflictHeuristic::BINARY:
@@ -244,19 +260,19 @@ int AgentLattice::conflictHeuristic(const LatticeState& state)
 					other_poses.push_back(agent_traj.second.at(state.t));
 				}
 			}
-			bool conflict = m_cc->ObjectObjectsCollision(this, other_ids, other_poses);
+			bool conflict = m_agent->ObjectObjectsCollision(other_ids, other_poses);
 
-			if (!conflict)
-			{
-				if (m_cbs_solution->at(0).second.size() <= state.t) {
-					conflict = conflict ||
-						m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t);
-				}
-				else {
-					conflict = conflict ||
-						m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.at(state.t), state.t);
-				}
-			}
+			// if (!conflict)
+			// {
+			// 	if (m_cbs_solution->at(0).second.size() <= state.t) {
+			// 		conflict = conflict ||
+			// 			m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t);
+			// 	}
+			// 	else {
+			// 		conflict = conflict ||
+			// 			m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.at(state.t), state.t);
+			// 	}
+			// }
 
 			hc = (int)conflict;
 			break;
@@ -281,21 +297,21 @@ int AgentLattice::conflictHeuristic(const LatticeState& state)
 					// we collision check against the current state's time
 					other_pose = other_agent.second.at(state.t);
 				}
-				if (m_cc->ObjectObjectCollision(this, other_agent.first, other_pose)) {
+				if (m_agent->ObjectObjectCollision(other_agent.first, other_pose)) {
 					++hc;
 				}
 			}
 
-			// same logic for robot
-			if (m_cbs_solution->at(0).second.size() <= state.t) {
-				other_pose = m_cbs_solution->at(0).second.back();
-			}
-			else {
-				other_pose = m_cbs_solution->at(0).second.at(state.t);
-			}
-			if (m_cc->RobotObjectCollision(this, state, other_pose, state.t)) {
-				++hc;
-			}
+			// // same logic for robot
+			// if (m_cbs_solution->at(0).second.size() <= state.t) {
+			// 	other_pose = m_cbs_solution->at(0).second.back();
+			// }
+			// else {
+			// 	other_pose = m_cbs_solution->at(0).second.at(state.t);
+			// }
+			// if (m_cc->RobotObjectCollision(this, state, other_pose, state.t)) {
+			// 	++hc;
+			// }
 			break;
 		}
 		default:
@@ -309,7 +325,7 @@ int AgentLattice::conflictHeuristic(const LatticeState& state)
 
 bool AgentLattice::goalConflict(const LatticeState& state)
 {
-	UpdatePose(state);
+	m_agent->UpdatePose(state);
 
 	LatticeState other_pose;
 	for (const auto& other_agent: *m_cbs_solution)
@@ -324,7 +340,7 @@ bool AgentLattice::goalConflict(const LatticeState& state)
 		if (other_agent.second.size() <= state.t)
 		{
 			other_pose = other_agent.second.back();
-			if (m_cc->ObjectObjectCollision(this, other_agent.first, other_pose)) {
+			if (m_agent->ObjectObjectCollision(other_agent.first, other_pose)) {
 				return true;
 			}
 		}
@@ -336,30 +352,30 @@ bool AgentLattice::goalConflict(const LatticeState& state)
 			for (int t = state.t; t < (int)other_agent.second.size(); ++t)
 			{
 				other_pose = other_agent.second.at(t);
-				if (m_cc->ObjectObjectCollision(this, other_agent.first, other_pose)) {
+				if (m_agent->ObjectObjectCollision(other_agent.first, other_pose)) {
 					return true;
 				}
 			}
 		}
 	}
 
-	// same logic for robot
-	if (m_cbs_solution->at(0).second.size() <= state.t)
-	{
-		if (m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t)) {
-			return true;
-		}
-	}
-	else
-	{
-		for (int t = state.t; t < (int)m_cbs_solution->at(0).second.size(); ++t)
-		{
-			other_pose = m_cbs_solution->at(0).second.at(t);
-			if (m_cc->RobotObjectCollision(this, state, other_pose, state.t)) {
-				return true;
-			}
-		}
-	}
+	// // same logic for robot
+	// if (m_cbs_solution->at(0).second.size() <= state.t)
+	// {
+	// 	if (m_cc->RobotObjectCollision(this, state, m_cbs_solution->at(0).second.back(), state.t)) {
+	// 		return true;
+	// 	}
+	// }
+	// else
+	// {
+	// 	for (int t = state.t; t < (int)m_cbs_solution->at(0).second.size(); ++t)
+	// 	{
+	// 		other_pose = m_cbs_solution->at(0).second.at(t);
+	// 		if (m_cc->RobotObjectCollision(this, state, other_pose, state.t)) {
+	// 			return true;
+	// 		}
+	// 	}
+	// }
 
 	return false;
 }
