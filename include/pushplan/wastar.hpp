@@ -33,18 +33,21 @@ struct SearchState
 	HeapData od[1]; // overallocated for additional n heuristics
 };
 
-class Agent;
+class AgentLattice;
 
 class WAStar : public Search
 {
 public:
 	WAStar(
-		Agent* agent,
+		AgentLattice* agent,
 		double w=1.0);
 	~WAStar();
 
 	int set_start(int start_id) override;
 	int set_goal(int goal_id) override;
+	std::size_t push_start(int start_id) override;
+	std::size_t push_goal(int goal_id) override;
+
 	void set_max_planning_time(double max_planning_time_ms) override {
 		m_time_limit = max_planning_time_ms * 1e-3;
 	};
@@ -55,7 +58,7 @@ public:
 		std::vector<int>* solution_path, int* solution_cost) override;
 
 private:
-	Agent* m_agent = nullptr;
+	AgentLattice* m_agent = nullptr;
 
 	struct HeapCompare {
 		bool operator()(
@@ -74,14 +77,7 @@ private:
 	double m_time_limit, m_w;
 	SearchState *m_goal, *m_start;
 
-	int m_start_id, m_goal_id;
-
 	std::vector<SearchState*> m_states;
-
-	// Search statistics
-	double m_search_time;
-	int *m_expands; // expansions per queue
-	int m_solution_cost;
 
 	int num_heuristics() const { return 1; }
 

@@ -36,16 +36,30 @@ WAStar::~WAStar()
 
 int WAStar::set_start(int start_id)
 {
-	m_start_id = start_id;
-	m_start = get_state(m_start_id);
+	m_start_ids.clear();
+	m_start_ids.push_back(start_id);
+	m_start = get_state(m_start_ids.back());
 	return m_start_id;
 }
 
 int WAStar::set_goal(int goal_id)
 {
-	m_goal_id = goal_id;
-	m_goal = get_state(m_goal_id);
+	m_goal_ids.clear();
+	m_goal_ids.push_back(goal_id);
+	m_goal = get_state(m_goal_ids.back());
 	return m_goal_id;
+}
+
+std::size_t WAStar::push_start(int start_id)
+{
+	m_start_ids.push_back(start_id);
+	return m_start_ids.size();
+}
+
+std::size_t WAStar::push_goal(int goal_id)
+{
+	m_goal_ids.push_back(goal_id);
+	return m_goal_ids.size();
 }
 
 int WAStar::get_n_expands() const
@@ -80,6 +94,9 @@ void WAStar::reset()
 	m_goal_id = -1;
 	m_start = nullptr;
 	m_goal = nullptr;
+
+	m_start_ids.clear();
+	m_goal_ids.clear();
 }
 
 // Get the search state corresponding to a graph state, creating a new state if

@@ -23,6 +23,9 @@ public:
 
 	int set_start(int start_id) override;
 	int set_goal(int goal_id) override;
+	std::size_t push_start(int start_id) override;
+	std::size_t push_goal(int goal_id) override;
+
 	void set_max_planning_time(double max_planning_time_ms) override {
 		m_time_limit = max_planning_time_ms * 1e-3;
 	};
@@ -45,13 +48,7 @@ private:
 	double m_time_limit, m_wo, m_wf;
 	LowLevelNode *m_goal, *m_start;
 
-	int m_start_id, m_goal_id;
 	unsigned int m_min_f;
-
-	// Search statistics
-	double m_search_time;
-	int *m_expands; // expansions per queue
-	int m_solution_cost;
 	bool m_b;
 
 	LowLevelNode* get_state(int state_id, bool& alloc);
