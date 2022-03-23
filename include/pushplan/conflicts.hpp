@@ -44,6 +44,19 @@ struct Conflict
 		m_c2->m_time = m_t;
 		m_c2->m_q = robot ? q2 : q1;
 	}
+
+	int operator[](std::size_t i) const {
+        if (i == 0) {
+        	return m_a1;
+        }
+        else if (i == 1) {
+        	return m_a2;
+        }
+        else {
+        	assert(false);
+        	return -1;
+        }
+    }
 };
 
 inline
