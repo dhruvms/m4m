@@ -118,7 +118,7 @@ bool Agent::computeGoal(bool backwards)
 		return true;
 	}
 
-	if (isStateValidNGR(m_init))
+	if (stateOutsideNGR(m_init))
 	{
 		m_goal = m_init.coord;
 		return true;
@@ -217,9 +217,14 @@ bool Agent::CreateLatticeAndSearch(bool backwards)
 	return true;
 }
 
+bool Agent::OutsideNGR(const LatticeState& s)
+{
+	return stateOutsideNGR(s);
+}
+
 bool Agent::ImmovableCollision(const LatticeState& s)
 {
-	return isStateValidObs(s);
+	return stateObsCollision(s);
 }
 
 bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
@@ -347,13 +352,15 @@ void Agent::initNGR(
 	m_ngr->setReferenceFrame(m_planning_frame);
 }
 
-bool Agent::isStateValidObs(const LatticeState& s)
+// return false => no collision with obstacles
+bool Agent::stateObsCollision(const LatticeState& s)
 {
 	m_obj->UpdatePose(s);
 	return m_cc->ImmovableCollision(m_obj->GetFCLObject());
 }
 
-bool Agent::isStateValidNGR(const LatticeState& s)
+// return false => collide with NGR
+bool Agent::stateOutsideNGR(const LatticeState& s)
 {
 	Eigen::Affine3d T = Eigen::Translation3d(s.state[0], s.state[1], m_obj_desc.o_z) *
 						Eigen::AngleAxisd(m_obj_desc.o_yaw, Eigen::Vector3d::UnitZ()) *

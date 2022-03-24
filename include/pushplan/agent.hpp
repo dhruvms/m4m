@@ -95,9 +95,9 @@ private:
 	bool computeGoal(bool backwards);
 
 	// check collisions with static obstacles
-	bool isStateValidObs(const LatticeState$ s);
+	bool stateObsCollision(const LatticeState$ s);
 	// check collisions with NGR
-	bool isStateValidNGR(const LatticeState$ s);
+	bool stateOutsideNGR(const LatticeState$ s);
 };
 
 } // namespace clutter

@@ -73,27 +73,39 @@ bool AgentLattice::IsGoal(int state_id)
 	LatticeState* s = getHashEntry(state_id);
 	assert(s);
 
-	bool constrained = false;
-	for (const auto& constraint : m_constraints)
-	{
-		if (constraint->m_q.coord == s->coord) {
-			if (constraint->m_time >= s->t) {
-				constrained = true;
-				break;
-			}
-		}
+	if (m_backwards) {
+		return s->coord == m_goal;
 	}
 
-	// LatticeState dummy = *s;
-	// dummy.t = std::max(m_max_time, s->t);
-	bool conflict = goalConflict(*s);
+	bool constrained = false, conflict = false, ngr = false;
 
-	// if (!constrained && !conflict) {
-	// 	SMPL_INFO("Agent %d goal->t = %d", GetID(), s->t);
-	// }
+	ngr = m_agent->OutsideNGR(*s);
+	if (ngr)
+	{
+		for (const auto& constraint : m_constraints)
+		{
+			if (constraint->m_q.coord == s->coord) {
+				if (constraint->m_time >= s->t) {
+					constrained = true;
+					break;
+				}
+			}
+		}
 
-	return !constrained && !conflict;
-	// return !constrained;
+		if (!constrained)
+		{
+			bool conflict = goalConflict(*s);
+
+			// for forward search goal must valid for all future time
+			return !conflict;
+		}
+
+		// for forward search goal must not be constrained
+		return false;
+	}
+
+	// for forward search goal must be outside NGR
+	return false;
 }
 
 void AgentLattice::GetSuccs(
