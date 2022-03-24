@@ -77,7 +77,7 @@ public:
 	bool ObjectObjectCollision(fcl::CollisionObject* o1, fcl::CollisionObject* o2);
 	bool ObjectObjectCollision(fcl::CollisionObject* o1, const int& a2_id, const LatticeState& a2_q);
 	bool ObjectObjectsCollision(
-			Agent* a1,
+			fcl::CollisionObject* o1,
 			const std::vector<int>& other_ids,
 			const std::vector<LatticeState>& other_poses);
 	bool RobotObjectCollision(
