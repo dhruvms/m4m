@@ -42,6 +42,7 @@ protected:
 
 	virtual bool initialiseRoot() override;
 	virtual void growConstraintTree(HighLevelNode* parent) override;
+	virtual bool updateChild(HighLevelNode* parent, HighLevelNode* child) override;
 };
 
 } // namespace clutter

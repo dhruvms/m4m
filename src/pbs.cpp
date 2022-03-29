@@ -157,6 +157,40 @@ bool PBS::initialiseRoot()
 	return true;
 }
 
+bool PBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
+{
+	child->m_g = parent->m_g; // for now
+	child->m_flowtime = parent->m_flowtime; // for now
+	child->m_makespan = parent->m_makespan; // for now
+	child->m_solution = parent->m_solution; // for now
+	child->m_depth = parent->m_depth + 1;
+	child->m_parent = parent;
+	child->m_children.clear();
+
+	// agent to be replanned for
+	child->m_replanned = child->m_constraints.back()->m_me;
+	int agent_id = child->m_replanned;
+	std::size_t agent_idx = m_obj_id_to_idx[agent_id];
+
+	child->m_priorities.Copy(parent->m_priorities);
+	// Give other agent involved in conflict higher priority
+	child->m_priorities.Add(agent_id, child->m_constraints.back()->m_other);
+
+	double start_time = GetTime();
+	if (!updatePlan(child, child->m_replanned)) {
+		return false;
+	}
+	m_ll_time += GetTime() - start_time;
+
+	child->m_h = 0;
+	child->m_h_computed = false;
+	child->recalcMakespan();
+	child->recalcFlowtime();
+	child->recalcG(m_min_fs);
+
+	return true;
+}
+
 bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 {
 	// get nodes that have lower priority than me - consider replanning for all of these
