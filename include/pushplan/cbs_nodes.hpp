@@ -8,10 +8,49 @@
 
 #include <list>
 #include <memory>
-#include <set>
+#include <unordered_set>
+#include <unordered_map>
+#include <stack>
+#include <queue>
+#include <vector>
 
 namespace clutter
 {
+
+struct DAG
+{
+public:
+	void Clear() { m_G.clear(); };
+	bool Empty() const { return m_G.empty(); };
+	void Copy(const DAG& Gin) { m_G = Gin.GetDAG(); };
+
+	void Add(int from, int to) { m_G[from].insert(to); };
+	void Remove(int from, int to);
+	bool Connected(int from, int to) const;
+	std::unordered_set<int> GetHigherPriorities(int root);
+	std::vector<int> GetParents(int root);
+	void TopologicalSort(std::stack<std::size_t>& order);
+	void TopologicalSort(
+		const std::vector<int>& check,
+		std::queue<int>& order);
+
+	auto GetDAG() const -> const std::unordered_map<int, std::unordered_set<int> >& {
+		return m_G;
+	}
+
+private:
+	std::unordered_map<int, std::unordered_set<int> > m_G;
+
+	void traverse(
+		std::size_t i,
+		std::vector<bool>& v,
+		std::stack<std::size_t>& order);
+	void traverse(
+		const std::vector<int>& check,
+		std::size_t i,
+		std::vector<bool>& v,
+		std::queue<int>& order);
+}
 
 struct HighLevelNode
 {
