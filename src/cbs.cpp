@@ -29,6 +29,12 @@ m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_
 	m_num_agents = (int)m_objs.size() + 1;
 	m_paths.resize(m_num_agents, nullptr);
 	m_min_fs.resize(m_num_agents, 0);
+
+	for (size_t i = 0; i < m_objs.size(); ++i)
+	{
+		m_obj_id_to_idx[m_objs[i]->GetID()] = i;
+		m_obj_idx_to_id[i] = m_objs[i]->GetID();
+	}
 }
 
 bool CBS::Solve()
@@ -118,8 +124,8 @@ bool CBS::initialiseRoot()
 	auto root = new HighLevelNode();
 	root->m_g = 0;
 	root->m_flowtime = 0;
-	root->m_depth = 0;
 	root->m_makespan = 0;
+	root->m_depth = 0;
 	root->m_parent = nullptr;
 	root->m_children.clear();
 
@@ -149,7 +155,7 @@ bool CBS::initialiseRoot()
 		m_ll_time += GetTime() - start_time;
 		m_ll_expanded += expands;
 		m_min_fs[i] = min_f;
-		root->m_solution.emplace_back(m_objs[i]->GetID(), *(m_paths[i]));
+		root->m_solution.emplace_back(m_obj_idx_to_id[i], *(m_paths[i]));
 		root->m_g += m_min_fs[i];
 		root->m_flowtime += m_paths[i]->size();
 		root->m_makespan = std::max(root->m_makespan, (int)m_paths[i]->size());
@@ -207,7 +213,7 @@ void CBS::findConflicts(HighLevelNode& node)
 		{
 			for (size_t i = 0; i < m_objs.size(); ++i)
 			{
-				if (m_objs[i]->GetID() != node.m_replanned) {
+				if (m_obj_idx_to_id[i] != node.m_replanned) {
 					continue;
 				}
 
@@ -231,7 +237,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 	Trajectory* a_traj = nullptr;
 	for (auto& solution: curr.m_solution)
 	{
-		if (solution.first == m_objs[oid]->GetID())
+		if (solution.first == m_obj_idx_to_id[oid])
 		{
 			a_traj = &(solution.second);
 			break;
@@ -246,7 +252,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 		if (m_cc->RobotObjectCollision(m_objs[oid].get(), a_traj->at(t), r_traj->at(t), t))
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
-			conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, r_traj->at(t), a_traj->at(t), true);
+			conflict->InitConflict(m_robot->GetID(), m_obj_idx_to_id[oid], t, r_traj->at(t), a_traj->at(t), true);
 			curr.m_conflicts.push_back(conflict);
 		}
 	}
@@ -275,7 +281,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 				if (m_cc->RobotObjectCollision(m_objs[oid].get(), longer->at(t), shorter->back(), t))
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
-					conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, shorter->back(), longer->at(t), true);
+					conflict->InitConflict(m_robot->GetID(), m_obj_idx_to_id[oid], t, shorter->back(), longer->at(t), true);
 					curr.m_conflicts.push_back(conflict);
 				}
 			}
@@ -285,7 +291,7 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 				if (m_cc->RobotObjectCollision(m_objs[oid].get(), a_traj->back(), longer->at(t), t, false))
 				{
 					std::shared_ptr<Conflict> conflict(new Conflict());
-					conflict->InitConflict(m_robot->GetID(), m_objs[oid]->GetID(), t, longer->at(t), shorter->back(), true);
+					conflict->InitConflict(m_robot->GetID(), m_obj_idx_to_id[oid], t, longer->at(t), shorter->back(), true);
 					curr.m_conflicts.push_back(conflict);
 				}
 			}
@@ -307,12 +313,12 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 	Trajectory* a2_traj = nullptr;
 	for (auto& solution: curr.m_solution)
 	{
-		if (solution.first == m_objs[o1]->GetID())
+		if (solution.first == m_obj_idx_to_id[o1])
 		{
 			a1_traj = &(solution.second);
 			continue;
 		}
-		else if (solution.first == m_objs[o2]->GetID())
+		else if (solution.first == m_obj_idx_to_id[o2])
 		{
 			a2_traj = &(solution.second);
 			continue;
@@ -330,9 +336,9 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 		if (m_cc->ObjectObjectCollision(m_objs[o1].get(), m_objs[o2].get()))
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
-			conflict->InitConflict(m_objs[o1]->GetID(), m_objs[o2]->GetID(), t, a1_traj->at(t), a2_traj->at(t), false);
+			conflict->InitConflict(m_obj_idx_to_id[o1], m_obj_idx_to_id[o2], t, a1_traj->at(t), a2_traj->at(t), false);
 			curr.m_conflicts.push_back(conflict);
-			// SMPL_INFO("Conflict between objects %d (ID %d) and %d (ID %d)", o1, m_objs[o1]->GetID(), o2, m_objs[o2]->GetID());
+			// SMPL_INFO("Conflict between objects %d (ID %d) and %d (ID %d)", o1, m_obj_idx_to_id[o1], o2, m_obj_idx_to_id[o2]);
 		}
 	}
 
@@ -354,7 +360,7 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 				std::shared_ptr<Conflict> conflict(new Conflict());
 				conflict->InitConflict(shorter->GetID(), longer->GetID(), t, shorter_traj->back(), longer_traj->at(t), false);
 				curr.m_conflicts.push_back(conflict);
-				// SMPL_INFO("Conflict between objects %d (ID %d) and %d (ID %d)", o1, m_objs[o1]->GetID(), o2, m_objs[o2]->GetID());
+				// SMPL_INFO("Conflict between objects %d (ID %d) and %d (ID %d)", o1, m_obj_idx_to_id[o1], o2, m_obj_idx_to_id[o2]);
 			}
 		}
 	}
@@ -452,7 +458,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 	{
 		for (size_t i = 0; i < m_objs.size(); ++i)
 		{
-			if (m_objs[i]->GetID() != child->m_replanned) {
+			if (m_obj_idx_to_id[i] != child->m_replanned) {
 				continue;
 			}
 
@@ -475,7 +481,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 			// update solution in CT node
 			for (auto& solution : child->m_solution)
 			{
-				if (solution.first == m_objs[i]->GetID()) {
+				if (solution.first == m_obj_idx_to_id[i]) {
 					solution.second = *(m_paths[i]);
 					break;
 				}
