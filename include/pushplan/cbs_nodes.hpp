@@ -104,9 +104,9 @@ struct HighLevelNode
 	std::list<std::shared_ptr<Conflict> > m_conflicts; // conflicts at this node
 	std::shared_ptr<Conflict> m_conflict; // selected conflict
 	std::vector<std::pair<int, Trajectory> > m_solution; // agent solutions
-	std::set<std::pair<int, int> > m_priorities;
+	DAG m_priorities;
 
-	int m_g, m_flowtime, m_depth, m_makespan, m_generate, m_expand;
+	int m_g, m_flowtime, m_makespan, m_depth, m_generate, m_expand;
 	int m_h, m_d;
 	bool m_h_computed;
 
@@ -117,68 +117,17 @@ struct HighLevelNode
 	std::vector<HighLevelNode*> m_children;
 	int m_replanned;
 
-	void recalcMakespan()
-	{
-		m_makespan = 0;
-		for (const auto& s : m_solution) {
-			m_makespan = std::max(m_makespan, (int)s.second.size());
-		}
-	}
-
-	void clear()
-	{
+	void clear() {
 		m_conflicts.clear();
-	}
-
-	void updateDistanceToGo()
-	{
-		std::set<std::pair<int, int> > conflict_pairs;
-		for (auto& conflict : m_conflicts)
-		{
-			auto pair = std::make_pair(std::min(conflict->m_a1, conflict->m_a2), std::max(conflict->m_a1, conflict->m_a2));
-			if (conflict_pairs.find(pair) == conflict_pairs.end()) {
-				conflict_pairs.insert(pair);
-			}
-		}
-		m_d = (int)(m_conflicts.size() + conflict_pairs.size());
-	}
-
-	void computeH()
-	{
-		m_h_computed = true;
-		int h = -1;
-		switch (HLHC)
-		{
-			case HighLevelConflictHeuristic::CONFLICT_COUNT:
-			{
-				h = (int)m_conflicts.size();
-				break;
-			}
-			case HighLevelConflictHeuristic::AGENT_COUNT:
-			{
-				std::set<int> conflict_agents;
-				for (auto& conflict : m_conflicts)
-				{
-					if (conflict_agents.find(conflict->m_a1) == conflict_agents.end()) {
-						conflict_agents.insert(conflict->m_a1);
-					}
-					if (conflict_agents.find(conflict->m_a2) == conflict_agents.end()) {
-						conflict_agents.insert(conflict->m_a2);
-					}
-				}
-				h = (int)conflict_agents.size();
-				break;
-			}
-			case HighLevelConflictHeuristic::AGENT_PAIRS:
-			{
-				h = m_d - (int)m_conflicts.size();
-				break;
-			}
-		}
-		m_h = std::max(h, m_h);
-	}
-
+		m_priorities.Clear();
+	};
 	int fval() { return this->m_g + (COST_MULT * this->m_h); };
+
+	void recalcFlowtime();
+	void recalcMakespan();
+	void recalcG(const std::vector<unsigned int>& min_fs);
+	void updateDistanceToGo();
+	void computeH();
 };
 
 struct LowLevelNode
