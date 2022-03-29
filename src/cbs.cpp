@@ -425,7 +425,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 	int expands, min_f;
 
 	// replan for agent
-	bool recalc_makespan = false;
+	bool recalc_makespan = true;
 	double start_time;
 	// if (child->m_replanned == 0)
 	// {
