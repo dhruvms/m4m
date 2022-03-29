@@ -265,7 +265,7 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 		auto to_avoid = node->m_priorities.GetHigherPriorities(replan_id);
 		int expands, min_f;
 		// run low-level with spacetime collision checking against higher priority agents
-		if (!m_objs[replan_idx]->SatisfyPath(root, to_avoid, &m_paths[replan_idx], expands, min_f)) {
+		if (!m_objs[replan_idx]->SatisfyPath(root, &m_paths[replan_idx], expands, min_f, &to_avoid)) {
 			++m_ct_deadends;
 			return false;
 		}

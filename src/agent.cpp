@@ -227,7 +227,12 @@ bool Agent::ImmovableCollision(const LatticeState& s)
 	return stateObsCollision(s);
 }
 
-bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
+bool Agent::SatisfyPath(
+	HighLevelNode* ct_node,
+	Trajectory** sol_path,
+	int& expands,
+	int& min_f,
+	std::unordered_set<int>* to_avoid)
 {
 	m_solve.clear();
 	expands = 0;
@@ -235,6 +240,9 @@ bool Agent::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 
 	// collect agent constraints
 	m_lattice->SetCTNode(ct_node);
+	if (to_avoid != nullptr) {
+		m_lattice->AvoidAgents(*to_avoid);
+	}
 
 	std::vector<int> solution;
 	int solcost;
@@ -266,7 +274,7 @@ bool Agent::ImmovableCollision()
 	return m_cc->ImmovableCollision(m_obj.GetFCLObject());
 }
 
-bool ObjectObjectCollision(const int& a2_id, const LatticeState& a2_q)
+bool Agent::ObjectObjectCollision(const int& a2_id, const LatticeState& a2_q)
 {
 	return m_cc->ObjectObjectCollision(m_obj.GetFCLObject(), a2_id, a2_q);
 }

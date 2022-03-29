@@ -23,6 +23,7 @@ public:
 	void PushGoal(const Coord& p);
 
 	void SetCTNode(HighLevelNode* ct_node);
+	void AvoidAgents(const std::unordered_set<int>& to_avoid);
 
 	bool IsGoal(int state_id);
 	void GetSuccs(
@@ -45,6 +46,7 @@ private:
 	std::list<std::shared_ptr<Constraint> > m_constraints;
 	std::vector<std::pair<int, Trajectory> >* m_cbs_solution; // all agent trajectories
 	int m_cbs_id, m_max_time;
+	std::unordered_set<int> m_to_avoid;
 
 	// maps from coords to stateID
 	typedef LatticeState StateKey;

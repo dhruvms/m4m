@@ -62,6 +62,11 @@ void AgentLattice::SetCTNode(HighLevelNode* ct_node)
 	m_max_time = ct_node->m_makespan;
 }
 
+void AgentLattice::AvoidAgents(const std::unordered_set<int>& to_avoid)
+{
+	m_to_avoid = to_avoid;
+}
+
 // As long as I am not allowed to be in this location at some later time,
 // I have not reached a valid goal state
 // Conversely, if I can remain in this location (per existing constraints),
@@ -221,6 +226,33 @@ int AgentLattice::generateSuccessor(
 					return -1;
 				}
 			}
+		}
+	}
+
+	if (!m_to_avoid.empty())
+	{
+		std::vector<LatticeState> other_poses;
+		std::vector<int> other_ids;
+
+		for (const auto& agent_traj: *m_cbs_solution)
+		{
+			if (agent_traj.first == m_cbs_id || agent_traj.first == 0) {
+				continue;
+			}
+			if (m_to_avoid.find(agent_traj.first) == m_to_avoid.end()) {
+				continue;
+			}
+
+			other_ids.push_back(agent_traj.first);
+			if (agent_traj.second.size() <= child.t) {
+				other_poses.push_back(agent_traj.second.back());
+			}
+			else {
+				other_poses.push_back(agent_traj.second.at(child.t));
+			}
+		}
+		if (m_agent->ObjectObjectsCollision(other_ids, other_poses)) {
+			return -1;
 		}
 	}
 

@@ -42,7 +42,12 @@ public:
 	void UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels);
 	void ComputeNGRComplement();
 
-	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f);
+	bool SatisfyPath(
+		HighLevelNode* ct_node,
+		Trajectory** sol_path,
+		int& expands,
+		int& min_f,
+		std::unordered_set<int>* to_avoid = nullptr);
 
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
