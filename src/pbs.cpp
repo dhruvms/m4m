@@ -1,0 +1,265 @@
+#include <pushplan/cbs.hpp>
+#include <pushplan/helpers.hpp>
+#include <pushplan/robot.hpp>
+#include <pushplan/agent.hpp>
+#include <pushplan/collision_checker.hpp>
+#include <pushplan/constants.hpp>
+
+#include <smpl/console/console.h>
+
+namespace clutter
+{
+
+PBS::PBS() :
+CBS()
+{
+	m_OPEN.clear();
+	m_p0.clear();
+}
+
+PBS::PBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs,
+	int scene_id) :
+CBS(r, objs, scene_id)
+{
+	m_OPEN.clear();
+	m_p0.clear();
+}
+
+bool PBS::Solve()
+{
+	m_search_time = 0.0;
+	m_conflict_time = 0.0;
+	m_ll_time = 0.0;
+	double start_time = GetTime();
+	if (!initialiseRoot()) {
+		SMPL_ERROR("Failed to initialiseRoot");
+		return false;
+	}
+	m_search_time += GetTime() - start_time; // add initialiseRoot time
+
+	while (!m_OPEN.empty())
+	{
+		start_time = GetTime(); // reset clock with every loop iteration
+
+		auto next = m_OPEN.back();
+		m_OPEN.pop_back();
+
+		selectConflict(next);
+		if (done(next)) {
+			m_search_time += GetTime() - start_time;
+			SMPL_WARN("YAYAYAY! We did it!");
+			// writeSolution(next);
+			return m_solved;
+		}
+		// writeSolution(next);
+
+		++m_ct_expanded;
+		next->m_expand = m_ct_expanded;
+
+		growConstraintTree(next);
+
+		m_search_time += GetTime() - start_time;
+	}
+
+	SMPL_ERROR("CBS high-level OPEN is empty");
+	return false;
+}
+
+void PBS::growConstraintTree(HighLevelNode* parent)
+{
+	// expand CT node
+	HighLevelNode* child[2] = { new HighLevelNode() , new HighLevelNode() };
+	addConstraints(parent, child[0], child[1]);
+	for (int i = 0; i < 2; ++i)
+	{
+		if (updateChild(parent, child[i])) {
+			parent->m_children.push_back(child[i]);
+		}
+		else {
+			delete (child[i]);
+			continue;
+		}
+	}
+	parent->clear();
+}
+
+bool PBS::initialiseRoot()
+{
+	auto root = new HighLevelNode();
+	root->m_g = 0;
+	root->m_flowtime = 0;
+	root->m_makespan = 0;
+	root->m_depth = 0;
+	root->m_parent = nullptr;
+	root->m_children.clear();
+	root->m_priorities.Copy(m_p0);
+
+	// Plan for robot
+	int expands, min_f;
+	double start_time = GetTime();
+	// if (!m_robot->SatisfyPath(root, &m_paths[0], expands, min_f)) { // (CT node, path location)
+	// 	++m_ct_deadends;
+	// 	return false;
+	// }
+	// m_ll_time += GetTime() - start_time;
+	// m_ll_expanded += expands;
+	// m_min_fs[0] = min_f;
+	// root->m_solution.emplace_back(m_robot->GetID(), *(m_paths[0]));
+	// root->m_g += m_min_fs[0];
+	// root->m_flowtime += m_paths[0]->size();
+	// root->m_makespan = std::max(root->m_makespan, (int)m_paths[0]->size());
+
+	// Plan for objects
+	std::stack<std::size_t> order;
+	root->m_priorities.TopologicalSort(order);
+	std::vector<bool> planned(m_objs.size(), false);
+
+	while (!order.empty())
+	{
+		auto git = root->m_priorities.GetDAG().begin();
+	    std::advance(git, order.top());
+	    int agent_id = git->first;
+
+		start_time = GetTime();
+		if (!updatePlan(root, agent_id)) {
+			return false;
+		}
+		m_ll_time += GetTime() - start_time;
+
+		planned.at(m_obj_id_to_idx[agent_id]) = true;
+	    order.pop();
+	}
+
+	for (size_t i = 0; i < m_objs.size(); ++i)
+	{
+		if (!planned.at(i))
+		{
+			start_time = GetTime();
+			if (!updatePlan(root, m_obj_idx_to_id[i])) {
+				return false;
+			}
+			m_ll_time += GetTime() - start_time;
+		}
+		planned.at(i) = true;
+	}
+
+	// successive updatePlan calls find all conflicts
+	// findConflicts(*root);
+
+	root->m_h = 0;
+	root->m_h_computed = false;
+	root->recalcMakespan();
+	root->recalcFlowtime();
+	root->recalcG(m_min_fs);
+	// root->updateDistanceToGo();
+
+	m_OPEN.push_back(root);
+	return true;
+}
+
+bool PBS::updatePlan(HighLevelNode* node, int agent_id)
+{
+	// get nodes that have lower priority than me - consider replanning for all of these
+	std::vector<int> replan_ids = node->m_priorities.GetParents(agent_id);
+	// consider replanning for me
+	replan_ids.push_back(agent_id);
+	// topological sort agents to replan to determine good order to replan in
+	std::queue<int> replan_order;
+	root->m_priorities.TopologicalSort(replan_ids, replan_order);
+
+	while (!replan_order.empty())
+	{
+		int replan_id = replan_order.front();
+		auto replan_idx = m_obj_id_to_idx[replan_id];
+		bool replan = replan_id == agent_id ? true : false;
+
+		// no need to replan if existing path is conflict free
+		if (!replan && m_paths[replan_idx] != nullptr)
+		{
+			// have a path for this agent "replan_id"
+			for (const auto& conflict : node->m_conflicts)
+			{
+				if (conflict->m_a1 == replan_id || conflict->m_a2 == replan_id)
+				{
+					// path has conflicts, need to replan it
+					replan = true;
+					break;
+				}
+			}
+		}
+		else if (!replan && m_paths[replan_idx] == nullptr)
+		{
+			// do not have a path for this agent "replan_id", must (re)plan one
+			replan = true;
+		}
+
+		if (!replan)
+		{
+			replan_order.pop();
+			continue;
+		}
+
+		// find high-priority agents with which to avoid collisions
+		auto to_avoid = node->m_priorities.GetHigherPriorities(replan_id);
+		int expands, min_f;
+		// run low-level with spacetime collision checking against higher priority agents
+		if (!m_objs[replan_idx]->SatisfyPath(root, to_avoid, &m_paths[replan_idx], expands, min_f)) {
+			++m_ct_deadends;
+			return false;
+		}
+		m_ll_expanded += expands;
+		m_min_fs[replan_idx] = min_f;
+
+		// update conflicts replanned agent is involved in
+		removeConflicts(node, replan_id);
+		// find new conflicts created by path just computed
+		std::list<std::shared_ptr<Conflict> > new_conflicts;
+		findConflicts(node, replan_id);
+
+		// update tree node's solution
+		bool soln_updated = false;
+		for (auto& agent_soln : root->m_solution)
+		{
+			if (agent_soln.first == replan_id)
+			{
+				agent_soln.second = *(m_paths[replan_idx]);
+				soln_updated = true;
+				break;
+			}
+		}
+		if (!soln_updated) {
+			root->m_solution.emplace_back(replan_id, *(m_paths[replan_idx]));
+		}
+
+		// on to the next one
+		replan_order.pop();
+	}
+}
+
+void PBS::removeConflicts(HighLevelNode* node, int agent_id)
+{
+	for (auto it = node->m_conflicts.begin(); it != node->m_conflicts.end(); )
+	{
+		if (it->m_a1 == agent_id || it->m_a2 == agent_id) {
+			it = node->m_conflicts.erase(it);
+		}
+		else {
+			++it;
+		}
+	}
+}
+
+void PBS::findConflicts(HighLevelNode* node, int agent_id)
+{
+	auto agent_idx = m_obj_id_to_idx[agent_id];
+	// findConflictsRobot(*node, agent_idx);
+	for (size_t k = 0; k < m_objs.size(); ++k)
+	{
+		if (m_obj_idx_to_id[k] == agent_id) {
+			continue;
+		}
+		findConflictsObjects(*node, agent_idx, k);
+	}
+}
+
+} // namespace clutter
