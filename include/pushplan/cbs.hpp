@@ -37,7 +37,7 @@ protected:
 	std::shared_ptr<Robot> m_robot;
 	std::vector<std::shared_ptr<Agent> > m_objs;
 	std::unordered_map<int, std::size_t> m_obj_id_to_idx;
-	std::unordered_map<int, std::size_t> m_obj_idx_to_id;
+	std::unordered_map<std::size_t, int> m_obj_idx_to_id;
 	int m_num_agents;
 	std::vector<Trajectory*> m_paths;
 	std::vector<unsigned int> m_min_fs;
@@ -65,7 +65,7 @@ protected:
 	void addConstraints(
 		const HighLevelNode* curr,
 		HighLevelNode* child1, HighLevelNode* child2) const;
-	bool updateChild(HighLevelNode* parent, HighLevelNode* child);
+	virtual bool updateChild(HighLevelNode* parent, HighLevelNode* child);
 
 	void writeSolution(HighLevelNode* node);
 };
