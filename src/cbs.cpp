@@ -244,6 +244,10 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 		}
 	}
 
+	if (a_traj == nullptr) {
+		return;
+	}
+
 	int tmin = std::min(r_traj->size(), a_traj->size());
 	for (int t = 0; t < tmin; ++t)
 	{
@@ -326,6 +330,10 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 		else {
 			continue;
 		}
+	}
+
+	if (a1_traj == nullptr || a2_traj == nullptr) {
+		return;
 	}
 
 	int tmin = std::min(a1_traj->size(), a2_traj->size());
