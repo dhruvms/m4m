@@ -68,18 +68,46 @@ bool PBS::Solve()
 void PBS::growConstraintTree(HighLevelNode* parent)
 {
 	// expand CT node
-	HighLevelNode* child[2] = { new HighLevelNode() , new HighLevelNode() };
+	HighLevelNode* child[2] = { new HighLevelNode(), new HighLevelNode() };
+	int child_cost[2];
 	addConstraints(parent, child[0], child[1]);
 	for (int i = 0; i < 2; ++i)
 	{
 		if (updateChild(parent, child[i])) {
 			parent->m_children.push_back(child[i]);
+			child_cost[i] = child[i]->m_flowtime;
 		}
 		else {
 			delete (child[i]);
+			child_cost[i] = -1;
 			continue;
 		}
 	}
+
+	// push child nodes into stack in non-decreasing cost order
+	if (child_cost[0] >= 0)
+	{
+		if (child_cost[1] >= 0)
+		{
+			if (child_cost[0] < child_cost[1])
+			{
+				m_OPEN.push_back(child[0]);
+				m_OPEN.push_back(child[1]);
+			}
+			else
+			{
+				m_OPEN.push_back(child[1]);
+				m_OPEN.push_back(child[0]);
+			}
+		}
+		else {
+			m_OPEN.push_back(child[0]);
+		}
+	}
+	else if (child_cost[1] >= 0) {
+		m_OPEN.push_back(child[1]);
+	}
+
 	parent->clear();
 }
 
