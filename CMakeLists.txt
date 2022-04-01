@@ -43,10 +43,14 @@ include_directories(include)
 add_library(
 	PUSHPLAN
 	src/planner.cpp
+	src/bullet_sim.cpp
+	src/cbs_nodes.cpp
 	src/cbs.cpp
+	src/cbswp.cpp
+	src/pbs.cpp
 	src/collision_checker.cpp
 	src/object.cpp
-	src/bullet_sim.cpp
+	src/agent_lattice.cpp
 	src/agent.cpp
 	src/robot.cpp
 	src/wastar.cpp
