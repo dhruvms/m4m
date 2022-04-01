@@ -25,8 +25,8 @@ m_rng(m_dev())
 			continue;
 		}
 		LatticeState s;
-		s.state.push_back(m_obstacles.at(i).o_x);
-		s.state.push_back(m_obstacles.at(i).o_y);
+		s.state.push_back(m_obstacles.at(i).desc.o_x);
+		s.state.push_back(m_obstacles.at(i).desc.o_y);
 		m_obstacles.at(i).UpdatePose(s);
 		m_fcl_immov->registerObject(m_obstacles.at(i).GetFCLObject());
 	}
@@ -57,10 +57,10 @@ void CollisionChecker::UpdateTraj(const int& priority, const Trajectory& traj)
 
 bool CollisionChecker::OutOfBounds(const LatticeState& s)
 {
-	bool oob = s.state.at(0) <= (m_obstacles.at(m_base_loc).o_x - m_obstacles.at(m_base_loc).x_size);
-	oob = oob || s.state.at(0) >= (m_obstacles.at(m_base_loc).o_x + m_obstacles.at(m_base_loc).x_size);
-	oob = oob || s.state.at(1) <= (m_obstacles.at(m_base_loc).o_y - m_obstacles.at(m_base_loc).y_size);
-	oob = oob || s.state.at(1) >= (m_obstacles.at(m_base_loc).o_y + m_obstacles.at(m_base_loc).y_size);
+	bool oob = s.state.at(0) <= (m_obstacles.at(m_base_loc).desc.o_x - m_obstacles.at(m_base_loc).desc.x_size);
+	oob = oob || s.state.at(0) >= (m_obstacles.at(m_base_loc).desc.o_x + m_obstacles.at(m_base_loc).desc.x_size);
+	oob = oob || s.state.at(1) <= (m_obstacles.at(m_base_loc).desc.o_y - m_obstacles.at(m_base_loc).desc.y_size);
+	oob = oob || s.state.at(1) >= (m_obstacles.at(m_base_loc).desc.o_y + m_obstacles.at(m_base_loc).desc.y_size);
 
 	return oob;
 }
@@ -213,7 +213,7 @@ bool CollisionChecker::checkCollisionObjSet(
 	for (const auto& ao: *a2_objs)
 	{
 		rect_o2 = false;
-		o2_loc = {ao.o_x, ao.o_y};
+		o2_loc = {ao.desc.o_x, ao.desc.o_y};
 		if (ao.Shape() == 0)
 		{
 			GetRectObjAtPt(o2_loc, ao, o2_rect);
@@ -267,10 +267,10 @@ bool CollisionChecker::rectCircCollision(
 	const std::vector<State>& r1, const Object& c1, const State& c1_loc)
 {
 	return (PointInRectangle(c1_loc, r1) ||
-			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(0), r1.at(1)) ||
-			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(1), r1.at(2)) ||
-			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(2), r1.at(3)) ||
-			LineSegCircleIntersect(c1_loc, c1.x_size, r1.at(3), r1.at(0)));
+			LineSegCircleIntersect(c1_loc, c1.desc.x_size, r1.at(0), r1.at(1)) ||
+			LineSegCircleIntersect(c1_loc, c1.desc.x_size, r1.at(1), r1.at(2)) ||
+			LineSegCircleIntersect(c1_loc, c1.desc.x_size, r1.at(2), r1.at(3)) ||
+			LineSegCircleIntersect(c1_loc, c1.desc.x_size, r1.at(3), r1.at(0)));
 }
 
 bool CollisionChecker::circCircCollision(
@@ -278,7 +278,7 @@ bool CollisionChecker::circCircCollision(
 	const Object& c2, const State& c2_loc)
 {
 	double dist = EuclideanDist(c1_loc, c2_loc);
-	return (dist < (c1.x_size + c2.x_size));
+	return (dist < (c1.desc.x_size + c2.desc.x_size));
 }
 
 } // namespace clutter

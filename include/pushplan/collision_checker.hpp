@@ -63,8 +63,8 @@ public:
 		m_obstacles.push_back(o);
 
 		LatticeState s;
-		s.state.push_back(m_obstacles.back().o_x);
-		s.state.push_back(m_obstacles.back().o_y);
+		s.state.push_back(m_obstacles.back().desc.o_x);
+		s.state.push_back(m_obstacles.back().desc.o_y);
 		m_obstacles.back().UpdatePose(s);
 		m_fcl_immov->registerObject(m_obstacles.back().GetFCLObject());
 	};
@@ -87,11 +87,11 @@ public:
 
 	State GetRandomStateOutside(fcl::CollisionObject* o);
 
-	double GetTableHeight() { return m_obstacles.at(m_base_loc).o_z + m_obstacles.at(0).z_size; };
-	double OutsideXMin() { return m_obstacles.at(m_base_loc).o_x - (2 * m_obstacles.at(m_base_loc).x_size); };
-	double OutsideYMin() { return m_obstacles.at(m_base_loc).o_y - (0.67 * m_obstacles.at(m_base_loc).y_size); };
-	double OutsideXMax() { return m_obstacles.at(m_base_loc).o_x - m_obstacles.at(m_base_loc).x_size; };
-	double OutsideYMax() { return m_obstacles.at(m_base_loc).o_y + (0.67 * m_obstacles.at(m_base_loc).y_size); };
+	double GetTableHeight() { return m_obstacles.at(m_base_loc).desc.o_z + m_obstacles.at(0).desc.z_size; };
+	double OutsideXMin() { return m_obstacles.at(m_base_loc).desc.o_x - (2 * m_obstacles.at(m_base_loc).desc.x_size); };
+	double OutsideYMin() { return m_obstacles.at(m_base_loc).desc.o_y - (0.67 * m_obstacles.at(m_base_loc).desc.y_size); };
+	double OutsideXMax() { return m_obstacles.at(m_base_loc).desc.o_x - m_obstacles.at(m_base_loc).desc.x_size; };
+	double OutsideYMax() { return m_obstacles.at(m_base_loc).desc.o_y + (0.67 * m_obstacles.at(m_base_loc).desc.y_size); };
 
 	int NumObstacles() { return (int)m_obstacles.size(); };
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
