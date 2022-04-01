@@ -14,14 +14,14 @@ void DAG::Remove(int from, int to)
 
 bool DAG::Connected(int from, int to) const
 {
-	std::stack<int> OPEN;
+	std::list<int> OPEN;
 	std::set<int> CLOSED;
 
-	OPEN.push(from);
+	OPEN.push_back(from);
 	while (!OPEN.empty())
 	{
-		int parent = OPEN.top();
-		OPEN.pop();
+		int parent = OPEN.back();
+		OPEN.pop_back();
 		CLOSED.insert(parent);
 
 		auto children = m_G.find(parent);
@@ -37,8 +37,8 @@ bool DAG::Connected(int from, int to) const
 
 			if (CLOSED.find(child) == CLOSED.end())
 			{
-				if (OPEN.find(child) == OPEN.end()) {
-					OPEN.push(child);
+				if (std::find(OPEN.begin(), OPEN.end(), child) == OPEN.end()) {
+					OPEN.push_back(child);
 				}
 			}
 		}
@@ -49,14 +49,14 @@ bool DAG::Connected(int from, int to) const
 
 std::unordered_set<int> DAG::GetHigherPriorities(int root)
 {
-	std::stack<int> OPEN;
+	std::list<int> OPEN;
 	std::unordered_set<int> CLOSED;
 
-	OPEN.push(root);
+	OPEN.push_back(root);
 	while (!OPEN.empty())
 	{
-		int parent = OPEN.top();
-		OPEN.pop();
+		int parent = OPEN.back();
+		OPEN.pop_back();
 
 		auto children = m_G.find(parent);
 		if (children == m_G.end()) {
@@ -68,8 +68,8 @@ std::unordered_set<int> DAG::GetHigherPriorities(int root)
 			if (CLOSED.find(child) == CLOSED.end())
 			{
 				CLOSED.insert(child);
-				if (OPEN.find(child) == OPEN.end()) {
-					OPEN.push(child);
+				if (std::find(OPEN.begin(), OPEN.end(), child) == OPEN.end()) {
+					OPEN.push_back(child);
 				}
 			}
 		}

@@ -13,6 +13,7 @@
 #include <stack>
 #include <queue>
 #include <vector>
+#include <set>
 
 namespace clutter
 {
@@ -50,7 +51,7 @@ private:
 		std::size_t i,
 		std::vector<bool>& v,
 		std::queue<int>& order);
-}
+};
 
 struct HighLevelNode
 {
@@ -121,7 +122,7 @@ struct HighLevelNode
 		m_conflicts.clear();
 		m_priorities.Clear();
 	};
-	int fval() { return this->m_g + (COST_MULT * this->m_h); };
+	int fval() const { return this->m_g + (COST_MULT * this->m_h); };
 
 	void recalcFlowtime();
 	void recalcMakespan();
