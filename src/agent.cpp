@@ -47,7 +47,7 @@ bool Agent::Init()
 	for (int gz = 0; gz < m_ngr->getDistanceField()->numCellsZ(); ++gz) {
 			double wx, wy, wz;
 			m_ngr->gridToWorld(gx, gy, gz, wx, wy, wz);
-			m_ngr_complement.emplace_back(wx, wy, wz);
+			m_ngr_complement.emplace(wx, wy, wz);
 	}
 	}
 	}
@@ -64,25 +64,35 @@ void Agent::UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels)
 
 void Agent::ComputeNGRComplement()
 {
-	std::vector<Eigen::Vector3d> ngr_voxels, obs_voxels, complement;
-	m_ngr->getOccupiedVoxels(ngr_voxels);
-	m_obs_grid->getOccupiedVoxels(ngr_voxels);
+	std::vector<Eigen::Vector3d> ngr_voxel_vecs, obs_voxel_vecs;
+	m_ngr->getOccupiedVoxels(ngr_voxel_vecs);
+	m_obs_grid->getOccupiedVoxels(obs_voxel_vecs);
 
+	std::set<Eigen::Vector3d, Eigen_Vector3d_compare> ngr_voxels(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end());
+	std::set<Eigen::Vector3d, Eigen_Vector3d_compare> obs_voxels(obs_voxel_vecs.begin(), obs_voxel_vecs.end());
+	ngr_voxel_vecs.clear();
+	obs_voxel_vecs.clear();
+
+	Eigen_Vector3d_compare comparator;
 	// get all cells in shelf that are not immovable obstacles
 	std::set_difference(
 			m_ngr_complement.begin(), m_ngr_complement.end(),
 			obs_voxels.begin(), obs_voxels.end(),
-			std::back_inserter(complement));
-	m_ngr_complement = complement;
-	complement.clear();
+			std::back_inserter(ngr_voxel_vecs),
+			comparator);
+	m_ngr_complement.clear();
+	std::copy(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
+	ngr_voxel_vecs.clear();
 
 	// get all cells from non-obstacle cells that are also not in NGR
 	std::set_difference(
 			m_ngr_complement.begin(), m_ngr_complement.end(),
 			ngr_voxels.begin(), ngr_voxels.end(),
-			std::back_inserter(complement));
-	m_ngr_complement = complement;
-	complement.clear();
+			std::back_inserter(ngr_voxel_vecs),
+			comparator);
+	m_ngr_complement.clear();
+	std::copy(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
+	ngr_voxel_vecs.clear();
 
 	// store one z-slice (middle) of true NGR complement
 	double dx, dy, zmid;
@@ -91,7 +101,7 @@ void Agent::ComputeNGRComplement()
 	{
 		if (cell[2] == zmid)
 		{
-			complement.push_back(c);
+			ngr_voxel_vecs.push_back(cell);
 
 			LatticeState s;
 			s.t = 0;
@@ -102,8 +112,9 @@ void Agent::ComputeNGRComplement()
 			m_ngr_complement_states.push_back(s);
 		}
 	}
-	m_ngr_complement = complement;
-	complement.clear();
+	m_ngr_complement.clear();
+	std::copy(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
+	ngr_voxel_vecs.clear();
 }
 
 // find best NGR complement cell

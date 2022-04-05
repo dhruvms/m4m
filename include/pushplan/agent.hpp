@@ -19,6 +19,14 @@
 namespace clutter
 {
 
+struct Eigen_Vector3d_compare
+{
+	bool operator()(const Eigen::Vector3d& u, const Eigen::Vector3d& v) const
+	{
+		return std::tie(u.x(), u.y(), u.z()) < std::tie(v.x(), v.y(), v.z());
+	}
+};
+
 class Agent
 {
 public:
@@ -88,7 +96,7 @@ private:
 	std::shared_ptr<smpl::DistanceMapInterface> m_df;
 	std::unique_ptr<smpl::OccupancyGrid> m_ngr;
 	std::shared_ptr<smpl::OccupancyGrid> m_obs_grid;
-	std::vector<Eigen::Vector3d> m_ngr_complement;
+	std::set<Eigen::Vector3d, Eigen_Vector3d_compare> m_ngr_complement;
 	std::vector<LatticeState> m_ngr_complement_states;
 
 	State m_goalf;
