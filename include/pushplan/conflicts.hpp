@@ -45,7 +45,7 @@ struct Conflict
 		m_c2->m_q = robot ? q2 : q1;
 	}
 
-	int operator[](std::size_t i) const {
+	int at(std::size_t i) const {
         if (i == 0) {
         	return m_a1;
         }
