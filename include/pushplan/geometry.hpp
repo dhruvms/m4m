@@ -3,6 +3,7 @@
 
 #include <pushplan/types.hpp>
 #include <pushplan/helpers.hpp>
+#include <pushplan/object.hpp>
 
 #include <Eigen/Geometry>
 
@@ -142,7 +143,7 @@ bool RectanglesIntersect(
 
 inline
 void MakeObjectRectangle(
-	const Object& o, std::vector<State>& rect)
+	const ObjectDesc& o, std::vector<State>& rect)
 {
 	rect.clear();
 	rect.push_back({o.o_x - o.x_size, o.o_y - o.y_size});
@@ -154,7 +155,7 @@ void MakeObjectRectangle(
 inline
 void GetRectObjAtPt(
 	const State& p,
-	const Object& o,
+	const ObjectDesc& o,
 	std::vector<State>& rect)
 {
 	Eigen::Matrix2d rot; // 2D rotation matrix for (o_yaw)
@@ -181,19 +182,9 @@ void GetRectObjAtPt(
 	}
 }
 
+template<typename T>
 inline
-double EuclideanDist(const State& p1, const State& p2)
-{
-	assert(p1.size() == p2.size());
-	double val = 0.0;
-	for (size_t i = 0; i < p1.size(); ++i) {
-		val += std::pow(p1.at(i) - p2.at(i), 2);
-	}
-	return std::sqrt(val);
-}
-
-inline
-double EuclideanDist(const Coord& p1, const Coord& p2)
+double EuclideanDist(const std::vector<T>& p1, const std::vector<T>& p2)
 {
 	assert(p1.size() == p2.size());
 	double val = 0.0;
@@ -217,7 +208,7 @@ inline
 void ArmRectObj(
 	const State& F1, const State& F2,
 	const double& b,
-	Object& o)
+	ObjectDesc& o)
 {
 	// double e = EuclideanDist(F1, F2)/2.0;
 	// double a = b/std::sqrt(1 - (e*e));
