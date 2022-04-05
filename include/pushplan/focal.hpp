@@ -11,13 +11,13 @@
 namespace clutter
 {
 
-class Agent;
+class AgentLattice;
 
 class Focal : public Search
 {
 public:
 	Focal(
-		Agent* agent,
+		AgentLattice* agent,
 		double wf=1.0, double wo=1.0);
 	~Focal();
 
@@ -30,14 +30,14 @@ public:
 		m_time_limit = max_planning_time_ms * 1e-3;
 	};
 	int get_n_expands() const override;
-	unsigned int get_min_f() const;
+	int get_min_f() const override;
 	void reset() override;
 
 	int replan(
 		std::vector<int>* solution_path, int* solution_cost) override;
 
 private:
-	Agent* m_agent = nullptr;
+	AgentLattice* m_agent = nullptr;
 
 	boost::heap::fibonacci_heap<LowLevelNode*, boost::heap::compare<LowLevelNode::OPENCompare> > m_OPEN;
 	boost::heap::fibonacci_heap<LowLevelNode*, boost::heap::compare<LowLevelNode::FOCALCompare> > m_FOCAL;
@@ -48,7 +48,6 @@ private:
 	double m_time_limit, m_wo, m_wf;
 	LowLevelNode *m_goal, *m_start;
 
-	unsigned int m_min_f;
 	bool m_b;
 
 	LowLevelNode* get_state(int state_id, bool& alloc);

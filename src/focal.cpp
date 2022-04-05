@@ -1,7 +1,7 @@
 #include <pushplan/focal.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/types.hpp>
-#include <pushplan/agent.hpp>
+#include <pushplan/agent_lattice.hpp>
 #include <pushplan/helpers.hpp>
 
 #include <smpl/console/console.h>
@@ -13,20 +13,18 @@ namespace clutter
 {
 
 Focal::Focal(
-	Agent* agent,
+	AgentLattice* agent,
 	double wf, double wo)
 :
 m_agent(agent),
 m_call_number(0),
-m_wf(wf), m_wo(wo),
-m_start_id(-1),
-m_goal_id(-1),
-m_min_f(0)
+m_wf(wf), m_wo(wo)
 {
 	// Set default max planing time
 	m_time_limit = 2.0; // seconds
 
 	m_expands = new int[1];
+	m_min_f = 0;
 }
 
 Focal::~Focal()
@@ -38,7 +36,7 @@ int Focal::set_start(int start_id)
 {
 	m_start_ids.clear();
 	m_start_ids.push_back(start_id);
-	m_start = get_state(m_start_ids.back());
+	m_start = get_state(m_start_ids.back(), m_b);
 	return m_start_ids.back();
 }
 
@@ -46,7 +44,7 @@ int Focal::set_goal(int goal_id)
 {
 	m_goal_ids.clear();
 	m_goal_ids.push_back(goal_id);
-	m_goal = get_state(m_goal_ids.back());
+	m_goal = get_state(m_goal_ids.back(), m_b);
 	return m_goal_ids.back();
 }
 
@@ -67,7 +65,7 @@ int Focal::get_n_expands() const
 	return m_expands[0];
 }
 
-unsigned int Focal::get_min_f() const
+int Focal::get_min_f() const
 {
 	return m_min_f;
 }
@@ -92,8 +90,6 @@ void Focal::reset()
 	m_states.clear();
 	// m_states.shrink_to_fit();
 
-	m_start_id = -1;
-	m_goal_id = -1;
 	m_min_f = 0;
 	m_start = nullptr;
 	m_goal = nullptr;
