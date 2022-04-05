@@ -1122,7 +1122,7 @@ std::string BulletSim::getPartialFilename(int id)
 
 void BulletSim::GetShelfParams(
 		double& ox, double& oy, double& oz,
-		double& sx, double& sy, double& sz);
+		double& sx, double& sy, double& sz)
 {
 	ox = m_immov.at(0)[0] - m_immov.at(0)[6];
 	oy = m_immov.at(0)[1] - m_immov.at(0)[7];
