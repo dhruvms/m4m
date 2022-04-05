@@ -8,6 +8,7 @@
 #include <smpl/stl/memory.h>
 #include <sbpl_collision_checking/shapes.h>
 #include <sbpl_collision_checking/types.h>
+#include <sbpl_collision_checking/voxel_operations.h>
 #include <smpl/angles.h>
 #include <smpl/debug/marker_utils.h>
 #include <smpl/debug/visualizer_ros.h>
@@ -233,8 +234,8 @@ bool Robot::CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t)
 	// if (t > m_grasp_at + 1) {
 	// 	attachObject(m_ooi);
 	// }
-	std::vector<Object> o;
-	o.push_back(a->GetObject()->back());
+	std::vector<Object*> o;
+	o.push_back(a->GetObject());
 	ProcessObstacles(o);
 
 	bool collision = !m_cc_i->isStateValid(robot.state);
@@ -284,7 +285,7 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 {
 	for (const auto& obs: obstacles)
 	{
-		if (!obs.ycb)
+		if (!obs.desc.ycb)
 		{
 			moveit_msgs::CollisionObject obj_msg;
 			if (!getCollisionObjectMsg(obs, obj_msg, remove)) {
@@ -297,6 +298,32 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 		else
 		{
 			if (!processSTLMesh(obs, remove)) {
+				return false;
+			}
+		}
+	}
+
+	// SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	return true;
+}
+
+bool Robot::ProcessObstacles(const std::vector<Object*>& obstacles, bool remove)
+{
+	for (const auto& obs: obstacles)
+	{
+		if (!obs->desc.ycb)
+		{
+			moveit_msgs::CollisionObject obj_msg;
+			if (!getCollisionObjectMsg(*obs, obj_msg, remove)) {
+				return false;
+			}
+			if (!processCollisionObjectMsg(obj_msg)) {
+				return false;
+			}
+		}
+		else
+		{
+			if (!processSTLMesh(*obs, remove)) {
 				return false;
 			}
 		}
@@ -501,7 +528,7 @@ bool Robot::attachObject(const Object& obj)
 					shapes::ShapeConstPtr ao_shape = MakeROSShape(obj.smpl_co->shapes.at(sidx));
 					shapes.push_back(std::move(ao_shape));
 
-					auto itr = YCB_OBJECT_DIMS.find(obj.shape);
+					auto itr = YCB_OBJECT_DIMS.find(obj.desc.shape);
 					if (itr != YCB_OBJECT_DIMS.end()) {
 						transform.translation().z() -= (m_grasp_z - m_table_z);
 					}
@@ -653,19 +680,19 @@ void Robot::VoxeliseTrajectory(
 			co.shapes = std::move(shapes);
 			co.shape_poses = std::move(shape_poses);
 
-			const double res = m_grid_traj->resolution();
+			const double res = m_grid_i->resolution();
 			const Eigen::Vector3d origin(
-					m_grid_traj->originX(), m_grid_traj->originY(), m_grid_traj->originZ());
+					m_grid_i->originX(), m_grid_i->originY(), m_grid_i->originZ());
 
 			const Eigen::Vector3d gmin(
-					m_grid_traj->originX(), m_grid_traj->originY(), m_grid_traj->originZ());
+					m_grid_i->originX(), m_grid_i->originY(), m_grid_i->originZ());
 
 			const Eigen::Vector3d gmax(
-					m_grid_traj->originX() + m_grid_traj->sizeX(),
-					m_grid_traj->originY() + m_grid_traj->sizeY(),
-					m_grid_traj->originZ() + m_grid_traj->sizeZ());
+					m_grid_i->originX() + m_grid_i->sizeX(),
+					m_grid_i->originY() + m_grid_i->sizeY(),
+					m_grid_i->originZ() + m_grid_i->sizeZ());
 
-			if (!VoxelizeObject(co, res, origin, gmin, gmax, voxels)) {
+			if (!smpl::collision::VoxelizeObject(co, res, origin, gmin, gmax, voxels)) {
 				continue;
 			}
 		}
@@ -837,7 +864,7 @@ bool Robot::ComputeGrasps(
 	do
 	{
 		m_grasp_z = m_table_z + ((m_distD(m_rng) * 0.05) + 0.025);
-		ee_pose = Eigen::Translation3d(m_ooi.o_x + 0.025 * std::cos(pregrasp_goal[5]), m_ooi.o_y + 0.025 * std::sin(pregrasp_goal[5]), m_grasp_z) *
+		ee_pose = Eigen::Translation3d(m_ooi.desc.o_x + 0.025 * std::cos(pregrasp_goal[5]), m_ooi.desc.o_y + 0.025 * std::sin(pregrasp_goal[5]), m_grasp_z) *
 						Eigen::AngleAxisd(pregrasp_goal[5], Eigen::Vector3d::UnitZ()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
@@ -1585,32 +1612,32 @@ bool Robot::readResolutions(std::vector<double>& resolutions)
 void Robot::initObjects()
 {
 	Object o;
-	o.shape = 0; // rectangle
-	o.type = 1; // movable
-	o.o_x = 0.0; // TBD
-	o.o_y = 0.0; // TBD
-	o.o_z = 0.0; // NA
-	o.o_roll = 0.0; // NA
-	o.o_pitch = 0.0; // NA
-	o.o_yaw = 0.0; // TBD
-	o.x_size = 0.0; // TBD
-	o.y_size = 0.0; // TBD
-	o.z_size = 0.0; // NA
-	o.mass = m_mass;
-	o.locked = o.mass == 0;
-	o.mu = 0.8;
-	o.movable = true;
+	o.desc.shape = 0; // rectangle
+	o.desc.type = 1; // movable
+	o.desc.o_x = 0.0; // TBD
+	o.desc.o_y = 0.0; // TBD
+	o.desc.o_z = 0.0; // NA
+	o.desc.o_roll = 0.0; // NA
+	o.desc.o_pitch = 0.0; // NA
+	o.desc.o_yaw = 0.0; // TBD
+	o.desc.x_size = 0.0; // TBD
+	o.desc.y_size = 0.0; // TBD
+	o.desc.z_size = 0.0; // NA
+	o.desc.mass = m_mass;
+	o.desc.locked = o.desc.mass == 0;
+	o.desc.mu = 0.8;
+	o.desc.movable = true;
 
 	// shoulder-elbow rectangle
-	o.id = 100;
+	o.desc.id = 100;
 	m_objs.push_back(o);
 
 	// elbow-wrist rectangle
-	o.id = 101;
+	o.desc.id = 101;
 	m_objs.push_back(o);
 
 	// wrist-tip rectangle
-	o.id = 102;
+	o.desc.id = 102;
 	m_objs.push_back(o);
 }
 
@@ -1621,21 +1648,21 @@ void Robot::reinitObjects(const State& s)
 	auto link_pose_e = m_rm->computeFKLink(s, m_link_e);
 	State F1 = {link_pose_s.translation().x(), link_pose_s.translation().y()};
 	State F2 = {link_pose_e.translation().x(), link_pose_e.translation().y()};
-	ArmRectObj(F1, F2, m_b, m_objs.at(0));
+	ArmRectObj(F1, F2, m_b, m_objs.at(0).desc);
 
 	// elbow-wrist rectangle
 	auto link_pose_w = m_rm->computeFKLink(s, m_link_w);
 	F1 = F2;
 	F2.at(0) = link_pose_w.translation().x();
 	F2.at(1) = link_pose_w.translation().y();
-	ArmRectObj(F1, F2, m_b, m_objs.at(1));
+	ArmRectObj(F1, F2, m_b, m_objs.at(1).desc);
 
 	// wrist-tip rectangle
 	auto link_pose_t = m_rm->computeFKLink(s, m_link_t);
 	F1 = F2;
 	F2.at(0) = link_pose_t.translation().x();
 	F2.at(1) = link_pose_t.translation().y();
-	ArmRectObj(F1, F2, m_b, m_objs.at(2));
+	ArmRectObj(F1, F2, m_b, m_objs.at(2).desc);
 }
 
 double Robot::profileAction(
@@ -1771,7 +1798,7 @@ bool Robot::processSTLMesh(
 	if (remove)
 	{
 		// find the collision object with this name
-		auto* _object = findCollisionObject(std::to_string(object.id));
+		auto* _object = findCollisionObject(std::to_string(object.desc.id));
 		if (!_object) {
 			return false;
 		}
@@ -1797,8 +1824,8 @@ bool Robot::processSTLMesh(
 		m_collision_shapes.erase(rit, end(m_collision_shapes));
 
 		// remove the object itself
-		auto is_object = [_object](const std::unique_ptr<smpl::collision::CollisionObject>& object) {
-			return object.get() == _object;
+		auto is_object = [_object](const std::unique_ptr<smpl::collision::CollisionObject>& obj) {
+			return obj.get() == _object;
 		};
 		auto rrit = std::remove_if(
 				begin(m_collision_objects), end(m_collision_objects), is_object);
@@ -2388,18 +2415,18 @@ void Robot::displayObjectMarker(const Object& object)
 	marker.header.frame_id = "base_footprint";
 	marker.header.stamp = ros::Time();
 	marker.ns = "object";
-	marker.id = object.id;
+	marker.id = object.desc.id;
 	marker.action = visualization_msgs::Marker::ADD;
-	marker.type = object.shape == 0 ? visualization_msgs::Marker::CUBE : visualization_msgs::Marker::CYLINDER;
+	marker.type = object.Shape() == 0 ? visualization_msgs::Marker::CUBE : visualization_msgs::Marker::CYLINDER;
 
 	geometry_msgs::Pose pose;
-	pose.position.x = object.o_x;
-	pose.position.y = object.o_y;
-	pose.position.z = object.o_z;
+	pose.position.x = object.desc.o_x;
+	pose.position.y = object.desc.o_y;
+	pose.position.z = object.desc.o_z;
 
 	Eigen::Quaterniond q;
 	smpl::angles::from_euler_zyx(
-			object.o_yaw, object.o_pitch, object.o_roll, q);
+			object.desc.o_yaw, object.desc.o_pitch, object.desc.o_roll, q);
 
 	geometry_msgs::Quaternion orientation;
 	tf::quaternionEigenToMsg(q, orientation);
@@ -2407,10 +2434,10 @@ void Robot::displayObjectMarker(const Object& object)
 
 	marker.pose = pose;
 
-	marker.scale.x = 2 * object.x_size;
-	marker.scale.y = 2 * object.y_size;
-	marker.scale.z = 2 * object.z_size;
-	marker.scale.z /= object.shape == 2 ? 2.0 : 1.0;
+	marker.scale.x = 2 * object.desc.x_size;
+	marker.scale.y = 2 * object.desc.y_size;
+	marker.scale.z = 2 * object.desc.z_size;
+	marker.scale.z /= object.Shape() == 2 ? 2.0 : 1.0;
 
 	marker.color.a = 0.5; // Don't forget to set the alpha!
 	marker.color.r = 0.86;

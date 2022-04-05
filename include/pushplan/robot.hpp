@@ -43,7 +43,9 @@ public:
 
 	bool CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t);
 	bool CheckCollision(const LatticeState& robot, int t);
+
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
+	bool ProcessObstacles(const std::vector<Object*>& obstacles, bool remove=false);
 
 	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
 	bool Init();
@@ -82,8 +84,11 @@ public:
 	void SetSim(const std::shared_ptr<BulletSim>& sim) {
 		m_sim = sim;
 	}
-	void SetOOI(const std::vector<Object>* ooi) {
-		m_ooi = ooi->back();
+	void SetOOI(const Object& ooi) {
+		m_ooi = ooi;
+	}
+	void SetOOI(Object* ooi) {
+		SetOOI(*ooi);
 	}
 
 	void AnimateSolution();
@@ -93,7 +98,7 @@ public:
 	}
 	const std::vector<Object>* GetObject() const { return &m_objs; };
 	const std::vector<Object>* GetObject(const LatticeState& s);
-	const Trajectory* GetLastTraj() const { return &m_solve; };
+	const Trajectory* SolveTraj() const { return &m_solve; };
 
 	State GetEEState(const State& state);
 	const moveit_msgs::RobotState* GetStartState() { return &m_start_state; };
