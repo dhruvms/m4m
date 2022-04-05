@@ -1,6 +1,6 @@
-#include <pushplan/planner.hpp>
-#include <pushplan/helpers.hpp>
-#include <pushplan/constants.hpp>
+#include <pushplan/search/planner.hpp>
+#include <pushplan/utils/helpers.hpp>
+#include <pushplan/utils/constants.hpp>
 
 #include <smpl/debug/visualizer_ros.h>
 #include <ros/ros.h>

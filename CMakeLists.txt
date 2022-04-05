@@ -42,20 +42,20 @@ include_directories(include)
 
 add_library(
 	PUSHPLAN
-	src/planner.cpp
-	src/bullet_sim.cpp
-	src/cbs_nodes.cpp
-	src/cbs.cpp
-	src/cbswp.cpp
-	src/pbs.cpp
-	src/collision_checker.cpp
-	src/object.cpp
-	src/agent_lattice.cpp
-	src/agent.cpp
-	src/robot.cpp
-	src/wastar.cpp
-	src/focal.cpp
-	src/constants.cpp)
+	src/search/planner.cpp
+	src/utils/bullet_sim.cpp
+	src/search/cbs_nodes.cpp
+	src/search/cbs.cpp
+	src/search/cbswp.cpp
+	src/search/pbs.cpp
+	src/utils/collision_checker.cpp
+	src/agents/object.cpp
+	src/agents/agent_lattice.cpp
+	src/agents/agent.cpp
+	src/agents/robot.cpp
+	src/search/wastar.cpp
+	src/search/focal.cpp
+	src/utils/constants.cpp)
 target_link_libraries(PUSHPLAN ${catkin_LIBRARIES} smpl::smpl) # -lprofiler
 
 add_executable(coop_plan test/coop_plan.cpp)
