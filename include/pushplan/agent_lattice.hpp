@@ -2,7 +2,6 @@
 #define AGENT_LATTICE_HPP
 
 #include <pushplan/types.hpp>
-#include <pushplan/agent.hpp>
 #include <pushplan/cbs_nodes.hpp>
 
 #include <smpl/types.h>
@@ -12,15 +11,17 @@
 namespace clutter
 {
 
+class Agent;
+
 class AgentLattice
 {
 public:
 
-	void init(Agent* agent);
+	void init(Agent* agent, bool backwards);
 	void reset();
 
-	void PushStart(const LatticeState& s);
-	void PushGoal(const Coord& p);
+	int PushStart(const LatticeState& s);
+	int PushGoal(const Coord& p);
 
 	void SetCTNode(HighLevelNode* ct_node);
 	void AvoidAgents(const std::unordered_set<int>& to_avoid);
@@ -34,12 +35,14 @@ public:
 	unsigned int GetGoalHeuristic(int state_id);
 	unsigned int GetConflictHeuristic(int state_id);
 	unsigned int GetGoalHeuristic(const LatticeState& s);
+
+	bool ConvertPath(
+		const std::vector<int>& idpath);
 private:
 
 	Agent* m_agent = nullptr;
 
-	std::vector<int> m_start_ids;
-	std::vector<int> m_goal_ids;
+	std::vector<int> m_start_ids, m_goal_ids;
 	bool m_backwards;
 	STATES m_states, m_closed;
 
@@ -83,9 +86,6 @@ private:
 		const int& hc);
 	int getOrCreateState(const LatticeState& s);
 	int getOrCreateState(const Coord& p);
-
-	bool convertPath(
-		const std::vector<int>& idpath);
 };
 
 } // namespace clutter

@@ -1,4 +1,6 @@
-
+#include <pushplan/agent_lattice.hpp>
+#include <pushplan/agent.hpp>
+#include <pushplan/geometry.hpp>
 
 auto std::hash<clutter::LatticeState>::operator()(
 	const argument_type& s) const -> result_type
@@ -34,17 +36,18 @@ void AgentLattice::reset()
 	m_states.clear();
 }
 
-void AgentLattice::PushStart(const LatticeState& s)
+int AgentLattice::PushStart(const LatticeState& s)
 {
 	int start_id = getOrCreateState(s);
 	m_start_ids.push_back(start_id);
+	return start_id;
 }
 
-void AgentLattice::PushGoal(const Coord& p)
+int AgentLattice::PushGoal(const Coord& p)
 {
-	int goal_id = getOrCreateState(s);
+	int goal_id = getOrCreateState(p);
 	m_goal_ids.push_back(goal_id);
-	m_goal = p;
+	return goal_id;
 }
 
 void AgentLattice::SetCTNode(HighLevelNode* ct_node)
@@ -79,7 +82,7 @@ bool AgentLattice::IsGoal(int state_id)
 	assert(s);
 
 	if (m_backwards) {
-		return s->coord == m_goal;
+		return s->coord == m_agent->Goal();
 	}
 
 	bool constrained = false, conflict = false, ngr = false;
@@ -153,7 +156,7 @@ unsigned int AgentLattice::GetGoalHeuristic(int state_id)
 	LatticeState* s = getHashEntry(state_id);
 	assert(s);
 
-	double dist = EuclideanDist(s->coord, m_goal);
+	double dist = EuclideanDist(s->coord, m_agent->Goal());
 	return (dist * COST_MULT);
 }
 
@@ -169,7 +172,7 @@ unsigned int AgentLattice::GetConflictHeuristic(int state_id)
 unsigned int AgentLattice::GetGoalHeuristic(const LatticeState& s)
 {
 	// TODO: RRA* informed backwards Dijkstra's heuristic
-	double dist = EuclideanDist(s.coord, m_goal);
+	double dist = EuclideanDist(s.coord, m_agent->Goal());
 	return (dist * COST_MULT);
 }
 
@@ -512,16 +515,17 @@ int AgentLattice::getOrCreateState(const Coord& p)
 	return getOrCreateState(p, temp, -1, -1);
 }
 
-bool AgentLattice::convertPath(
+bool AgentLattice::ConvertPath(
 	const std::vector<int>& idpath)
 {
-	Trajectory opath; // vector of LatticeState
+	Trajectory* opath = m_agent->SolveTraj(); // vector of LatticeState
+	opath->clear();
 
 	if (idpath.empty()) {
 		return true;
 	}
 
-	if (idpath[0] == m_goal_id)
+	if (idpath[0] == m_goal_ids.back())
 	{
 		SMPL_ERROR("Cannot extract a non-trivial path starting from the goal state");
 		return false;
@@ -535,16 +539,16 @@ bool AgentLattice::convertPath(
 	{
 		auto state_id = idpath[0];
 
-		if (state_id == m_goal_id)
+		if (state_id == m_goal_ids.back())
 		{
-			auto* entry = getHashEntry(m_start_id);
+			auto* entry = getHashEntry(state_id);
 			if (!entry)
 			{
-				SMPL_ERROR("Failed to get state entry for state %d", m_start_id);
+				SMPL_ERROR("Failed to get state entry for state %d", state_id);
 				return false;
 			}
 			state = *entry;
-			opath.push_back(state);
+			opath->push_back(state);
 		}
 		else
 		{
@@ -555,7 +559,7 @@ bool AgentLattice::convertPath(
 				return false;
 			}
 			state = *entry;
-			opath.push_back(state);
+			opath->push_back(state);
 		}
 	}
 	else
@@ -568,7 +572,7 @@ bool AgentLattice::convertPath(
 			return false;
 		}
 		state = *entry;
-		opath.push_back(state);
+		opath->push_back(state);
 	}
 
 	// grab the rest of the points
@@ -577,7 +581,7 @@ bool AgentLattice::convertPath(
 		auto prev_id = idpath[i - 1];
 		auto curr_id = idpath[i];
 
-		if (prev_id == m_goal_id)
+		if (prev_id == m_goal_ids.back())
 		{
 			SMPL_ERROR("Cannot determine goal state predecessor state during path extraction");
 			return false;
@@ -590,9 +594,8 @@ bool AgentLattice::convertPath(
 			return false;
 		}
 		state = *entry;
-		opath.push_back(state);
+		opath->push_back(state);
 	}
-	m_solve = std::move(opath);
 	return true;
 }
 
