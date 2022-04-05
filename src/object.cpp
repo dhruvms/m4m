@@ -1,5 +1,6 @@
 #include <pushplan/object.hpp>
 #include <pushplan/constants.hpp>
+#include <pushplan/helpers.hpp>
 
 #include <sbpl_collision_checking/collision_model_config.h>
 #include <sbpl_collision_checking/voxel_operations.h>
@@ -70,7 +71,7 @@ bool Object::CreateCollisionObjects()
 		}
 
 		int table_ids = FRIDGE ? 5 : 1;
-		if (id <= table_ids)
+		if (desc.id <= table_ids)
 		{
 			prim.dimensions[0] *= (1.0 + (sqrt(3) * DF_RES));
 			prim.dimensions[1] *= (1.0 + (sqrt(3) * DF_RES));
@@ -372,12 +373,6 @@ bool Object::GenerateCollisionModels()
 				{
 					shapes::ShapeConstPtr ao_shape = MakeROSShape(smpl_co->shapes.at(sidx));
 					shapes.push_back(std::move(ao_shape));
-
-					auto itr = YCB_OBJECT_DIMS.find(desc.shape);
-					if (itr != YCB_OBJECT_DIMS.end()) {
-						transform.translation().z() -= (m_grasp_z - m_table_z);
-					}
-
 					break;
 				}
 				case smpl::collision::ShapeType::Sphere:
@@ -409,7 +404,7 @@ bool Object::GenerateCollisionModels()
 	return true;
 }
 
-void updateSphereState(const smpl::collision::SphereIndex& sidx)
+void Object::updateSphereState(const smpl::collision::SphereIndex& sidx)
 {
 	smpl::collision::CollisionSphereState& sphere_state = spheres_state->spheres[sidx.s];
     sphere_state.pos = m_T * sphere_state.model->center;
@@ -419,7 +414,7 @@ bool Object::createSpheresModel(
 	const std::vector<shapes::ShapeConstPtr>& shapes,
 	const smpl::collision::Affine3dVector& transforms)
 {
-	ROS_DEBUG_NAMED(ABM_LOGGER, "  Generate spheres model");
+	ROS_DEBUG("  Generate spheres model");
 
 	// create configuration spheres and a spheres model for this body
 	smpl::collision::CollisionSpheresModelConfig config;
@@ -431,7 +426,7 @@ bool Object::createSpheresModel(
 	spheres_model = new smpl::collision::CollisionSpheresModel;
 	spheres_model->link_index = 0;
 	spheres_model->spheres.buildFrom(config.spheres);
-	ROS_DEBUG_NAMED(ABM_LOGGER, "  Spheres Model: %p", spheres_model);
+	ROS_DEBUG("  Spheres Model: %p", spheres_model);
 
 	// TODO: possible make this more automatic?
 	for (auto& sphere : spheres_model->spheres.m_tree) {
@@ -449,7 +444,7 @@ bool Object::createVoxelsModel(
 	const std::vector<shapes::ShapeConstPtr>& shapes,
 	const smpl::collision::Affine3dVector& transforms)
 {
-	ROS_DEBUG_NAMED(ABM_LOGGER, "  Generate voxels model");
+	ROS_DEBUG("  Generate voxels model");
 
 	// create configuration voxels model for this body
 	smpl::collision::CollisionVoxelModelConfig config;
@@ -465,7 +460,7 @@ bool Object::createVoxelsModel(
 	voxels_model->voxel_res = AB_VOXEL_RES;
 
 	if (!voxelizeAttachedBody(shapes, transforms, *voxels_model)) {
-		ROS_ERROR_NAMED(ABM_LOGGER, "Failed to voxelize object '%d'", id);
+		ROS_ERROR("Failed to voxelize object '%d'", desc.id);
 		return false;
 		// TODO: anything to do in this case
 	}
@@ -486,7 +481,7 @@ bool Object::generateSpheresModel(
 			[](const shapes::ShapeConstPtr& shape) { return (bool)shape; }));
 	assert(shapes.size() == transforms.size());
 
-	ROS_DEBUG_NAMED(ABM_LOGGER, "Generate spheres model configuration");
+	ROS_DEBUG("Generate spheres model configuration");
 
 	// TODO: reserve a special character so as to guarantee sphere uniqueness
 	// here and disallow use of the special character on config-generated
@@ -498,24 +493,24 @@ bool Object::generateSpheresModel(
 	// voxelize the object
 	std::vector<Eigen::Vector3d> voxels;
 	for (size_t i = 0; i < shapes.size(); ++i) {
-		if (!VoxelizeShape(
+		if (!smpl::collision::VoxelizeShape(
 				*shapes[i], transforms[i],
 				object_enclosing_sphere_radius / std::sqrt(2),
 				Eigen::Vector3d::Zero(),
 				voxels))
 		{
-			ROS_ERROR_NAMED(ABM_LOGGER, "Failed to voxelize object shape for sphere generation");
+			ROS_ERROR("Failed to voxelize object shape for sphere generation");
 			return false;
 		}
 	}
 
 	spheres_model.autogenerate = false;
-	spheres_model.link_name = std::to_string(id);
+	spheres_model.link_name = std::to_string(desc.id);
 	spheres_model.spheres.clear();
 
 	for (size_t i = 0; i < voxels.size(); ++i) {
-		CollisionSphereConfig sphere_config;
-		sphere_config.name = std::to_string(id) + "/" + std::to_string(i);
+		smpl::collision::CollisionSphereConfig sphere_config;
+		sphere_config.name = std::to_string(desc.id) + "/" + std::to_string(i);
 		sphere_config.x = voxels[i].x();
 		sphere_config.y = voxels[i].y();
 		sphere_config.z = voxels[i].z();
@@ -524,14 +519,14 @@ bool Object::generateSpheresModel(
 		spheres_model.spheres.push_back(std::move(sphere_config));
 	}
 
-	ROS_DEBUG_NAMED(ABM_LOGGER, "Generated spheres model with %zu spheres", spheres_model.spheres.size());
+	ROS_DEBUG("Generated spheres model with %zu spheres", spheres_model.spheres.size());
 }
 
 void Object::generateVoxelsModel(
 	smpl::collision::CollisionVoxelModelConfig& voxels_model)
 {
-	ROS_DEBUG_NAMED(ABM_LOGGER, "Generate voxels model configuration");
-	voxels_model.link_name = std::to_string(id);
+	ROS_DEBUG("Generate voxels model configuration");
+	voxels_model.link_name = std::to_string(desc.id);
 }
 
 bool Object::voxelizeAttachedBody(
@@ -540,7 +535,7 @@ bool Object::voxelizeAttachedBody(
 	smpl::collision::CollisionVoxelsModel& model) const
 {
 	if (shapes.size() != transforms.size()) {
-		ROS_ERROR_NAMED(ABM_LOGGER, "shapes array and transforms array must have equal length");
+		ROS_ERROR("shapes array and transforms array must have equal length");
 		return false;
 	}
 
@@ -548,7 +543,7 @@ bool Object::voxelizeAttachedBody(
 	for (size_t i = 0; i < shapes.size(); ++i) {
 		const shapes::Shape& shape = *shapes[i];
 		const Eigen::Affine3d& transform = transforms[i];
-		VoxelizeShape(
+		smpl::collision::VoxelizeShape(
 				shape, transform,
 				model.voxel_res, Eigen::Vector3d::Zero(), model.voxels);
 	}

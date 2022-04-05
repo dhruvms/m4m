@@ -4,6 +4,7 @@
 #include <pushplan/types.hpp>
 
 #include <sbpl_collision_checking/base_collision_models.h>
+#include <sbpl_collision_checking/base_collision_states.h>
 #include <sbpl_collision_checking/shapes.h>
 #include <fcl/collision_object.h>
 #include <moveit_msgs/CollisionObject.h>
