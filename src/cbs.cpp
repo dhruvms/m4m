@@ -261,8 +261,8 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 		}
 	}
 
-	if (r_traj->size() != a_traj->size())
-	{
+	if (r_traj->size() != a_traj->size()
+)	{
 		bool robot_shorter = r_traj->size() < a_traj->size();
 		auto* shorter = robot_shorter ? r_traj : a_traj;
 		auto* longer = robot_shorter ? a_traj : r_traj;
@@ -271,8 +271,8 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 		{
 			m_objs[oid]->UpdatePose(a_traj->back());
 			// add object to robot collision space
-			std::vector<Object> o;
-			o.push_back(m_objs[oid]->GetObject()->back());
+			std::vector<Object*> o;
+			o.push_back(m_objs[oid]->GetObject());
 			m_robot->ProcessObstacles(o);
 		}
 
@@ -304,8 +304,8 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 		if (!robot_shorter)
 		{
 			// remove object from robot collision space
-			std::vector<Object> o;
-			o.push_back(m_objs[oid]->GetObject()->back());
+			std::vector<Object*> o;
+			o.push_back(m_objs[oid]->GetObject());
 			m_robot->ProcessObstacles(o, true);
 		}
 	}
@@ -341,7 +341,7 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 	{
 		m_objs[o1]->UpdatePose(a1_traj->at(t));
 		m_objs[o2]->UpdatePose(a2_traj->at(t));
-		if (m_cc->ObjectObjectCollision(m_objs[o1].get(), m_objs[o2].get()))
+		if (m_cc->ObjectObjectCollision(m_objs[o1]->GetFCLObject(), m_objs[o2]->GetFCLObject()))
 		{
 			std::shared_ptr<Conflict> conflict(new Conflict());
 			conflict->InitConflict(m_obj_idx_to_id[o1], m_obj_idx_to_id[o2], t, a1_traj->at(t), a2_traj->at(t), false);
@@ -363,7 +363,7 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 		for (int t = tmin; t < longer_traj->size(); ++t)
 		{
 			longer->UpdatePose(longer_traj->at(t));
-			if (m_cc->ObjectObjectCollision(shorter, longer))
+			if (m_cc->ObjectObjectCollision(shorter->GetFCLObject(), longer->GetFCLObject()))
 			{
 				std::shared_ptr<Conflict> conflict(new Conflict());
 				conflict->InitConflict(shorter->GetID(), longer->GetID(), t, shorter_traj->back(), longer_traj->at(t), false);
@@ -577,21 +577,21 @@ void CBS::writeSolution(HighLevelNode* node)
 		auto obstacles = m_cc->GetObstacles();
 		for (const auto& obs: *obstacles)
 		{
-			movable = obs.movable ? "True" : "False";
-			DATA << obs.id << ','
+			movable = obs.desc.movable ? "True" : "False";
+			DATA << obs.desc.id << ','
 					<< obs.Shape() << ','
-					<< obs.type << ','
-					<< obs.o_x << ','
-					<< obs.o_y << ','
-					<< obs.o_z << ','
-					<< obs.o_roll << ','
-					<< obs.o_pitch << ','
-					<< obs.o_yaw << ','
-					<< obs.x_size << ','
-					<< obs.y_size << ','
-					<< obs.z_size << ','
-					<< obs.mass << ','
-					<< obs.mu << ','
+					<< obs.desc.type << ','
+					<< obs.desc.o_x << ','
+					<< obs.desc.o_y << ','
+					<< obs.desc.o_z << ','
+					<< obs.desc.o_roll << ','
+					<< obs.desc.o_pitch << ','
+					<< obs.desc.o_yaw << ','
+					<< obs.desc.x_size << ','
+					<< obs.desc.y_size << ','
+					<< obs.desc.z_size << ','
+					<< obs.desc.mass << ','
+					<< obs.desc.mu << ','
 					<< movable << '\n';
 		}
 
@@ -599,23 +599,22 @@ void CBS::writeSolution(HighLevelNode* node)
 		// auto agent_obs = m_ooi->GetObject();
 		// movable = "False";
 		// DATA << 999 << ',' // for visualisation purposes
-		// 		<< agent_obs->back().Shape() << ','
-		// 		<< agent_obs->back().type << ','
+		// 		<< agent_obs->Shape() << ','
+		// 		<< agent_obs->desc.type << ','
 		// 		<< loc.at(0) << ','
 		// 		<< loc.at(1) << ','
-		// 		<< agent_obs->back().o_z << ','
-		// 		<< agent_obs->back().o_roll << ','
-		// 		<< agent_obs->back().o_pitch << ','
-		// 		<< agent_obs->back().o_yaw << ','
-		// 		<< agent_obs->back().x_size << ','
-		// 		<< agent_obs->back().y_size << ','
-		// 		<< agent_obs->back().z_size << ','
-		// 		<< agent_obs->back().mass << ','
-		// 		<< agent_obs->back().mu << ','
+		// 		<< agent_obs->desc.o_z << ','
+		// 		<< agent_obs->desc.o_roll << ','
+		// 		<< agent_obs->desc.o_pitch << ','
+		// 		<< agent_obs->desc.o_yaw << ','
+		// 		<< agent_obs->desc.x_size << ','
+		// 		<< agent_obs->desc.y_size << ','
+		// 		<< agent_obs->desc.z_size << ','
+		// 		<< agent_obs->desc.mass << ','
+		// 		<< agent_obs->desc.mu << ','
 		// 		<< movable << '\n';
 
 		State loc;
-		const std::vector<Object>* agent_obs = nullptr;
 		movable = "True";
 		for (size_t oidx = 0; oidx < m_objs.size(); ++oidx)
 		{
@@ -626,47 +625,48 @@ void CBS::writeSolution(HighLevelNode* node)
 				loc = node->m_solution[oidx+1].second.at(tidx).state;
 			}
 
-			agent_obs = m_objs[oidx]->GetObject();
-			DATA << agent_obs->back().id << ','
-				<< agent_obs->back().Shape() << ','
-				<< agent_obs->back().type << ','
+			auto agent_obs = m_objs[oidx]->GetObject();
+			DATA << agent_obs->desc.id << ','
+				<< agent_obs->Shape() << ','
+				<< agent_obs->desc.type << ','
 				<< loc.at(0) << ','
 				<< loc.at(1) << ','
-				<< agent_obs->back().o_z << ','
-				<< agent_obs->back().o_roll << ','
-				<< agent_obs->back().o_pitch << ','
-				<< agent_obs->back().o_yaw << ','
-				<< agent_obs->back().x_size << ','
-				<< agent_obs->back().y_size << ','
-				<< agent_obs->back().z_size << ','
-				<< agent_obs->back().mass << ','
-				<< agent_obs->back().mu << ','
+				<< agent_obs->desc.o_z << ','
+				<< agent_obs->desc.o_roll << ','
+				<< agent_obs->desc.o_pitch << ','
+				<< agent_obs->desc.o_yaw << ','
+				<< agent_obs->desc.x_size << ','
+				<< agent_obs->desc.y_size << ','
+				<< agent_obs->desc.z_size << ','
+				<< agent_obs->desc.mass << ','
+				<< agent_obs->desc.mu << ','
 				<< movable << '\n';
 		}
 
+		const std::vector<Object>* robot_obs = nullptr;
 		if (node->m_solution[0].second.size() <= tidx) {
-			agent_obs = m_robot->GetObject(node->m_solution[0].second.back());
+			robot_obs = m_robot->GetObject(node->m_solution[0].second.back());
 		}
 		else {
-			agent_obs = m_robot->GetObject(node->m_solution[0].second.at(tidx));
+			robot_obs = m_robot->GetObject(node->m_solution[0].second.at(tidx));
 		}
 
-		for (const auto& robot_o: *agent_obs)
+		for (const auto& robot_o: *robot_obs)
 		{
-			DATA << robot_o.id << ','
+			DATA << robot_o.desc.id << ','
 					<< robot_o.Shape() << ','
-					<< robot_o.type << ','
-					<< robot_o.o_x << ','
-					<< robot_o.o_y << ','
-					<< robot_o.o_z << ','
-					<< robot_o.o_roll << ','
-					<< robot_o.o_pitch << ','
-					<< robot_o.o_yaw << ','
-					<< robot_o.x_size << ','
-					<< robot_o.y_size << ','
-					<< robot_o.z_size << ','
-					<< robot_o.mass << ','
-					<< robot_o.mu << ','
+					<< robot_o.desc.type << ','
+					<< robot_o.desc.o_x << ','
+					<< robot_o.desc.o_y << ','
+					<< robot_o.desc.o_z << ','
+					<< robot_o.desc.o_roll << ','
+					<< robot_o.desc.o_pitch << ','
+					<< robot_o.desc.o_yaw << ','
+					<< robot_o.desc.x_size << ','
+					<< robot_o.desc.y_size << ','
+					<< robot_o.desc.z_size << ','
+					<< robot_o.desc.mass << ','
+					<< robot_o.desc.mu << ','
 					<< movable << '\n';
 		}
 
@@ -684,8 +684,8 @@ void CBS::writeSolution(HighLevelNode* node)
 
 		for (size_t oidx = 0; oidx < m_objs.size(); ++oidx)
 		{
-			agent_obs = m_objs[oidx]->GetObject();
-			DATA << agent_obs->back().id << '\n';
+			auto agent_obs = m_objs[oidx]->GetObject();
+			DATA << agent_obs->desc.id << '\n';
 			DATA << tidx + 1 << '\n';
 			for (int t = 0; t <= tidx; ++t)
 			{

@@ -29,20 +29,20 @@ void CBSwP::growConstraintTree(HighLevelNode* parent)
 	for (int i = 0; i < 2; ++i)
 	{
 		// does the parent contain the opposite prioritisation?
-		if (!parent->m_priorities.Connected(parent->m_conflict[i], parent->m_conflict[1 - i]))
+		if (!parent->m_priorities.Connected(parent->m_conflict->at(i), parent->m_conflict->at(1- i)))
 		{
 			child[i]->m_priorities.Copy(parent->m_priorities);
 			// does the child already contain the "new" prioritisation?
-			if (!parent->m_priorities.Connected(parent->m_conflict[1 - i], parent->m_conflict[i]))
+			if (!parent->m_priorities.Connected(parent->m_conflict->at(1- i), parent->m_conflict->at(i)))
 			{
 				// sanity check
-				if (parent->m_conflict[i] == -1 || parent->m_conflict[1 - i] == -1)
+				if (parent->m_conflict->at(i) == -1 || parent->m_conflict->at(1 - i) == -1)
 				{
 					SMPL_ERROR("Improper access into conflict: -1 returned!");
 					delete (child[i]);
 					continue;
 				}
-				child[i]->m_priorities.Add(parent->m_conflict[1 - i], parent->m_conflict[i]);
+				child[i]->m_priorities.Add(parent->m_conflict->at(1 - i), parent->m_conflict->at(i));
 			}
 		}
 		else

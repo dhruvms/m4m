@@ -1,3 +1,4 @@
+#include <pushplan/pbs.hpp>
 #include <pushplan/cbs.hpp>
 #include <pushplan/helpers.hpp>
 #include <pushplan/robot.hpp>
@@ -14,7 +15,7 @@ PBS::PBS() :
 CBS()
 {
 	m_OPEN.clear();
-	m_p0.clear();
+	m_p0.Clear();
 }
 
 PBS::PBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs,
@@ -22,7 +23,7 @@ PBS::PBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs,
 CBS(r, objs, scene_id)
 {
 	m_OPEN.clear();
-	m_p0.clear();
+	m_p0.Clear();
 }
 
 bool PBS::Solve()
@@ -227,7 +228,7 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 	replan_ids.push_back(agent_id);
 	// topological sort agents to replan to determine good order to replan in
 	std::queue<int> replan_order;
-	root->m_priorities.TopologicalSort(replan_ids, replan_order);
+	node->m_priorities.TopologicalSort(replan_ids, replan_order);
 
 	while (!replan_order.empty())
 	{
@@ -265,7 +266,7 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 		auto to_avoid = node->m_priorities.GetHigherPriorities(replan_id);
 		int expands, min_f;
 		// run low-level with spacetime collision checking against higher priority agents
-		if (!m_objs[replan_idx]->SatisfyPath(root, &m_paths[replan_idx], expands, min_f, &to_avoid)) {
+		if (!m_objs[replan_idx]->SatisfyPath(node, &m_paths[replan_idx], expands, min_f, &to_avoid)) {
 			++m_ct_deadends;
 			return false;
 		}
@@ -280,7 +281,7 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 
 		// update tree node's solution
 		bool soln_updated = false;
-		for (auto& agent_soln : root->m_solution)
+		for (auto& agent_soln : node->m_solution)
 		{
 			if (agent_soln.first == replan_id)
 			{
@@ -290,7 +291,7 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 			}
 		}
 		if (!soln_updated) {
-			root->m_solution.emplace_back(replan_id, *(m_paths[replan_idx]));
+			node->m_solution.emplace_back(replan_id, *(m_paths[replan_idx]));
 		}
 
 		// on to the next one
@@ -302,7 +303,7 @@ void PBS::removeConflicts(HighLevelNode* node, int agent_id)
 {
 	for (auto it = node->m_conflicts.begin(); it != node->m_conflicts.end(); )
 	{
-		if (it->m_a1 == agent_id || it->m_a2 == agent_id) {
+		if ((*it)->m_a1 == agent_id || (*it)->m_a2 == agent_id) {
 			it = node->m_conflicts.erase(it);
 		}
 		else {
