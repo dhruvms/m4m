@@ -28,16 +28,19 @@ struct Object
 {
 	ObjectDesc desc;
 
+	// CollisionObjects
+	moveit_msgs::CollisionObject* moveit_obj = nullptr;
+	fcl::CollisionObject* fcl_obj = nullptr;
+
+	// SMPLCollisionObject
 	smpl::collision::CollisionShape* smpl_shape = nullptr;
 	smpl::collision::CollisionObject* smpl_co = nullptr;
 
+	// CollisionModels
 	smpl::collision::CollisionSpheresModel* spheres_model = nullptr;
 	smpl::collision::CollisionSpheresState* spheres_state = nullptr;
     smpl::collision::CollisionVoxelsModel* voxels_model = nullptr;
     smpl::collision::CollisionVoxelsState* voxels_state = nullptr;
-
-	moveit_msgs::CollisionObject* moveit_obj = nullptr;
-	fcl::CollisionObject* fcl_obj = nullptr;
 
 	int Shape() const;
 	bool CreateCollisionObjects();

@@ -560,6 +560,9 @@ void Planner::init_agents(
 		}
 
 		o.CreateCollisionObjects();
+		o.CreateSMPLCollisionObject();
+		o.GenerateCollisionModels();
+
 		obstacles.push_back(o);
 	}
 
@@ -599,6 +602,9 @@ void Planner::init_agents(
 		o.desc.ycb = ycb;
 
 		o.CreateCollisionObjects();
+		o.CreateSMPLCollisionObject();
+		o.GenerateCollisionModels();
+
 		std::shared_ptr<Agent> movable(new Agent(o));
 		m_agents.push_back(std::move(movable));
 		m_agent_map[o.desc.id] = m_agents.size() - 1;
@@ -660,6 +666,9 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 					}
 
 					o.CreateCollisionObjects();
+					o.CreateSMPLCollisionObject();
+					o.GenerateCollisionModels();
+
 					if (o.desc.movable) {
 						std::shared_ptr<Agent> movable(new Agent(o));
 						m_agents.push_back(std::move(movable));

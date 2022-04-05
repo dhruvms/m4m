@@ -249,6 +249,65 @@ bool Object::CreateSMPLCollisionObject()
 	return true;
 }
 
+bool Object::GenerateCollisionModels()
+{
+	std::vector<shapes::ShapeConstPtr> shapes;
+	smpl::collision::Affine3dVector transforms;
+	if (smpl_co)
+	{
+		for (size_t sidx = 0; sidx < smpl_co->shapes.size(); ++sidx)
+		{
+			auto transform = smpl_co->shape_poses.at(sidx); // Eigen::Affine3d::Identity();
+			switch (smpl_co->shapes.at(sidx)->type)
+			{
+				case smpl::collision::ShapeType::Box:
+				{
+					auto box = static_cast<smpl::collision::BoxShape*>(smpl_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape(new shapes::Box(box->size[0], box->size[1], box->size[2]));
+					shapes.push_back(std::move(ao_shape));
+					break;
+				}
+				case smpl::collision::ShapeType::Cylinder:
+				{
+					auto cylinder = static_cast<smpl::collision::CylinderShape*>(smpl_co->shapes.at(sidx));
+					shapes::ShapeConstPtr ao_shape(new shapes::Cylinder(cylinder->radius, cylinder->height));
+					shapes.push_back(std::move(ao_shape));
+					break;
+				}
+				case smpl::collision::ShapeType::Mesh:
+				{
+					shapes::ShapeConstPtr ao_shape = MakeROSShape(smpl_co->shapes.at(sidx));
+					shapes.push_back(std::move(ao_shape));
+					break;
+				}
+				case smpl::collision::ShapeType::Sphere:
+				case smpl::collision::ShapeType::Cone:
+				case smpl::collision::ShapeType::Plane:
+				case smpl::collision::ShapeType::OcTree:
+				default:
+				{
+					ROS_ERROR("Incompatible shape type!");
+					return false;
+				}
+			}
+			transforms.push_back(transform);
+		}
+	}
+	else
+	{
+		ROS_ERROR("Collision object not found!");
+		return false;
+	}
+
+	if (!createSpheresModel(shapes, transforms)) {
+		return false;
+	}
+	if (!createVoxelsModel(shapes, transforms)) {
+		return false;
+	}
+
+	return true;
+}
 
 // bool Object::TransformAndVoxelise(
 // 	const Eigen::Affine3d& transform,
@@ -342,66 +401,6 @@ void Object::UpdatePose(const LatticeState& s)
 
 	fcl_obj->setTransform(fcl_pose);
 	fcl_obj->computeAABB();
-}
-
-bool Object::GenerateCollisionModels()
-{
-	std::vector<shapes::ShapeConstPtr> shapes;
-	smpl::collision::Affine3dVector transforms;
-	if (smpl_co)
-	{
-		for (size_t sidx = 0; sidx < smpl_co->shapes.size(); ++sidx)
-		{
-			auto transform = smpl_co->shape_poses.at(sidx); // Eigen::Affine3d::Identity();
-			switch (smpl_co->shapes.at(sidx)->type)
-			{
-				case smpl::collision::ShapeType::Box:
-				{
-					auto box = static_cast<smpl::collision::BoxShape*>(smpl_co->shapes.at(sidx));
-					shapes::ShapeConstPtr ao_shape(new shapes::Box(box->size[0], box->size[1], box->size[2]));
-					shapes.push_back(std::move(ao_shape));
-					break;
-				}
-				case smpl::collision::ShapeType::Cylinder:
-				{
-					auto cylinder = static_cast<smpl::collision::CylinderShape*>(smpl_co->shapes.at(sidx));
-					shapes::ShapeConstPtr ao_shape(new shapes::Cylinder(cylinder->radius, cylinder->height));
-					shapes.push_back(std::move(ao_shape));
-					break;
-				}
-				case smpl::collision::ShapeType::Mesh:
-				{
-					shapes::ShapeConstPtr ao_shape = MakeROSShape(smpl_co->shapes.at(sidx));
-					shapes.push_back(std::move(ao_shape));
-					break;
-				}
-				case smpl::collision::ShapeType::Sphere:
-				case smpl::collision::ShapeType::Cone:
-				case smpl::collision::ShapeType::Plane:
-				case smpl::collision::ShapeType::OcTree:
-				default:
-				{
-					ROS_ERROR("Incompatible shape type!");
-					return false;
-				}
-			}
-			transforms.push_back(transform);
-		}
-	}
-	else
-	{
-		ROS_ERROR("Collision object not found!");
-		return false;
-	}
-
-	if (!createSpheresModel(shapes, transforms)) {
-		return false;
-	}
-	if (!createVoxelsModel(shapes, transforms)) {
-		return false;
-	}
-
-	return true;
 }
 
 void Object::updateSphereState(const smpl::collision::SphereIndex& sidx)
