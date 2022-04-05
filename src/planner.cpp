@@ -72,10 +72,10 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		auto fend = pruned_obstacles.end();
 		for (auto itr = pruned_obstacles.begin(); itr != pruned_obstacles.end(); ++itr)
 		{
-			if (itr->id == 2) {
+			if (itr->desc.id == 2) {
 				fbegin = itr;
 			}
-			if (itr->id > 5) {
+			if (itr->desc.id > 5) {
 				fend = itr;
 				break;
 			}
@@ -89,7 +89,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	// Get OOI goal
 	m_ooi_gf = m_cc->GetRandomStateOutside(m_ooi->GetFCLObject());
 	ContToDisc(m_ooi_gf, m_ooi_g);
-	m_cc->AddObstacle(m_ooi->GetObject()->back());
+	m_cc->AddObstacle(m_ooi->GetObject());
 
 	m_robot->SetCC(m_cc);
 	m_ooi->SetCC(m_cc);
@@ -125,7 +125,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		SMPL_ERROR("Robot failed to compute grasp states!");
 		return false;
 	}
-	m_robot->ProcessObstacles({ m_ooi->GetObject()->back() });
+	m_robot->ProcessObstacles({ m_ooi->GetObject() });
 
 	m_simulate = m_nh.advertiseService("run_sim", &Planner::runSim, this);
 	m_animate = m_nh.advertiseService("anim_soln", &Planner::animateSolution, this);
@@ -200,10 +200,6 @@ bool Planner::Rearrange()
 		SMPL_WARN("There were no conflicts to rearrange!");
 		return false;
 	}
-
-	for (auto& a: m_agents) {
-		a->Setup(); // updates original object
-	}
 	return true;
 }
 
@@ -242,10 +238,10 @@ bool Planner::TryExtract()
 
 void Planner::AnimateSolution()
 {
-	std::vector<Object> final_objects;
+	std::vector<Object*> final_objects;
 	for (auto& a: m_agents) {
-		a->ResetObject();
-		final_objects.push_back(a->GetObject()->back());
+		// a->ResetObject();
+		final_objects.push_back(a->GetObject());
 	}
 	m_robot->ProcessObstacles(final_objects);
 
@@ -350,7 +346,7 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 	// 	// change KDL chain during the process
 	// 	comms::ObjectsPoses result;
 
-	// 	if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).GetLastTraj(), m_agents.at(m_agent_map[oid])->GetObject()->back(), rearranged, result))
+	// 	if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).SolveTraj(), m_agents.at(m_agent_map[oid])->GetObject()->back(), rearranged, result))
 	// 	{
 	// 		push_found = true;
 	// 		m_rearrangements.push_back(m_robot->GetLastPlan());
@@ -451,7 +447,7 @@ void Planner::updateAgentPositions(
 			// }
 
 			// SMPL_DEBUG("Object %d did moved > %f cm.", o.id, RES);
-			m_agents.at(m_agent_map[o.id])->SetObjectPose(o.xyz, o.rpy);
+			// m_agents.at(m_agent_map[o.id])->SetObjectPose(o.xyz, o.rpy);
 			bool exist = false;
 			for (auto& p: rearranged.poses)
 			{
@@ -517,47 +513,47 @@ void Planner::init_agents(
 	Object o;
 	for (size_t i = 0; i < immov_objs->size(); ++i)
 	{
-		o.id = immov_obj_ids->at(i).first;
-		o.type = i < tables ? -1 : 0; // table or immovable
-		o.o_x = immov_objs->at(i).at(0);
-		o.o_y = immov_objs->at(i).at(1);
-		o.o_z = immov_objs->at(i).at(2);
-		o.o_roll = immov_objs->at(i).at(3);
-		o.o_pitch = immov_objs->at(i).at(4);
-		o.o_yaw = immov_objs->at(i).at(5);
+		o.desc.id = immov_obj_ids->at(i).first;
+		o.desc.type = i < tables ? -1 : 0; // table or immovable
+		o.desc.o_x = immov_objs->at(i).at(0);
+		o.desc.o_y = immov_objs->at(i).at(1);
+		o.desc.o_z = immov_objs->at(i).at(2);
+		o.desc.o_roll = immov_objs->at(i).at(3);
+		o.desc.o_pitch = immov_objs->at(i).at(4);
+		o.desc.o_yaw = immov_objs->at(i).at(5);
 
 		if (ycb && i >= tables)
 		{
 			auto itr = YCB_OBJECT_DIMS.find(immov_obj_ids->at(i).second);
 			if (itr != YCB_OBJECT_DIMS.end())
 			{
-				o.x_size = itr->second.at(0);
-				o.y_size = itr->second.at(1);
-				o.z_size = itr->second.at(2);
-				o.o_yaw += itr->second.at(3);
+				o.desc.x_size = itr->second.at(0);
+				o.desc.y_size = itr->second.at(1);
+				o.desc.z_size = itr->second.at(2);
+				o.desc.o_yaw += itr->second.at(3);
 			}
 		}
 		else
 		{
-			o.x_size = immov_objs->at(i).at(6);
-			o.y_size = immov_objs->at(i).at(7);
-			o.z_size = immov_objs->at(i).at(8);
+			o.desc.x_size = immov_objs->at(i).at(6);
+			o.desc.y_size = immov_objs->at(i).at(7);
+			o.desc.z_size = immov_objs->at(i).at(8);
 		}
-		o.movable = false;
-		o.shape = immov_obj_ids->at(i).second;
-		o.mass = i == 0 ? 0 : -1;
-		o.locked = i == 0 ? true : false;
-		o.mu = -1;
-		o.ycb = i >= tables ? ycb : false;
+		o.desc.movable = false;
+		o.desc.shape = immov_obj_ids->at(i).second;
+		o.desc.mass = i == 0 ? 0 : -1;
+		o.desc.locked = i == 0 ? true : false;
+		o.desc.mu = -1;
+		o.desc.ycb = i >= tables ? ycb : false;
 
 		if (!ooi_set && i >= tables)
 		{
 			m_ooi->SetObject(o);
 			m_goal.clear();
 
-			double xdisp = std::cos(o.o_yaw) * 0.1;
-			double ydisp = std::sin(o.o_yaw) * 0.1;
-			m_goal = {o.o_x - xdisp, o.o_y - ydisp, obstacles.at(0).o_z + obstacles.at(0).z_size + 0.05, 0.0, 0.0, -o.o_yaw};
+			double xdisp = std::cos(o.desc.o_yaw) * 0.1;
+			double ydisp = std::sin(o.desc.o_yaw) * 0.1;
+			m_goal = {o.desc.o_x - xdisp, o.desc.o_y - ydisp, obstacles.at(0).desc.o_z + obstacles.at(0).desc.z_size + 0.05, 0.0, 0.0, -o.desc.o_yaw};
 
 			ooi_set = true;
 			continue;
@@ -569,43 +565,43 @@ void Planner::init_agents(
 
 	for (size_t i = 0; i < mov_objs->size(); ++i)
 	{
-		o.id = mov_obj_ids->at(i).first;
-		o.type = 1; // movable
-		o.o_x = mov_objs->at(i).at(0);
-		o.o_y = mov_objs->at(i).at(1);
-		o.o_z = mov_objs->at(i).at(2);
-		o.o_roll = mov_objs->at(i).at(3);
-		o.o_pitch = mov_objs->at(i).at(4);
-		o.o_yaw = mov_objs->at(i).at(5);
+		o.desc.id = mov_obj_ids->at(i).first;
+		o.desc.type = 1; // movable
+		o.desc.o_x = mov_objs->at(i).at(0);
+		o.desc.o_y = mov_objs->at(i).at(1);
+		o.desc.o_z = mov_objs->at(i).at(2);
+		o.desc.o_roll = mov_objs->at(i).at(3);
+		o.desc.o_pitch = mov_objs->at(i).at(4);
+		o.desc.o_yaw = mov_objs->at(i).at(5);
 
 		if (ycb)
 		{
 			auto itr = YCB_OBJECT_DIMS.find(mov_obj_ids->at(i).second);
 			if (itr != YCB_OBJECT_DIMS.end())
 			{
-				o.x_size = itr->second.at(0);
-				o.y_size = itr->second.at(1);
-				o.z_size = itr->second.at(2);
-				o.o_yaw += itr->second.at(3);
+				o.desc.x_size = itr->second.at(0);
+				o.desc.y_size = itr->second.at(1);
+				o.desc.z_size = itr->second.at(2);
+				o.desc.o_yaw += itr->second.at(3);
 			}
 		}
 		else
 		{
-			o.x_size = mov_objs->at(i).at(6);
-			o.y_size = mov_objs->at(i).at(7);
-			o.z_size = mov_objs->at(i).at(8);
+			o.desc.x_size = mov_objs->at(i).at(6);
+			o.desc.y_size = mov_objs->at(i).at(7);
+			o.desc.z_size = mov_objs->at(i).at(8);
 		}
-		o.movable = true;
-		o.shape = mov_obj_ids->at(i).second;
-		o.mass = i == 0 ? 0 : -1;
-		o.locked = false;
-		o.mu = -1;
-		o.ycb = ycb;
+		o.desc.movable = true;
+		o.desc.shape = mov_obj_ids->at(i).second;
+		o.desc.mass = i == 0 ? 0 : -1;
+		o.desc.locked = false;
+		o.desc.mu = -1;
+		o.desc.ycb = ycb;
 
 		o.CreateCollisionObjects();
 		std::shared_ptr<Agent> movable(new Agent(o));
 		m_agents.push_back(std::move(movable));
-		m_agent_map[o.id] = m_agents.size() - 1;
+		m_agent_map[o.desc.id] = m_agents.size() - 1;
 	}
 }
 
@@ -639,39 +635,39 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 					{
 						getline(ss, split, ',');
 						switch (count) {
-							case 0: o.id = std::stoi(split); break;
-							case 1: o.shape = std::stoi(split); break;
-							case 2: o.type = std::stoi(split); break;
-							case 3: o.o_x = std::stof(split); break;
-							case 4: o.o_y = std::stof(split); break;
-							case 5: o.o_z = std::stof(split); break;
-							case 6: o.o_roll = std::stof(split); break;
-							case 7: o.o_pitch = std::stof(split); break;
-							case 8: o.o_yaw = std::stof(split); break;
-							case 9: o.x_size = std::stof(split); break;
-							case 10: o.y_size = std::stof(split); break;
-							case 11: o.z_size = std::stof(split); break;
+							case 0: o.desc.id = std::stoi(split); break;
+							case 1: o.desc.shape = std::stoi(split); break;
+							case 2: o.desc.type = std::stoi(split); break;
+							case 3: o.desc.o_x = std::stof(split); break;
+							case 4: o.desc.o_y = std::stof(split); break;
+							case 5: o.desc.o_z = std::stof(split); break;
+							case 6: o.desc.o_roll = std::stof(split); break;
+							case 7: o.desc.o_pitch = std::stof(split); break;
+							case 8: o.desc.o_yaw = std::stof(split); break;
+							case 9: o.desc.x_size = std::stof(split); break;
+							case 10: o.desc.y_size = std::stof(split); break;
+							case 11: o.desc.z_size = std::stof(split); break;
 							case 12: {
-								o.mass = std::stof(split);
-								o.locked = o.mass == 0;
+								o.desc.mass = std::stof(split);
+								o.desc.locked = o.desc.mass == 0;
 								break;
 							}
-							case 13: o.mu = std::stof(split); break;
-							case 14: o.movable = (split.compare("True") == 0); break;
+							case 13: o.desc.mu = std::stof(split); break;
+							case 14: o.desc.movable = (split.compare("True") == 0); break;
 						}
-						o.ycb = false;
+						o.desc.ycb = false;
 						count++;
 					}
 
 					o.CreateCollisionObjects();
-					if (o.movable) {
+					if (o.desc.movable) {
 						std::shared_ptr<Agent> movable(new Agent(o));
 						m_agents.push_back(std::move(movable));
-						m_agent_map[o.id] = m_agents.size() - 1;
+						m_agent_map[o.desc.id] = m_agents.size() - 1;
 					}
 					else {
-						// o.x_size += RES;
-						// o.y_size += RES;
+						// o.desc.x_size += RES;
+						// o.desc.y_size += RES;
 						obstacles.push_back(o);
 					}
 				}
@@ -684,7 +680,7 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 
 				for (auto itr = obstacles.begin(); itr != obstacles.end(); ++itr)
 				{
-					if (itr->id == ooi_idx)
+					if (itr->desc.id == ooi_idx)
 					{
 						m_ooi->SetObject(*itr);
 						obstacles.erase(itr);

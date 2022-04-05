@@ -45,7 +45,7 @@ public:
 	const std::vector<Object>* Get2DRobot(const LatticeState& s) {
 		return m_robot->GetObject(s);
 	}
-	const std::vector<Object>* GetObject(int id) {
+	const Object* GetObject(int id) {
 		return m_agents.at(m_agent_map[id])->GetObject();
 	};
 
