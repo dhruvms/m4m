@@ -4,9 +4,12 @@
 #include <pushplan/robot.hpp>
 #include <pushplan/conflicts.hpp>
 #include <pushplan/constants.hpp>
+#include <pushplan/wastar.hpp>
+#include <pushplan/focal.hpp>
 
 #include <smpl/console/console.h>
 #include <smpl/ros/propagation_distance_field.h>
+#include <sbpl_collision_checking/collision_operations.h>
 
 #include <iostream>
 #include <algorithm>
@@ -140,7 +143,7 @@ bool Agent::computeGoal(bool backwards)
 						Eigen::AngleAxisd(m_obj_desc.o_yaw, Eigen::Vector3d::UnitZ()) *
 						Eigen::AngleAxisd(m_obj_desc.o_pitch, Eigen::Vector3d::UnitY()) *
 						Eigen::AngleAxisd(m_obj_desc.o_roll, Eigen::Vector3d::UnitX());
-		auto voxels_state = m_obj->VoxelsState();
+		auto voxels_state = m_obj.VoxelsState();
 		// transform voxels into the model frame
 		std::vector<Eigen::Vector3d> new_voxels(voxels_state->model->voxels.size());
 		for (size_t i = 0; i < voxels_state->model->voxels.size(); ++i) {
@@ -149,9 +152,8 @@ bool Agent::computeGoal(bool backwards)
 
 		voxels_state->voxels = std::move(new_voxels);
 
-		double best_pos_dist = std::numeric_limits<double>::lowest();
-		double best_neg_dist = std::numeric_limits<double>::lowest();
-		Eigen::Vector3i best_outside_pos, best_inside_pos;
+		double best_pos_dist = std::numeric_limits<double>::lowest(), best_neg_dist = std::numeric_limits<double>::lowest(), dist;
+		Eigen::Vector3i best_outside_pos, best_inside_pos, pos;
 		bool inside = false, outside = false;
 		for (const Eigen::Vector3d& v : voxels_state->voxels)
 		{
@@ -206,36 +208,21 @@ bool Agent::CreateLatticeAndSearch(bool backwards)
 		m_search = std::make_unique<WAStar>(m_lattice.get(), 1.0);
 		m_search->reset();
 
-		for (const auto& s : m_ngr_complement_states)
-		{
-			int start_id = m_lattice->PushStart(s);
-			m_search->push_start(start_id);
+		for (const auto& s : m_ngr_complement_states) {
+			m_search->push_start(m_lattice->PushStart(s));
 		}
-		int goal_id = m_lattice->PushGoal(m_goal);
-		m_search->push_goal(goal_id);
+		m_search->push_goal(m_lattice->PushGoal(m_goal));
 	}
 	else
 	{
 		m_search = std::make_unique<Focal>(m_lattice.get(), 100.0);
 		m_search->reset();
 
-		int start_id = m_lattice->PushStart(m_init);
-		m_search->push_start(start_id);
-		int goal_id = m_lattice->PushGoal(m_goal);
-		m_search->push_goal(goal_id);
+		m_search->push_start(m_lattice->PushStart(m_init));
+		m_search->push_goal(m_lattice->PushGoal(m_goal));
 	}
 
 	return true;
-}
-
-bool Agent::OutsideNGR(const LatticeState& s)
-{
-	return stateOutsideNGR(s);
-}
-
-bool Agent::ImmovableCollision(const LatticeState& s)
-{
-	return stateObsCollision(s);
 }
 
 bool Agent::SatisfyPath(
@@ -261,7 +248,7 @@ bool Agent::SatisfyPath(
 
 	if (result)
 	{
-		convertPath(solution);
+		m_lattice->ConvertPath(solution);
 		*sol_path = &(this->m_solve);
 		expands = m_search->get_n_expands();
 		min_f = m_search->get_min_f();
@@ -270,7 +257,7 @@ bool Agent::SatisfyPath(
 	return result;
 }
 
-bool Agent::UpdatePose(const LatticeState&s)
+void Agent::UpdatePose(const LatticeState& s)
 {
 	m_obj.UpdatePose(s);
 }
@@ -297,11 +284,16 @@ bool Agent::ObjectObjectsCollision(
 	return m_cc->ObjectObjectsCollision(m_obj.GetFCLObject(), other_ids, other_poses);
 }
 
-const std::vector<Object>* Agent::GetObject(const LatticeState& s)
+bool Agent::OutsideNGR(const LatticeState& s)
 {
-	m_obj_desc.o_x = s.state.at(0);
-	m_obj_desc.o_y = s.state.at(1);
-	return &m_objs;
+	return stateOutsideNGR(s);
+}
+
+const Object* Agent::GetObject(const LatticeState& s)
+{
+	m_obj.desc.o_x = s.state.at(0);
+	m_obj.desc.o_y = s.state.at(1);
+	return &m_obj;
 }
 
 void Agent::GetSE2Push(std::vector<double>& push)
@@ -374,8 +366,8 @@ void Agent::initNGR(
 // return false => no collision with obstacles
 bool Agent::stateObsCollision(const LatticeState& s)
 {
-	m_obj->UpdatePose(s);
-	return m_cc->ImmovableCollision(m_obj->GetFCLObject());
+	m_obj.UpdatePose(s);
+	return m_cc->ImmovableCollision(m_obj.GetFCLObject());
 }
 
 // return false => collide with NGR
@@ -386,13 +378,13 @@ bool Agent::stateOutsideNGR(const LatticeState& s)
 						Eigen::AngleAxisd(m_obj_desc.o_pitch, Eigen::Vector3d::UnitY()) *
 						Eigen::AngleAxisd(m_obj_desc.o_roll, Eigen::Vector3d::UnitX());
 
-	m_obj->SetTransform(T);
+	m_obj.SetTransform(T);
 	std::vector<const smpl::collision::CollisionSphereState*> q = {
-									m_obj->SpheresState()->spheres.root() };
+									m_obj.SpheresState()->spheres.root() };
 
 	double padding = 0.0, dist;
 	return smpl::collision::CheckVoxelsCollisions(
-							*(m_obj.get()), q, *(m_ngr.get()), padding, dist);
+							m_obj, q, *(m_ngr.get()), padding, dist);
 }
 
 } // namespace clutter

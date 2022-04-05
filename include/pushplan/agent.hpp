@@ -49,6 +49,7 @@ public:
 	bool Init();
 	void UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels);
 	void ComputeNGRComplement();
+	bool CreateLatticeAndSearch(bool backwards);
 
 	bool SatisfyPath(
 		HighLevelNode* ct_node,
@@ -56,6 +57,8 @@ public:
 		int& expands,
 		int& min_f,
 		std::unordered_set<int>* to_avoid = nullptr);
+	Trajectory* SolveTraj() { return &m_solve; };
+	const Trajectory* SolveTraj() const { return &m_solve; };
 
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
@@ -65,24 +68,25 @@ public:
 	}
 
 	void GetSE2Push(std::vector<double>& push);
-	const Trajectory* GetLastTraj() const { return &m_solve; };
-	int GetID() { return m_obj.id; };
+	int GetID() { return m_obj.desc.id; };
 
-	const std::vector<Object>* GetObject() const { return &m_obj};
-	const std::vector<Object>* GetObject(const LatticeState& s);
+	Object* GetObject() { return &m_obj; };
+	const Object* GetObject(const LatticeState& s);
 	fcl::CollisionObject* GetFCLObject() { return m_obj.GetFCLObject(); };
 	void GetMoveitObj(moveit_msgs::CollisionObject& msg) const {
 		m_obj.GetMoveitObj(msg);
 	};
 
-	void UpdatePose(const LatticeState&s);
+	void UpdatePose(const LatticeState& s);
 	bool OutOfBounds(const LatticeState& s);
 	bool ImmovableCollision();
-	bool ObjectObjectCollision(
-		const LatticeState& s, const int& a2_id, const LatticeState& a2_q);
+	bool ObjectObjectCollision(const int& a2_id, const LatticeState& a2_q);
 	bool ObjectObjectsCollision(
 			const std::vector<int>& other_ids,
 			const std::vector<LatticeState>& other_poses);
+	bool OutsideNGR(const LatticeState& s);
+
+	Coord Goal() const { return m_goal; };
 
 private:
 	ros::NodeHandle m_ph;
@@ -90,6 +94,7 @@ private:
 	ObjectDesc m_obj_desc;
 	LatticeState m_init;
 	Coord m_goal;
+	Trajectory m_solve;
 
 	std::unique_ptr<AgentLattice> m_lattice;
 	std::string m_planning_frame;
@@ -104,13 +109,16 @@ private:
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<Search> m_search;
 
-	void initNGR();
+	void initNGR(
+		double ox, double oy, double oz,
+		double sx, double sy, double sz,
+		double max_distance, const std::string& planning_frame);
 	bool computeGoal(bool backwards);
 
 	// check collisions with static obstacles
-	bool stateObsCollision(const LatticeState$ s);
+	bool stateObsCollision(const LatticeState& s);
 	// check collisions with NGR
-	bool stateOutsideNGR(const LatticeState$ s);
+	bool stateOutsideNGR(const LatticeState& s);
 };
 
 } // namespace clutter
