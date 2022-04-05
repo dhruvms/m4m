@@ -1,7 +1,7 @@
 #include <pushplan/wastar.hpp>
 #include <pushplan/constants.hpp>
 #include <pushplan/types.hpp>
-#include <pushplan/agent.hpp>
+#include <pushplan/agent_lattice.hpp>
 #include <pushplan/helpers.hpp>
 
 #include <smpl/console/console.h>
@@ -13,20 +13,19 @@ namespace clutter
 {
 
 WAStar::WAStar(
-	Agent* agent,
+	AgentLattice* agent,
 	double w)
 :
 m_agent(agent),
 m_call_number(0),
-m_w(w),
-m_start_id(-1),
-m_goal_id(-1)
+m_w(w)
 {
 	// Set default max planing time
 	m_time_limit = 2.0; // seconds
 
 	m_open = new OPEN[1];
 	m_expands = new int[1];
+	m_min_f = 0;
 }
 
 WAStar::~WAStar()
@@ -39,7 +38,7 @@ int WAStar::set_start(int start_id)
 	m_start_ids.clear();
 	m_start_ids.push_back(start_id);
 	m_start = get_state(m_start_ids.back());
-	return m_start_id;
+	return m_start_ids.back();
 }
 
 int WAStar::set_goal(int goal_id)
@@ -47,7 +46,7 @@ int WAStar::set_goal(int goal_id)
 	m_goal_ids.clear();
 	m_goal_ids.push_back(goal_id);
 	m_goal = get_state(m_goal_ids.back());
-	return m_goal_id;
+	return m_goal_ids.back();
 }
 
 std::size_t WAStar::push_start(int start_id)
@@ -65,6 +64,11 @@ std::size_t WAStar::push_goal(int goal_id)
 int WAStar::get_n_expands() const
 {
 	return m_expands[0];
+}
+
+int WAStar::get_min_f() const
+{
+	return m_min_f;
 }
 
 void WAStar::reset()
@@ -90,10 +94,9 @@ void WAStar::reset()
 	m_states.clear();
 	// m_states.shrink_to_fit();
 
-	m_start_id = -1;
-	m_goal_id = -1;
 	m_start = nullptr;
 	m_goal = nullptr;
+	m_min_f = 0;
 
 	m_start_ids.clear();
 	m_goal_ids.clear();
@@ -174,6 +177,7 @@ int WAStar::replan(
 	reinit_state(m_start);
 	m_start->g = 0;
 	m_start->od[0].f = compute_key(m_start, 0);
+	m_min_f = m_start->od[0].f;
 
 	// clear all OPEN lists
 	for (int i = 0; i < num_heuristics(); ++i) {
@@ -211,6 +215,9 @@ int WAStar::replan(
 void WAStar::expand(SearchState *s, int hidx)
 {
 	s->closed = true;
+	if (s->od[0].f < m_min_f) {
+		m_min_f = s->od[0].f;
+	}
 
 	std::vector<int> succ_ids;
 	std::vector<unsigned int> costs;
