@@ -56,7 +56,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_agents.clear();
 	m_ooi = std::make_shared<Agent>();
 
-	std::vector<Object> all_obstacles, pruned_obstacles;
+	std::vector<Object> all_obstacles;
 	if (m_scene_id < 0)	{ // init agents from simulator
 		init_agents(ycb, all_obstacles);
 	}
@@ -64,27 +64,8 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		parse_scene(all_obstacles); // TODO: relax ycb = false assumption
 	}
 
-	pruned_obstacles = all_obstacles;
-	// only keep the base of the fridge shelf
-	if (FRIDGE)
-	{
-		auto fbegin = pruned_obstacles.begin();
-		auto fend = pruned_obstacles.end();
-		for (auto itr = pruned_obstacles.begin(); itr != pruned_obstacles.end(); ++itr)
-		{
-			if (itr->desc.id == 2) {
-				fbegin = itr;
-			}
-			if (itr->desc.id > 5) {
-				fend = itr;
-				break;
-			}
-		}
-		pruned_obstacles.erase(fbegin, fend);
-	}
-
-	m_cc = std::make_shared<CollisionChecker>(this, pruned_obstacles);
-	pruned_obstacles.clear();
+	// create collision checker
+	m_cc = std::make_shared<CollisionChecker>(this, all_obstacles);
 
 	// Get OOI goal
 	m_ooi_gf = m_cc->GetRandomStateOutside(m_ooi->GetFCLObject());
