@@ -68,6 +68,9 @@ public:
 		m_obstacles.back().UpdatePose(s);
 		m_fcl_immov->registerObject(m_obstacles.back().GetFCLObject());
 	};
+	void AddObstacle(Object* o) {
+		AddObstacle(*o);
+	}
 
 	void UpdateTraj(const int& priority, const Trajectory& traj);
 

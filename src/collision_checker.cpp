@@ -20,7 +20,7 @@ m_rng(m_dev())
 	// preprocess immovable obstacles
 	for (size_t i = 0; i != m_obstacles.size(); ++i)
 	{
-		if (m_obstacles.at(i).id == 1) {
+		if (m_obstacles.at(i).desc.id == 1) {
 			m_base_loc = i;
 			continue;
 		}
@@ -152,21 +152,21 @@ bool CollisionChecker::RobotObjectCollision(
 	}
 	else
 	{
-		auto o1_obj = m_planner->GetObject(a1->GetID())->back();
+		auto o1_obj = m_planner->GetObject(a1->GetID());
 		State o1_loc = {a1_state.state.at(0), a1_state.state.at(1)};
 		std::vector<State> o1_rect;
 		bool rect_o1 = false;
 
 		// preprocess rectangle once only
-		if (o1_obj.Shape() == 0)
+		if (o1_obj->Shape() == 0)
 		{
-			GetRectObjAtPt(o1_loc, o1_obj, o1_rect);
+			GetRectObjAtPt(o1_loc, o1_obj->desc, o1_rect);
 			rect_o1 = true;
 		}
 
 		auto robot_2d = m_planner->Get2DRobot(robot_state);
 
-		if (!checkCollisionObjSet(o1_obj, o1_loc, rect_o1, o1_rect, robot_2d))
+		if (!checkCollisionObjSet(*o1_obj, o1_loc, rect_o1, o1_rect, robot_2d))
 		{
 			if (!CC_3D) {
 				collision = true;
@@ -216,7 +216,7 @@ bool CollisionChecker::checkCollisionObjSet(
 		o2_loc = {ao.desc.o_x, ao.desc.o_y};
 		if (ao.Shape() == 0)
 		{
-			GetRectObjAtPt(o2_loc, ao, o2_rect);
+			GetRectObjAtPt(o2_loc, ao.desc, o2_rect);
 			rect_o2 = true;
 		}
 
