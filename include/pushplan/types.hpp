@@ -62,12 +62,13 @@ public:
 
 	virtual void set_max_planning_time(double max_planning_time_ms) = 0;
 	virtual int get_n_expands() const = 0;
+	virtual int get_min_f() const = 0;
 	virtual void reset() = 0;
 
 	virtual int replan(
 		std::vector<int>* solution_path, int* solution_cost) = 0;
 
-private:
+protected:
 	std::vector<int> m_start_ids;
 	std::vector<int> m_goal_ids;
 
@@ -75,6 +76,7 @@ private:
 	double m_search_time;
 	int *m_expands; // expansions per queue
 	int m_solution_cost;
+	int m_min_f;
 };
 
 struct RobotModelConfig
