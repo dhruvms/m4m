@@ -13,6 +13,7 @@
 #include <smpl/debug/marker.h>
 #include <smpl/distance_map/distance_map_interface.h>
 #include <smpl/occupancy_grid.h>
+#include <smpl/debug/visualizer_ros.h>
 #include <sbpl_collision_checking/collision_space.h>
 #include <sbpl_kdl_robot_model/kdl_robot_model.h>
 #include <moveit_msgs/RobotState.h>
@@ -127,6 +128,10 @@ public:
 
 	auto Grid() const -> const std::shared_ptr<smpl::OccupancyGrid>& {
 		return m_grid_i;
+	}
+
+	void VizCC() {
+		SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
 	}
 
 private:
