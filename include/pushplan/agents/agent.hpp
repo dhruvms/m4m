@@ -46,9 +46,16 @@ public:
 	// bool SetObjectPose(
 	// 	const std::vector<double>& xyz,
 	// 	const std::vector<double>& rpy);
+
+	void InitNGR();
+	void InitNGRComplement(
+		double ox, double oy, double oz,
+		double sx, double sy, double sz);
 	bool Init();
-	void UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels);
-	void ComputeNGRComplement();
+	void UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels, bool vis=false);
+	void ComputeNGRComplement(
+		double ox, double oy, double oz,
+		double sx, double sy, double sz, bool vis=false);
 	bool CreateLatticeAndSearch(bool backwards);
 
 	bool SatisfyPath(
@@ -87,6 +94,7 @@ public:
 	bool OutsideNGR(const LatticeState& s);
 
 	Coord Goal() const { return m_goal; };
+	const smpl::OccupancyGrid* NGR() const { return m_ngr.get(); };
 
 private:
 	ros::NodeHandle m_ph;
@@ -109,10 +117,6 @@ private:
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<Search> m_search;
 
-	void initNGR(
-		double ox, double oy, double oz,
-		double sx, double sy, double sz,
-		double max_distance, const std::string& planning_frame);
 	bool computeGoal(bool backwards);
 
 	// check collisions with static obstacles

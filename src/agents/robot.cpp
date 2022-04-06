@@ -11,7 +11,6 @@
 #include <sbpl_collision_checking/voxel_operations.h>
 #include <smpl/angles.h>
 #include <smpl/debug/marker_utils.h>
-#include <smpl/debug/visualizer_ros.h>
 #include <smpl/console/console.h>
 #include <smpl/ros/factories.h>
 #include <smpl_urdf_robot_model/urdf_robot_model.h>
@@ -645,6 +644,7 @@ bool Robot::planApproach(const std::vector<std::vector<double> >& approach_cvecs
 }
 
 void Robot::VoxeliseTrajectory(
+	const smpl::OccupancyGrid* ngr,
 	std::vector<std::vector<Eigen::Vector3d>>& voxels)
 {
 	double start_time = GetTime();
@@ -680,17 +680,17 @@ void Robot::VoxeliseTrajectory(
 			co.shapes = std::move(shapes);
 			co.shape_poses = std::move(shape_poses);
 
-			const double res = m_grid_i->resolution();
+			const double res = ngr->resolution();
 			const Eigen::Vector3d origin(
-					m_grid_i->originX(), m_grid_i->originY(), m_grid_i->originZ());
+					ngr->originX(), ngr->originY(), ngr->originZ());
 
 			const Eigen::Vector3d gmin(
-					m_grid_i->originX(), m_grid_i->originY(), m_grid_i->originZ());
+					ngr->originX(), ngr->originY(), ngr->originZ());
 
 			const Eigen::Vector3d gmax(
-					m_grid_i->originX() + m_grid_i->sizeX(),
-					m_grid_i->originY() + m_grid_i->sizeY(),
-					m_grid_i->originZ() + m_grid_i->sizeZ());
+					ngr->originX() + ngr->sizeX(),
+					ngr->originY() + ngr->sizeY(),
+					ngr->originZ() + ngr->sizeZ());
 
 			if (!smpl::collision::VoxelizeObject(co, res, origin, gmin, gmax, voxels)) {
 				continue;
@@ -1691,24 +1691,22 @@ double Robot::profileAction(
 
 void Robot::initOccupancyGrid()
 {
-	double df_size_x, df_size_y, df_size_z;
-	double df_origin_x, df_origin_y, df_origin_z;
-	double max_distance;
+	double sx, sy, sz, ox, oy, oz, max_distance;
 
-	m_ph.getParam("occupancy_grid/size_x", df_size_x);
-	m_ph.getParam("occupancy_grid/size_y", df_size_y);
-	m_ph.getParam("occupancy_grid/size_z", df_size_z);
-	m_ph.getParam("occupancy_grid/origin_x", df_origin_x);
-	m_ph.getParam("occupancy_grid/origin_y", df_origin_y);
-	m_ph.getParam("occupancy_grid/origin_z", df_origin_z);
+	m_ph.getParam("occupancy_grid/size_x", sx);
+	m_ph.getParam("occupancy_grid/size_y", sy);
+	m_ph.getParam("occupancy_grid/size_z", sz);
+	m_ph.getParam("occupancy_grid/origin_x", ox);
+	m_ph.getParam("occupancy_grid/origin_y", oy);
+	m_ph.getParam("occupancy_grid/origin_z", oz);
 	m_ph.getParam("occupancy_grid/max_dist", max_distance);
 	m_ph.getParam("planning_frame", m_planning_frame);
 
 	using DistanceMapType = smpl::EuclidDistanceMap;
 
 	m_df_i = std::make_shared<DistanceMapType>(
-			df_origin_x, df_origin_y, df_origin_z,
-			df_size_x, df_size_y, df_size_z,
+			ox, oy, oz,
+			sx, sy, sz,
 			DF_RES,
 			max_distance);
 

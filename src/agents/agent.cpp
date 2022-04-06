@@ -9,6 +9,9 @@
 
 #include <smpl/console/console.h>
 #include <smpl/ros/propagation_distance_field.h>
+#include <smpl/debug/visualizer_ros.h>
+#include <smpl/debug/marker_utils.h>
+#include <smpl/debug/marker.h>
 #include <sbpl_collision_checking/collision_operations.h>
 
 #include <iostream>
@@ -36,6 +39,54 @@ namespace clutter
 // 	m_obj_desc.o_yaw = rpy.at(2);
 // }
 
+void Agent::InitNGR()
+{
+	bool propagate_negative_distances = true;
+	double sx, sy, sz, ox, oy, oz, max_distance;
+
+	m_ph.getParam("occupancy_grid/size_x", sx);
+	m_ph.getParam("occupancy_grid/size_y", sy);
+	m_ph.getParam("occupancy_grid/size_z", sz);
+	m_ph.getParam("occupancy_grid/origin_x", ox);
+	m_ph.getParam("occupancy_grid/origin_y", oy);
+	m_ph.getParam("occupancy_grid/origin_z", oz);
+	m_ph.getParam("occupancy_grid/max_dist", max_distance);
+	m_ph.getParam("planning_frame", m_planning_frame);
+
+	using DistanceMapType = smpl::PropagationDistanceField;
+
+	m_df = std::make_shared<DistanceMapType>(
+			ox, oy, oz,
+			sx, sy, sz,
+			DF_RES,
+			max_distance, propagate_negative_distances);
+
+	bool ref_counted = false;
+	m_ngr = std::make_unique<smpl::OccupancyGrid>(m_df, ref_counted);
+	m_ngr->setReferenceFrame(m_planning_frame);
+}
+
+void Agent::InitNGRComplement(
+	double ox, double oy, double oz,
+	double sx, double sy, double sz)
+{
+	for (int gx = 0; gx < m_ngr->getDistanceField()->numCellsX(); ++gx) {
+	for (int gy = 0; gy < m_ngr->getDistanceField()->numCellsY(); ++gy) {
+	for (int gz = 0; gz < m_ngr->getDistanceField()->numCellsZ(); ++gz) {
+			double wx, wy, wz;
+			m_ngr->gridToWorld(gx, gy, gz, wx, wy, wz);
+
+			bool xvalid = (wx > ox) && (wx < ox + sx);
+			bool yvalid = (wy > oy) && (wy < oy + sy);
+			bool zvalid = (wz > oz) && (wz < oz + sz);
+			if (xvalid && yvalid && zvalid) {
+				m_ngr_complement.emplace(wx, wy, wz);
+			}
+	}
+	}
+	}
+}
+
 bool Agent::Init()
 {
 	m_init.t = 0;
@@ -45,31 +96,34 @@ bool Agent::Init()
 						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };
 	ContToDisc(m_init.state, m_init.coord);
 
-	for (int gx = 0; gx < m_ngr->getDistanceField()->numCellsX(); ++gx) {
-	for (int gy = 0; gy < m_ngr->getDistanceField()->numCellsY(); ++gy) {
-	for (int gz = 0; gz < m_ngr->getDistanceField()->numCellsZ(); ++gz) {
-			double wx, wy, wz;
-			m_ngr->gridToWorld(gx, gy, gz, wx, wy, wz);
-			m_ngr_complement.emplace(wx, wy, wz);
-	}
-	}
-	}
-
 	return true;
 }
 
-void Agent::UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels)
+void Agent::UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels, bool vis)
 {
 	for (auto& voxel_list : voxels) {
 		m_ngr->addPointsToField(voxel_list);
 	}
+
+	if (vis) {
+		// SV_SHOW_INFO(m_ngr->getBoundingBoxVisualization());
+		// SV_SHOW_INFO(m_ngr->getDistanceFieldVisualization());
+		SV_SHOW_INFO(m_ngr->getOccupiedVoxelsVisualization());
+	}
 }
 
-void Agent::ComputeNGRComplement()
+void Agent::ComputeNGRComplement(
+	double ox, double oy, double oz,
+	double sx, double sy, double sz, bool vis)
 {
 	std::vector<Eigen::Vector3d> ngr_voxel_vecs, obs_voxel_vecs;
 	m_ngr->getOccupiedVoxels(ngr_voxel_vecs);
-	m_obs_grid->getOccupiedVoxels(obs_voxel_vecs);
+
+
+	double res = m_ngr->resolution();
+	m_obs_grid->getOccupiedVoxels(
+		ox + (sx / 2.0), oy + (sy / 2.0), oz + (sz / 2.0),
+		(sx / 2.0) + res, (sy / 2.0) + res, (sz / 2.0) + res, obs_voxel_vecs);
 
 	std::set<Eigen::Vector3d, Eigen_Vector3d_compare> ngr_voxels(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end());
 	std::set<Eigen::Vector3d, Eigen_Vector3d_compare> obs_voxels(obs_voxel_vecs.begin(), obs_voxel_vecs.end());
@@ -77,15 +131,6 @@ void Agent::ComputeNGRComplement()
 	obs_voxel_vecs.clear();
 
 	Eigen_Vector3d_compare comparator;
-	// get all cells in shelf that are not immovable obstacles
-	std::set_difference(
-			m_ngr_complement.begin(), m_ngr_complement.end(),
-			obs_voxels.begin(), obs_voxels.end(),
-			std::back_inserter(ngr_voxel_vecs),
-			comparator);
-	m_ngr_complement.clear();
-	std::copy(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
-	ngr_voxel_vecs.clear();
 
 	// get all cells from non-obstacle cells that are also not in NGR
 	std::set_difference(
@@ -97,12 +142,22 @@ void Agent::ComputeNGRComplement()
 	std::copy(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
 	ngr_voxel_vecs.clear();
 
-	// store one z-slice (middle) of true NGR complement
+	// get all cells in shelf that are not immovable obstacles
+	std::set_difference(
+			m_ngr_complement.begin(), m_ngr_complement.end(),
+			obs_voxels.begin(), obs_voxels.end(),
+			std::back_inserter(obs_voxel_vecs),
+			comparator);
+	m_ngr_complement.clear();
+	std::copy(obs_voxel_vecs.begin(), obs_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
+	obs_voxel_vecs.clear();
+
+	// store one z-slice of true NGR complement
 	double dx, dy, zmid;
 	m_ngr->gridToWorld(0, 0, (m_ngr->getDistanceField()->numCellsZ())/2, dx, dy, zmid);
 	for (const auto& cell: m_ngr_complement)
 	{
-		if (cell[2] == zmid)
+		if (std::fabs(cell[2] - (oz + 0.05)) < res)
 		{
 			ngr_voxel_vecs.push_back(cell);
 
@@ -114,6 +169,16 @@ void Agent::ComputeNGRComplement()
 			ContToDisc(s.state, s.coord);
 			m_ngr_complement_states.push_back(s);
 		}
+	}
+
+	if (vis)
+	{
+		SV_SHOW_INFO(smpl::visual::MakeCubesMarker(
+						ngr_voxel_vecs,
+						m_ngr->resolution(),
+						smpl::visual::Color{ 0.8f, 0.255f, 1.0f, 1.0f },
+						m_planning_frame,
+						"planar_ngr_complement"));
 	}
 	m_ngr_complement.clear();
 	std::copy(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
@@ -340,27 +405,6 @@ void Agent::GetSE2Push(std::vector<double>& push)
 		push.at(0) = intersection.at(0);
 		push.at(1) = intersection.at(1);
 	}
-}
-
-void Agent::initNGR(
-	double ox, double oy, double oz,
-	double sx, double sy, double sz,
-	double max_distance, const std::string& planning_frame)
-{
-	m_planning_frame = planning_frame;
-
-	using DistanceMapType = smpl::PropagationDistanceField;
-	bool propagate_negative_distances = true;
-
-	m_df = std::make_shared<DistanceMapType>(
-			ox, oy, oz,
-			sx, sy, sz,
-			DF_RES,
-			max_distance, propagate_negative_distances);
-
-	bool ref_counted = false;
-	m_ngr = std::make_unique<smpl::OccupancyGrid>(m_df, ref_counted);
-	m_ngr->setReferenceFrame(m_planning_frame);
 }
 
 // return false => no collision with obstacles

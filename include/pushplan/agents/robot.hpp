@@ -54,6 +54,7 @@ public:
 	bool PlanOnce();
 	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f);
 	void VoxeliseTrajectory(
+		const smpl::OccupancyGrid* ngr,
 		std::vector<std::vector<Eigen::Vector3d>>& voxels);
 
 	void ProfileTraj(Trajectory& traj);

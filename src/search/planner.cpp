@@ -72,6 +72,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	ContToDisc(m_ooi_gf, m_ooi_g);
 	m_cc->AddObstacle(m_ooi->GetObject());
 
+	m_robot->SetSim(m_sim);
 	m_robot->SetCC(m_cc);
 	m_ooi->SetCC(m_cc);
 	for (auto& a: m_agents) {
@@ -106,7 +107,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		SMPL_ERROR("Robot failed to compute grasp states!");
 		return false;
 	}
-	m_robot->ProcessObstacles({ m_ooi->GetObject() });
+	// m_robot->ProcessObstacles({ m_ooi->GetObject() });
 	m_robot->VizCC();
 
 	m_simulate = m_nh.advertiseService("run_sim", &Planner::runSim, this);
@@ -114,8 +115,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_rearrange = m_nh.advertiseService("rearrange", &Planner::rearrange, this);
 
 	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
-
-	m_robot->SetSim(m_sim);
 
 	m_cbs = std::make_shared<CBS>(m_robot, m_agents, m_scene_id);
 	m_cbs->SetCC(m_cc);
@@ -152,21 +151,37 @@ bool Planner::SetupAgentNGRs()
 		return false;
 	}
 
-	std::vector<std::vector<Eigen::Vector3d>> ngr_voxels;
-	m_robot->VoxeliseTrajectory(ngr_voxels);
+	double ox, oy, oz, sx, sy, sz;
+	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
+
+	m_ooi->InitNGR();
+	m_ooi->InitNGRComplement(ox, oy, oz, sx, sy, sz);
 	for (auto& a: m_agents) {
+		a->InitNGR();
+		a->InitNGRComplement(ox, oy, oz, sx, sy, sz);
+	}
+
+	std::vector<std::vector<Eigen::Vector3d>> ngr_voxels;
+	m_robot->VoxeliseTrajectory(m_ooi->NGR(), ngr_voxels);
+	for (auto& a: m_agents) {
+		a->Init();
 		a->UpdateNGR(ngr_voxels);
 		a->SetObstacleGrid(m_robot->Grid());
+		a->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
 	}
+	m_ooi->Init();
+	m_ooi->UpdateNGR(ngr_voxels);
+	m_ooi->SetObstacleGrid(m_robot->Grid());
+	m_ooi->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
 
 	return true;
 }
 
 bool Planner::Plan()
 {
-	while (!setupProblem()) {
-		continue;
-	}
+	// while (!setupProblem()) {
+	// 	continue;
+	// }
 
 	m_cbs->Solve();
 	m_cbs->SaveStats();
@@ -461,9 +476,9 @@ bool Planner::setupProblem()
 	// if (!m_robot->RandomiseStart()) {
 	// 	return false;
 	// }
-	for (auto& a: m_agents) {
-		a->Init();
-	}
+	// for (auto& a: m_agents) {
+	// 	a->Init();
+	// }
 
 	return true;
 }
