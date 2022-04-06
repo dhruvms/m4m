@@ -155,21 +155,16 @@ bool Planner::SetupAgentNGRs()
 	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
 
 	m_ooi->InitNGR();
-	m_ooi->InitNGRComplement(ox, oy, oz, sx, sy, sz);
-	for (auto& a: m_agents) {
-		a->InitNGR();
-		a->InitNGRComplement(ox, oy, oz, sx, sy, sz);
-	}
-
 	std::vector<std::vector<Eigen::Vector3d>> ngr_voxels;
 	m_robot->VoxeliseTrajectory(m_ooi->NGR(), ngr_voxels);
+
 	for (auto& a: m_agents) {
-		a->Init();
-		a->UpdateNGR(ngr_voxels);
+		a->InitNGR();
+		a->UpdateNGR(ngr_voxels, true);
 		a->SetObstacleGrid(m_robot->Grid());
-		a->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
+		a->ComputeNGRComplement(ox, oy, oz, sx, sy, sz, true);
 	}
-	m_ooi->Init();
+
 	m_ooi->UpdateNGR(ngr_voxels);
 	m_ooi->SetObstacleGrid(m_robot->Grid());
 	m_ooi->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);

@@ -1126,7 +1126,7 @@ void BulletSim::GetShelfParams(
 {
 	ox = m_immov.at(0)[0] - m_immov.at(0)[6];
 	oy = m_immov.at(0)[1] - m_immov.at(0)[7];
-	oz = m_immov.at(0)[2];
+	oz = m_immov.at(0)[2] + m_immov.at(0)[8];
 	sx = m_immov.at(0)[6] * 2.0;
 	sy = m_immov.at(0)[7] * 2.0;
 
@@ -1134,11 +1134,11 @@ void BulletSim::GetShelfParams(
 	{
 		double zlim;
 		m_nh.param("objects/z_size", zlim, 1.0);
-		sz = m_immov.at(0)[2] + (zlim * 2.0);
+		sz = oz + (zlim * 2.0);
 	}
 	else
 	{
-		sz = m_immov.at(2)[2] - m_immov.at(0)[2];
+		sz = (m_immov.at(2)[2] - m_immov.at(2)[8]) - oz;
 	}
 }
 

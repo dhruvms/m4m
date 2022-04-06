@@ -48,9 +48,6 @@ public:
 	// 	const std::vector<double>& rpy);
 
 	void InitNGR();
-	void InitNGRComplement(
-		double ox, double oy, double oz,
-		double sx, double sy, double sz);
 	bool Init();
 	void UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels, bool vis=false);
 	void ComputeNGRComplement(

@@ -66,27 +66,6 @@ void Agent::InitNGR()
 	m_ngr->setReferenceFrame(m_planning_frame);
 }
 
-void Agent::InitNGRComplement(
-	double ox, double oy, double oz,
-	double sx, double sy, double sz)
-{
-	for (int gx = 0; gx < m_ngr->getDistanceField()->numCellsX(); ++gx) {
-	for (int gy = 0; gy < m_ngr->getDistanceField()->numCellsY(); ++gy) {
-	for (int gz = 0; gz < m_ngr->getDistanceField()->numCellsZ(); ++gz) {
-			double wx, wy, wz;
-			m_ngr->gridToWorld(gx, gy, gz, wx, wy, wz);
-
-			bool xvalid = (wx > ox) && (wx < ox + sx);
-			bool yvalid = (wy > oy) && (wy < oy + sy);
-			bool zvalid = (wz > oz) && (wz < oz + sz);
-			if (xvalid && yvalid && zvalid) {
-				m_ngr_complement.emplace(wx, wy, wz);
-			}
-	}
-	}
-	}
-}
-
 bool Agent::Init()
 {
 	m_init.t = 0;
@@ -116,73 +95,49 @@ void Agent::ComputeNGRComplement(
 	double ox, double oy, double oz,
 	double sx, double sy, double sz, bool vis)
 {
-	std::vector<Eigen::Vector3d> ngr_voxel_vecs, obs_voxel_vecs;
-	m_ngr->getOccupiedVoxels(ngr_voxel_vecs);
-
-
+	int x_c, y_c, z_c;
+	m_ngr->worldToGrid(ox + (sx / 2.0), oy + (sy / 2.0), oz + (sz / 2.0), x_c, y_c, z_c);
 	double res = m_ngr->resolution();
-	m_obs_grid->getOccupiedVoxels(
-		ox + (sx / 2.0), oy + (sy / 2.0), oz + (sz / 2.0),
-		(sx / 2.0) + res, (sy / 2.0) + res, (sz / 2.0) + res, obs_voxel_vecs);
+	int x_s = ((sx / 2.0) / res) + 0.5;
+	int y_s = ((sy / 2.0) / res) + 0.5;
+	int z_s = (((sz / 2.0) - res) / res) + 0.5;
 
-	std::set<Eigen::Vector3d, Eigen_Vector3d_compare> ngr_voxels(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end());
-	std::set<Eigen::Vector3d, Eigen_Vector3d_compare> obs_voxels(obs_voxel_vecs.begin(), obs_voxel_vecs.end());
-	ngr_voxel_vecs.clear();
-	obs_voxel_vecs.clear();
-
-	Eigen_Vector3d_compare comparator;
-
-	// get all cells from non-obstacle cells that are also not in NGR
-	std::set_difference(
-			m_ngr_complement.begin(), m_ngr_complement.end(),
-			ngr_voxels.begin(), ngr_voxels.end(),
-			std::back_inserter(ngr_voxel_vecs),
-			comparator);
-	m_ngr_complement.clear();
-	std::copy(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
-	ngr_voxel_vecs.clear();
-
-	// get all cells in shelf that are not immovable obstacles
-	std::set_difference(
-			m_ngr_complement.begin(), m_ngr_complement.end(),
-			obs_voxels.begin(), obs_voxels.end(),
-			std::back_inserter(obs_voxel_vecs),
-			comparator);
-	m_ngr_complement.clear();
-	std::copy(obs_voxel_vecs.begin(), obs_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
-	obs_voxel_vecs.clear();
-
-	// store one z-slice of true NGR complement
-	double dx, dy, zmid;
-	m_ngr->gridToWorld(0, 0, (m_ngr->getDistanceField()->numCellsZ())/2, dx, dy, zmid);
-	for (const auto& cell: m_ngr_complement)
+	std::vector<Eigen::Vector3d> complement_voxel_vecs;
+	for (int x = x_c - x_s; x < x_c + x_s; ++x)
 	{
-		if (std::fabs(cell[2] - (oz + 0.05)) < res)
+		for (int y = y_c - y_s; y < y_c + y_s; ++y)
 		{
-			ngr_voxel_vecs.push_back(cell);
-
-			LatticeState s;
-			s.t = 0;
-			s.hc = 0;
-			s.state = {	cell[0], cell[1], m_obj_desc.o_z,
-						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };
-			ContToDisc(s.state, s.coord);
-			m_ngr_complement_states.push_back(s);
+			bool complement = true;
+			double wx, wy, wz;
+			for (int z = z_c - z_s; z < z_c + z_s; ++z)
+			{
+				if (m_ngr->getDistanceField()->getCellDistance(x, y, z) <= 0.0 ||
+					m_obs_grid->getDistanceField()->getCellDistance(x, y, z) <= 0.0)
+				{
+					complement = false;
+					break;
+				}
+			}
+			if (complement)
+			{
+				m_ngr->gridToWorld(x, y, z_c - z_s, wx, wy, wz);
+				m_ngr_complement.emplace(wx, wy, wz);
+				if (vis) {
+					complement_voxel_vecs.emplace_back(wx, wy, wz);
+				}
+			}
 		}
 	}
 
 	if (vis)
 	{
 		SV_SHOW_INFO(smpl::visual::MakeCubesMarker(
-						ngr_voxel_vecs,
+						complement_voxel_vecs,
 						m_ngr->resolution(),
 						smpl::visual::Color{ 0.8f, 0.255f, 1.0f, 1.0f },
 						m_planning_frame,
-						"planar_ngr_complement"));
+						"complement"));
 	}
-	m_ngr_complement.clear();
-	std::copy(ngr_voxel_vecs.begin(), ngr_voxel_vecs.end(), std::inserter(m_ngr_complement, m_ngr_complement.begin()));
-	ngr_voxel_vecs.clear();
 }
 
 // find best NGR complement cell
