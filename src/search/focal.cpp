@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <limits>
 
 namespace clutter
 {
@@ -24,7 +25,7 @@ m_wf(wf), m_wo(wo)
 	m_time_limit = 2.0; // seconds
 
 	m_expands = new int[1];
-	m_min_f = 0;
+	m_min_f = std::numeric_limits<int>::max();
 }
 
 Focal::~Focal()
@@ -51,12 +52,14 @@ int Focal::set_goal(int goal_id)
 std::size_t Focal::push_start(int start_id)
 {
 	m_start_ids.push_back(start_id);
+	m_start = get_state(m_start_ids.back(), m_b);
 	return m_start_ids.size();
 }
 
 std::size_t Focal::push_goal(int goal_id)
 {
 	m_goal_ids.push_back(goal_id);
+	m_goal = get_state(m_goal_ids.back(), m_b);
 	return m_goal_ids.size();
 }
 
@@ -90,7 +93,7 @@ void Focal::reset()
 	m_states.clear();
 	// m_states.shrink_to_fit();
 
-	m_min_f = 0;
+	m_min_f = std::numeric_limits<int>::max();
 	m_start = nullptr;
 	m_goal = nullptr;
 
@@ -148,14 +151,24 @@ int Focal::replan(
 	m_OPEN.clear();
 	m_FOCAL.clear();
 
-	reinit_state(m_goal);
-	reinit_state(m_start);
-	m_start->g = 0;
-	m_start->f = compute_key(m_start);
-	m_start->h_c = 0;
-	m_start->m_OPEN_h = m_OPEN.push(m_start);
-	m_start->m_FOCAL_h = m_FOCAL.push(m_start);
-	m_min_f = m_start->f;
+	for (const auto& goal_id : m_goal_ids)
+	{
+		auto goal_state = get_state(goal_id, m_b);
+		assert(!m_b);
+		reinit_state(goal_state);
+	}
+	for (const auto& start_id : m_start_ids)
+	{
+		auto start_state = get_state(start_id, m_b);
+		assert(!m_b);
+		reinit_state(start_state);
+		start_state->g = 0;
+		start_state->f = compute_key(start_state);
+		start_state->h_c = 0;
+		start_state->m_OPEN_h = m_OPEN.push(start_state);
+		start_state->m_FOCAL_h = m_FOCAL.push(start_state);
+		m_min_f = std::min(m_min_f, (int)start_state->f);
+	}
 
 	m_search_time = 0.0;
 	while (!m_OPEN.empty() && m_search_time < m_time_limit)

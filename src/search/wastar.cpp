@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <limits>
 
 namespace clutter
 {
@@ -25,7 +26,7 @@ m_w(w)
 
 	m_open = new OPEN[1];
 	m_expands = new int[1];
-	m_min_f = 0;
+	m_min_f = std::numeric_limits<int>::max();
 }
 
 WAStar::~WAStar()
@@ -52,12 +53,14 @@ int WAStar::set_goal(int goal_id)
 std::size_t WAStar::push_start(int start_id)
 {
 	m_start_ids.push_back(start_id);
+	m_start = get_state(m_start_ids.back());
 	return m_start_ids.size();
 }
 
 std::size_t WAStar::push_goal(int goal_id)
 {
 	m_goal_ids.push_back(goal_id);
+	m_goal = get_state(m_goal_ids.back());
 	return m_goal_ids.size();
 }
 
@@ -96,7 +99,7 @@ void WAStar::reset()
 
 	m_start = nullptr;
 	m_goal = nullptr;
-	m_min_f = 0;
+	m_min_f = std::numeric_limits<int>::max();
 
 	m_start_ids.clear();
 	m_goal_ids.clear();
@@ -173,17 +176,25 @@ int WAStar::replan(
 
 	m_call_number++;
 
-	reinit_state(m_goal);
-	reinit_state(m_start);
-	m_start->g = 0;
-	m_start->od[0].f = compute_key(m_start, 0);
-	m_min_f = m_start->od[0].f;
-
 	// clear all OPEN lists
 	for (int i = 0; i < num_heuristics(); ++i) {
 		m_open[i].clear();
 	}
-	insert_or_update(m_start, 0);
+
+	for (const auto& goal_id : m_goal_ids)
+	{
+		auto goal_state = get_state(goal_id);
+		reinit_state(goal_state);
+	}
+	for (const auto& start_id : m_start_ids)
+	{
+		auto start_state = get_state(start_id);
+		reinit_state(start_state);
+		start_state->g = 0;
+		start_state->od[0].f = compute_key(start_state, 0);
+		insert_or_update(start_state, 0);
+		m_min_f = std::min(m_min_f, (int)start_state->od[0].f);
+	}
 
 	m_search_time = 0.0;
 	while (!m_open[0].empty() && m_search_time < m_time_limit)
