@@ -1,5 +1,5 @@
-#include <pushplan/agents/agent.hpp>
 #include <pushplan/search/planner.hpp>
+#include <pushplan/agents/agent.hpp>
 #include <pushplan/search/cbs.hpp>
 #include <pushplan/utils/constants.hpp>
 #include <pushplan/utils/geometry.hpp>

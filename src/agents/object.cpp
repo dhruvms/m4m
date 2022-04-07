@@ -519,6 +519,7 @@ bool Object::generateSpheresModel(
 	}
 
 	ROS_DEBUG("Generated spheres model with %zu spheres", spheres_model.spheres.size());
+	return true;
 }
 
 void Object::generateVoxelsModel(
