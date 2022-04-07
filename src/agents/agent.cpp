@@ -154,7 +154,7 @@ void Agent::ComputeNGRComplement(
 // 2. if object is partially inside NGR, this is the "farthest" object cell
 // 3. if object is fully inside NGR, this is the closest cell outside NGR
 // (ideally would inflate the NGR by the object and then find such a cell)
-bool Agent::computeGoal(bool backwards)
+bool Agent::ComputeGoal(bool backwards)
 {
 	if (backwards) {
 		m_goal = m_init.coord;
@@ -210,10 +210,10 @@ bool Agent::computeGoal(bool backwards)
 
 		double wx, wy, wz;
 		if (inside && outside) {
-			m_df->gridToWorld(best_outside_pos[0], best_outside_pos[1], best_outside_pos[2], wx, wy, wz);
+			m_ngr->gridToWorld(best_outside_pos[0], best_outside_pos[1], best_outside_pos[2], wx, wy, wz);
 		}
 		else {
-			m_df->gridToWorld(best_inside_pos[0], best_inside_pos[1], best_inside_pos[2], wx, wy, wz);
+			m_ngr->gridToWorld(best_inside_pos[0], best_inside_pos[1], best_inside_pos[2], wx, wy, wz);
 		}
 
 		State goal = {wx, wy};
@@ -225,9 +225,6 @@ bool Agent::computeGoal(bool backwards)
 
 bool Agent::CreateLatticeAndSearch(bool backwards)
 {
-	if (!computeGoal(backwards)) {
-		return false;
-	}
 	m_lattice = std::make_unique<AgentLattice>();
 	m_lattice->init(this, backwards);
 	m_lattice->reset();
@@ -381,7 +378,7 @@ bool Agent::stateObsCollision(const LatticeState& s)
 // return false => collide with NGR
 bool Agent::stateOutsideNGR(const LatticeState& s)
 {
-	Eigen::Affine3d T = Eigen::Translation3d(s.state[0] - m_obj_desc.o_x, s.state[1] - m_obj_desc.o_y, 0.0) *
+	Eigen::Affine3d T = Eigen::Translation3d(s.state[0], s.state[1], m_obj_desc.o_z) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
 						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());

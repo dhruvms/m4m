@@ -178,9 +178,9 @@ bool Planner::SetupAgentNGRs()
 
 bool Planner::Plan()
 {
-	// while (!setupProblem()) {
-	// 	continue;
-	// }
+	while (!setupProblem()) {
+		continue;
+	}
 
 	m_cbs->Solve();
 	m_cbs->SaveStats();
@@ -475,9 +475,13 @@ bool Planner::setupProblem()
 	// if (!m_robot->RandomiseStart()) {
 	// 	return false;
 	// }
-	// for (auto& a: m_agents) {
-	// 	a->Init();
-	// }
+
+	bool backwards = ALGO == MAPFAlgo::OURS;
+	for (auto& a: m_agents) {
+		a->Init();
+		a->ComputeGoal(backwards);
+		a->CreateLatticeAndSearch(backwards);
+	}
 
 	return true;
 }
