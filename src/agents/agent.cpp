@@ -121,9 +121,18 @@ void Agent::ComputeNGRComplement(
 			if (complement)
 			{
 				m_ngr->gridToWorld(x, y, z_c - z_s, wx, wy, wz);
-				m_ngr_complement.emplace(wx, wy, wz);
-				if (vis) {
-					complement_voxel_vecs.emplace_back(wx, wy, wz);
+				LatticeState s;
+				s.state = {wx, wy};
+
+				if (!stateObsCollision(s))
+				{
+					if (stateOutsideNGR(s))
+					{
+						m_ngr_complement.emplace(wx, wy, wz);
+						if (vis) {
+							complement_voxel_vecs.emplace_back(wx, wy, wz);
+						}
+					}
 				}
 			}
 		}
