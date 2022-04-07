@@ -160,14 +160,18 @@ bool Planner::SetupAgentNGRs()
 
 	for (auto& a: m_agents) {
 		a->InitNGR();
-		a->UpdateNGR(ngr_voxels, true);
+		a->UpdateNGR(ngr_voxels);
 		a->SetObstacleGrid(m_robot->Grid());
-		a->ComputeNGRComplement(ox, oy, oz, sx, sy, sz, true);
+		if (ALGO == MAPFAlgo::OURS) {
+			a->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
+		}
 	}
 
 	m_ooi->UpdateNGR(ngr_voxels);
 	m_ooi->SetObstacleGrid(m_robot->Grid());
-	m_ooi->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
+	if (ALGO == MAPFAlgo::OURS) {
+		m_ooi->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
+	}
 
 	return true;
 }
