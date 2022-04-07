@@ -201,7 +201,7 @@ bool Robot::SavePushData(int scene_id)
 {
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../dat/ROBOT.csv";
+	filename = filename.substr(0, found + 1) + "../../dat/ROBOT.csv";
 
 	bool exists = FileExists(filename);
 	std::ofstream STATS;

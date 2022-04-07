@@ -490,7 +490,7 @@ int Planner::cleanupLogs()
 {
 	std::string files(__FILE__), command;
 	auto found = files.find_last_of("/\\");
-	files = files.substr(0, found + 1) + "../dat/txt/*.txt";
+	files = files.substr(0, found + 1) + "../../dat/txt/*.txt";
 
 	command = "rm " + files;
 	// SMPL_WARN("Execute command: %s", command.c_str());
@@ -776,7 +776,7 @@ bool Planner::savePlanData()
 {
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../dat/PLANNER.csv";
+	filename = filename.substr(0, found + 1) + "../../dat/PLANNER.csv";
 
 	bool exists = FileExists(filename);
 	std::ofstream STATS;

@@ -548,7 +548,7 @@ void CBS::writeSolution(HighLevelNode* node)
 	{
 		std::string filename(__FILE__);
 		auto found = filename.find_last_of("/\\");
-		filename = filename.substr(0, found + 1) + "../dat/txt/";
+		filename = filename.substr(0, found + 1) + "../../dat/txt/";
 
 		std::stringstream ss;
 		// ss << std::setw(4) << std::setfill('0') << node->m_expand;
@@ -739,7 +739,7 @@ void CBS::SaveStats()
 {
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../dat/CBS.csv";
+	filename = filename.substr(0, found + 1) + "../../dat/CBS.csv";
 
 	bool exists = FileExists(filename);
 	std::ofstream STATS;
