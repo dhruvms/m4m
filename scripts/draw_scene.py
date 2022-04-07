@@ -22,7 +22,7 @@ def ParseFile(filepath):
 
 			if line == 'O':
 				line = f.readline()[:-1]
-				num_objs = int(line)
+				num_objs = int(line) - 3
 				for i in range(num_objs):
 					line = f.readline()[:-1]
 					obj = [float(val) for val in line.split(',')[:-1]]
