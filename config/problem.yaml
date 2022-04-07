@@ -42,16 +42,19 @@ robot:
   grasp_clip: 5
   interpolate: false
 
-whca:
-  window: 4
-  goal_thresh: 0.02
+mapf:
   res: 0.01
-  grid: 4
   cost_mult: 1000
-  ecbs_mult: 1000
   planning_time: 300.0
-  llhc: 1
-  hlhc: 2
+  goal_thresh: 0.02
+  whca:
+    window: 4
+    grid: 4
+  cbs:
+    algo: 1 # 0: WHCA, 1: CBS, 2: CBSw/P, 3: PBS, 4: ours
+    llhc: 1
+    hlhc: 2
+    ecbs_mult: 1000
 
 objects:
   min_size: 0.03

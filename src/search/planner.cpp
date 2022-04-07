@@ -720,27 +720,27 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 void Planner::setupGlobals()
 {
 	m_ph.getParam("/fridge", FRIDGE);
-	m_ph.getParam("whca/planning_time", WHCA_PLANNING_TIME);
-	m_ph.getParam("whca/window", WINDOW);
-	m_ph.getParam("whca/goal_thresh", GOAL_THRESH);
-	m_ph.getParam("whca/res", RES);
-	m_ph.getParam("whca/grid", GRID);
-	m_ph.getParam("whca/cost_mult", COST_MULT);
+	m_ph.getParam("mapf/planning_time", MAPF_PLANNING_TIME);
+	m_ph.getParam("mapf/res", RES);
+	m_ph.getParam("mapf/cost_mult", COST_MULT);
+	m_ph.getParam("mapf/goal_thresh", GOAL_THRESH);
+	m_ph.getParam("mapf/whca/window", WINDOW);
+	m_ph.getParam("mapf/whca/grid", GRID);
 	m_ph.getParam("robot/semi_minor", SEMI_MINOR);
 	m_ph.getParam("robot/robot_obj_mass", R_MASS);
 	m_ph.getParam("robot/speed", R_SPEED);
 	m_ph.getParam("goal/save", SAVE);
-	m_ph.getParam("occupancy_grid/res", DF_RES);
 	m_ph.getParam("goal/cc_2d", CC_2D);
 	m_ph.getParam("goal/cc_3d", CC_3D);
-	m_ph.getParam("whca/eecbs_mult", ECBS_MULT);
+	m_ph.getParam("occupancy_grid/res", DF_RES);
 
-	int llhc;
-	m_ph.getParam("whca/llhc", llhc);
+	int llhc, hlhc, algo;
+	m_ph.getParam("mapf/cbs/algo", algo);
+	m_ph.getParam("mapf/cbs/llhc", llhc);
+	m_ph.getParam("mapf/cbs/hlhc", hlhc);
+	m_ph.getParam("mapf/cbs/eecbs_mult", ECBS_MULT);
+	ALGO = static_cast<MAPFAlgo>(algo);
 	LLHC = static_cast<LowLevelConflictHeuristic>(llhc);
-
-	int hlhc;
-	m_ph.getParam("whca/hlhc", hlhc);
 	HLHC = static_cast<HighLevelConflictHeuristic>(hlhc);
 }
 
