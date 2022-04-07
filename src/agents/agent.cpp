@@ -372,10 +372,10 @@ bool Agent::stateObsCollision(const LatticeState& s)
 // return false => collide with NGR
 bool Agent::stateOutsideNGR(const LatticeState& s)
 {
-	Eigen::Affine3d T = Eigen::Translation3d(s.state[0], s.state[1], m_obj_desc.o_z) *
-						Eigen::AngleAxisd(m_obj_desc.o_yaw, Eigen::Vector3d::UnitZ()) *
-						Eigen::AngleAxisd(m_obj_desc.o_pitch, Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(m_obj_desc.o_roll, Eigen::Vector3d::UnitX());
+	Eigen::Affine3d T = Eigen::Translation3d(s.state[0] - m_obj_desc.o_x, s.state[1] - m_obj_desc.o_y, 0.0) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
 
 	m_obj.SetTransform(T);
 	std::vector<const smpl::collision::CollisionSphereState*> q = {
