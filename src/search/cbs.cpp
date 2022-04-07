@@ -618,11 +618,11 @@ void CBS::writeSolution(HighLevelNode* node)
 		movable = "True";
 		for (size_t oidx = 0; oidx < m_objs.size(); ++oidx)
 		{
-			if (node->m_solution[oidx+1].second.size() <= tidx) {
-				loc = node->m_solution[oidx+1].second.back().state;
+			if (node->m_solution[oidx].second.size() <= tidx) {
+				loc = node->m_solution[oidx].second.back().state;
 			}
 			else {
-				loc = node->m_solution[oidx+1].second.at(tidx).state;
+				loc = node->m_solution[oidx].second.at(tidx).state;
 			}
 
 			auto agent_obs = m_objs[oidx]->GetObject();
@@ -643,32 +643,32 @@ void CBS::writeSolution(HighLevelNode* node)
 				<< movable << '\n';
 		}
 
-		const std::vector<Object>* robot_obs = nullptr;
-		if (node->m_solution[0].second.size() <= tidx) {
-			robot_obs = m_robot->GetObject(node->m_solution[0].second.back());
-		}
-		else {
-			robot_obs = m_robot->GetObject(node->m_solution[0].second.at(tidx));
-		}
+		// const std::vector<Object>* robot_obs = nullptr;
+		// if (node->m_solution[0].second.size() <= tidx) {
+		// 	robot_obs = m_robot->GetObject(node->m_solution[0].second.back());
+		// }
+		// else {
+		// 	robot_obs = m_robot->GetObject(node->m_solution[0].second.at(tidx));
+		// }
 
-		for (const auto& robot_o: *robot_obs)
-		{
-			DATA << robot_o.desc.id << ','
-					<< robot_o.Shape() << ','
-					<< robot_o.desc.type << ','
-					<< robot_o.desc.o_x << ','
-					<< robot_o.desc.o_y << ','
-					<< robot_o.desc.o_z << ','
-					<< robot_o.desc.o_roll << ','
-					<< robot_o.desc.o_pitch << ','
-					<< robot_o.desc.o_yaw << ','
-					<< robot_o.desc.x_size << ','
-					<< robot_o.desc.y_size << ','
-					<< robot_o.desc.z_size << ','
-					<< robot_o.desc.mass << ','
-					<< robot_o.desc.mu << ','
-					<< movable << '\n';
-		}
+		// for (const auto& robot_o: *robot_obs)
+		// {
+		// 	DATA << robot_o.desc.id << ','
+		// 			<< robot_o.Shape() << ','
+		// 			<< robot_o.desc.type << ','
+		// 			<< robot_o.desc.o_x << ','
+		// 			<< robot_o.desc.o_y << ','
+		// 			<< robot_o.desc.o_z << ','
+		// 			<< robot_o.desc.o_roll << ','
+		// 			<< robot_o.desc.o_pitch << ','
+		// 			<< robot_o.desc.o_yaw << ','
+		// 			<< robot_o.desc.x_size << ','
+		// 			<< robot_o.desc.y_size << ','
+		// 			<< robot_o.desc.z_size << ','
+		// 			<< robot_o.desc.mass << ','
+		// 			<< robot_o.desc.mu << ','
+		// 			<< movable << '\n';
+		// }
 
 		// write solution trajs
 		DATA << 'T' << '\n';
@@ -689,38 +689,38 @@ void CBS::writeSolution(HighLevelNode* node)
 			DATA << tidx + 1 << '\n';
 			for (int t = 0; t <= tidx; ++t)
 			{
-				if (node->m_solution[oidx+1].second.size() <= t) {
-					DATA << node->m_solution[oidx+1].second.back().state.at(0) << ',' << node->m_solution[oidx+1].second.back().state.at(1) << '\n';
+				if (node->m_solution[oidx].second.size() <= t) {
+					DATA << node->m_solution[oidx].second.back().state.at(0) << ',' << node->m_solution[oidx].second.back().state.at(1) << '\n';
 				}
 				else {
-					DATA << node->m_solution[oidx+1].second.at(t).state.at(0) << ',' << node->m_solution[oidx+1].second.at(t).state.at(1) << '\n';
+					DATA << node->m_solution[oidx].second.at(t).state.at(0) << ',' << node->m_solution[oidx].second.at(t).state.at(1) << '\n';
 				}
 			}
 		}
 
-		DATA << 'R' << '\n';
-		DATA << tidx + 1 << '\n';
-		for (int t = 0; t <= tidx; ++t)
-		{
-			if (node->m_solution[0].second.size() <= t) {
-				DATA 	<< node->m_solution[0].second.back().state.at(0) << ','
-						<< node->m_solution[0].second.back().state.at(1) << ','
-						<< node->m_solution[0].second.back().state.at(2) << ','
-						<< node->m_solution[0].second.back().state.at(3) << ','
-						<< node->m_solution[0].second.back().state.at(4) << ','
-						<< node->m_solution[0].second.back().state.at(5) << ','
-						<< node->m_solution[0].second.back().state.at(6) << '\n';
-			}
-			else {
-				DATA 	<< node->m_solution[0].second.at(t).state.at(0) << ','
-						<< node->m_solution[0].second.at(t).state.at(1) << ','
-						<< node->m_solution[0].second.at(t).state.at(2) << ','
-						<< node->m_solution[0].second.at(t).state.at(3) << ','
-						<< node->m_solution[0].second.at(t).state.at(4) << ','
-						<< node->m_solution[0].second.at(t).state.at(5) << ','
-						<< node->m_solution[0].second.at(t).state.at(6) << '\n';
-			}
-		}
+		// DATA << 'R' << '\n';
+		// DATA << tidx + 1 << '\n';
+		// for (int t = 0; t <= tidx; ++t)
+		// {
+		// 	if (node->m_solution[0].second.size() <= t) {
+		// 		DATA 	<< node->m_solution[0].second.back().state.at(0) << ','
+		// 				<< node->m_solution[0].second.back().state.at(1) << ','
+		// 				<< node->m_solution[0].second.back().state.at(2) << ','
+		// 				<< node->m_solution[0].second.back().state.at(3) << ','
+		// 				<< node->m_solution[0].second.back().state.at(4) << ','
+		// 				<< node->m_solution[0].second.back().state.at(5) << ','
+		// 				<< node->m_solution[0].second.back().state.at(6) << '\n';
+		// 	}
+		// 	else {
+		// 		DATA 	<< node->m_solution[0].second.at(t).state.at(0) << ','
+		// 				<< node->m_solution[0].second.at(t).state.at(1) << ','
+		// 				<< node->m_solution[0].second.at(t).state.at(2) << ','
+		// 				<< node->m_solution[0].second.at(t).state.at(3) << ','
+		// 				<< node->m_solution[0].second.at(t).state.at(4) << ','
+		// 				<< node->m_solution[0].second.at(t).state.at(5) << ','
+		// 				<< node->m_solution[0].second.at(t).state.at(6) << '\n';
+		// 	}
+		// }
 
 		DATA << 'C' << '\n';
 		for (auto& constraint : node->m_constraints) {
