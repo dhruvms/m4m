@@ -191,6 +191,8 @@ int AgentLattice::generateSuccessor(
 	DiscToCont(child.coord, child.state);
 	child.state.insert(child.state.end(), parent->state.begin() + 2, parent->state.end());
 
+	// m_agent->VisualiseState(child, "expansion");
+
 	m_agent->UpdatePose(child);
 	if (m_agent->OutOfBounds(child) || m_agent->ImmovableCollision()) {
 		return -1;

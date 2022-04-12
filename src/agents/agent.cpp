@@ -68,7 +68,7 @@ void Agent::InitNGR()
 	m_ngr->setReferenceFrame(m_planning_frame);
 }
 
-bool Agent::Init()
+bool Agent::Init(bool backwards)
 {
 	m_init.t = 0;
 	m_init.hc = 0;
@@ -76,6 +76,15 @@ bool Agent::Init()
 	m_init.state = { 	m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z,
 						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };
 	ContToDisc(m_init.state, m_init.coord);
+	// VisualiseState(m_init, "start_state", 90);
+
+	if (m_solve.empty()) {
+		computeGoal(backwards);
+	}
+	else {
+		m_goal = m_solve.back().coord;
+	}
+	createLatticeAndSearch(backwards);
 
 	return true;
 }
@@ -149,108 +158,6 @@ void Agent::ComputeNGRComplement(
 						m_planning_frame,
 						"complement"));
 	}
-}
-
-// find best NGR complement cell
-// 1. if object is fully outside NGR, this is the initial location
-// 2. if object is partially inside NGR, this is the "farthest" object cell
-// 3. if object is fully inside NGR, this is the closest cell outside NGR
-// (ideally would inflate the NGR by the object and then find such a cell)
-bool Agent::ComputeGoal(bool backwards)
-{
-	if (backwards) {
-		m_goal = m_init.coord;
-		return true;
-	}
-
-	if (stateOutsideNGR(m_init))
-	{
-		m_goal = m_init.coord;
-		return true;
-	}
-	else
-	{
-		Eigen::Affine3d T = Eigen::Translation3d(m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z) *
-						Eigen::AngleAxisd(m_obj_desc.o_yaw, Eigen::Vector3d::UnitZ()) *
-						Eigen::AngleAxisd(m_obj_desc.o_pitch, Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(m_obj_desc.o_roll, Eigen::Vector3d::UnitX());
-		auto voxels_state = m_obj.VoxelsState();
-		// transform voxels into the model frame
-		std::vector<Eigen::Vector3d> new_voxels(voxels_state->model->voxels.size());
-		for (size_t i = 0; i < voxels_state->model->voxels.size(); ++i) {
-			new_voxels[i] = T * voxels_state->model->voxels[i];
-		}
-
-		voxels_state->voxels = std::move(new_voxels);
-
-		double best_pos_dist = std::numeric_limits<double>::lowest(), best_neg_dist = std::numeric_limits<double>::lowest(), dist;
-		Eigen::Vector3i best_outside_pos, best_inside_pos, pos;
-		bool inside = false, outside = false;
-		for (const Eigen::Vector3d& v : voxels_state->voxels)
-		{
-			auto cell = std::dynamic_pointer_cast<smpl::PropagationDistanceField>(m_df)->getNearestCell(v[0], v[1], v[2], dist, pos);
-			if (dist > 0 && dist > best_pos_dist)
-			{
-				best_pos_dist = dist;
-				best_outside_pos = pos;
-				if (!outside) {
-					outside = true;
-				}
-			}
-			if (dist < 0 && dist > best_neg_dist)
-			{
-				best_neg_dist = dist;
-				best_inside_pos = pos; // actually the nearest free space (boundary?) cell
-				if (!inside) {
-					inside = true;
-				}
-			}
-		}
-		if (!inside) {
-			SMPL_ERROR("How is m_init not valid with NGR but we are not inside?");
-		}
-
-		double wx, wy, wz;
-		if (inside && outside) {
-			m_ngr->gridToWorld(best_outside_pos[0], best_outside_pos[1], best_outside_pos[2], wx, wy, wz);
-		}
-		else {
-			m_ngr->gridToWorld(best_inside_pos[0], best_inside_pos[1], best_inside_pos[2], wx, wy, wz);
-		}
-
-		State goal = {wx, wy};
-		ContToDisc(goal, m_goal);
-
-		return true;
-	}
-}
-
-bool Agent::CreateLatticeAndSearch(bool backwards)
-{
-	m_lattice = std::make_unique<AgentLattice>();
-	m_lattice->init(this, backwards);
-	m_lattice->reset();
-
-	if (backwards)
-	{
-		m_search = std::make_unique<WAStar>(m_lattice.get(), 1.0);
-		m_search->reset();
-
-		for (const auto& s : m_ngr_complement_states) {
-			m_search->push_start(m_lattice->PushStart(s));
-		}
-		m_search->push_goal(m_lattice->PushGoal(m_goal));
-	}
-	else
-	{
-		m_search = std::make_unique<Focal>(m_lattice.get(), 100.0);
-		m_search->reset();
-
-		m_search->push_start(m_lattice->PushStart(m_init));
-		m_search->push_goal(m_lattice->PushGoal(m_goal));
-	}
-
-	return true;
 }
 
 bool Agent::SatisfyPath(
@@ -418,6 +325,117 @@ void Agent::GetSE2Push(std::vector<double>& push)
 		push.at(0) = intersection.at(0);
 		push.at(1) = intersection.at(1);
 	}
+}
+
+// find best NGR complement cell
+// 1. if object is fully outside NGR, this is the initial location
+// 2. if object is partially inside NGR, this is the "farthest" object cell
+// 3. if object is fully inside NGR, this is the closest cell outside NGR
+// (ideally would inflate the NGR by the object and then find such a cell)
+bool Agent::computeGoal(bool backwards)
+{
+	if (backwards) {
+		m_goal = m_init.coord;
+
+		// VisualiseState(m_goal, "goal_state", 20);
+		return true;
+	}
+
+	if (stateOutsideNGR(m_init))
+	{
+		m_goal = m_init.coord;
+
+		// VisualiseState(m_goal, "goal_state", 20);
+		return true;
+	}
+	else
+	{
+		Eigen::Affine3d T = Eigen::Translation3d(m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z) *
+						Eigen::AngleAxisd(m_obj_desc.o_yaw, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(m_obj_desc.o_pitch, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(m_obj_desc.o_roll, Eigen::Vector3d::UnitX());
+		auto voxels_state = m_obj.VoxelsState();
+		// transform voxels into the model frame
+		std::vector<Eigen::Vector3d> new_voxels(voxels_state->model->voxels.size());
+		for (size_t i = 0; i < voxels_state->model->voxels.size(); ++i) {
+			new_voxels[i] = T * voxels_state->model->voxels[i];
+		}
+
+		voxels_state->voxels = std::move(new_voxels);
+
+		double best_pos_dist = std::numeric_limits<double>::lowest(), best_neg_dist = std::numeric_limits<double>::lowest(), dist;
+		Eigen::Vector3i best_outside_pos, best_inside_pos, pos;
+		bool inside = false, outside = false;
+		for (const Eigen::Vector3d& v : voxels_state->voxels)
+		{
+			auto cell = std::dynamic_pointer_cast<smpl::PropagationDistanceField>(m_df)->getNearestCell(v[0], v[1], v[2], dist, pos);
+			if (dist > 0 && dist > best_pos_dist)
+			{
+				best_pos_dist = dist;
+				best_outside_pos = pos;
+				if (!outside) {
+					outside = true;
+				}
+			}
+			if (dist < 0 && dist > best_neg_dist)
+			{
+				best_neg_dist = dist;
+				best_inside_pos = pos; // actually the nearest free space (boundary?) cell
+				if (!inside) {
+					inside = true;
+				}
+			}
+		}
+		if (!inside) {
+			SMPL_ERROR("m_init !stateOutsideNGR and !inside?");
+			m_goal = m_init.coord;
+
+			// VisualiseState(m_goal, "goal_state", 20);
+			return true;
+		}
+
+		double wx, wy, wz;
+		if (inside && outside) {
+			m_ngr->gridToWorld(best_outside_pos[0], best_outside_pos[1], best_outside_pos[2], wx, wy, wz);
+		}
+		else {
+			m_ngr->gridToWorld(best_inside_pos[0], best_inside_pos[1], best_inside_pos[2], wx, wy, wz);
+		}
+
+		State goal = {wx, wy};
+		ContToDisc(goal, m_goal);
+
+		// VisualiseState(m_goal, "goal_state", 20);
+		return true;
+	}
+}
+
+bool Agent::createLatticeAndSearch(bool backwards)
+{
+	m_lattice = std::make_unique<AgentLattice>();
+	m_lattice->init(this, backwards);
+	m_lattice->reset();
+
+	if (backwards)
+	{
+		m_search = std::make_unique<WAStar>(m_lattice.get(), 1.0);
+		m_search->reset();
+
+		for (const auto& s : m_ngr_complement_states) {
+			m_search->push_start(m_lattice->PushStart(s));
+		}
+		m_search->push_goal(m_lattice->PushGoal(m_goal));
+	}
+	else
+	{
+		m_search = std::make_unique<Focal>(m_lattice.get(), 100.0);
+		m_search->reset();
+
+		m_search->push_start(m_lattice->PushStart(m_init));
+		m_search->push_goal(m_lattice->PushGoal(m_goal));
+	}
+
+	return true;
 }
 
 // return false => no collision with obstacles

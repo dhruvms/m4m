@@ -48,13 +48,11 @@ public:
 	// 	const std::vector<double>& rpy);
 
 	void InitNGR();
-	bool Init();
+	bool Init(bool backwards);
 	void UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels, bool vis=false);
 	void ComputeNGRComplement(
 		double ox, double oy, double oz,
 		double sx, double sy, double sz, bool vis=false);
-	bool ComputeGoal(bool backwards);
-	bool CreateLatticeAndSearch(bool backwards);
 
 	bool SatisfyPath(
 		HighLevelNode* ct_node,
@@ -116,6 +114,9 @@ private:
 
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<Search> m_search;
+
+	bool computeGoal(bool backwards);
+	bool createLatticeAndSearch(bool backwards);
 
 	// check collisions with static obstacles
 	bool stateObsCollision(const LatticeState& s);
