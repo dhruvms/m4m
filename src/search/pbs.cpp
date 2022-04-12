@@ -26,8 +26,9 @@ CBS(r, objs, scene_id)
 	m_p0.Clear();
 }
 
-bool PBS::Solve()
+bool PBS::Solve(bool backwards)
 {
+	m_backwards = backwards;
 	m_search_time = 0.0;
 	m_conflict_time = 0.0;
 	m_ll_time = 0.0;
@@ -266,6 +267,7 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 		auto to_avoid = node->m_priorities.GetHigherPriorities(replan_id);
 		int expands, min_f;
 		// run low-level with spacetime collision checking against higher priority agents
+		m_objs[replan_idx]->Init(m_backwards);
 		if (!m_objs[replan_idx]->SatisfyPath(node, &m_paths[replan_idx], expands, min_f, &to_avoid)) {
 			++m_ct_deadends;
 			return false;
@@ -323,6 +325,11 @@ void PBS::findConflicts(HighLevelNode* node, int agent_id)
 		}
 		findConflictsObjects(*node, agent_idx, k);
 	}
+}
+
+void PBS::SaveStats()
+{
+	CBS::SaveStats();
 }
 
 } // namespace clutter
