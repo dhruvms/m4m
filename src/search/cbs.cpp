@@ -529,6 +529,21 @@ bool CBS::done(HighLevelNode* node)
 		m_solved = true;
 		m_goal = node;
 		m_soln_cost = m_goal->m_flowtime;
+
+		if (!m_goal->m_priorities.Empty())
+		{
+			SMPL_WARN("Solution Priority DAG:");
+			auto G = m_goal->m_priorities.GetDAG();
+			for (const auto& parent: G) {
+				for (const auto& child: parent.second) {
+					SMPL_WARN("\t%d -> %d", parent.first, child);
+				}
+			}
+		}
+		else {
+			SMPL_WARN("Solution has empty Priority DAG!");
+		}
+
 		return true;
 	}
 
