@@ -202,6 +202,11 @@ void HighLevelNode::computeH()
 	int h = -1;
 	switch (HLHC)
 	{
+		case HighLevelConflictHeuristic::ZERO:
+		{
+			h = 0;
+			break;
+		}
 		case HighLevelConflictHeuristic::CONFLICT_COUNT:
 		{
 			h = (int)m_conflicts.size();

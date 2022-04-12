@@ -8,20 +8,22 @@
 namespace clutter
 {
 
-enum LowLevelConflictHeuristic
+enum class LowLevelConflictHeuristic
 {
+	ZERO,
 	BINARY,
 	COUNT,
 	LLHC_TYPES
 };
-enum HighLevelConflictHeuristic
+enum class HighLevelConflictHeuristic
 {
+	ZERO,
 	CONFLICT_COUNT,
 	AGENT_COUNT,
 	AGENT_PAIRS,
 	HLHC_TYPES
 };
-enum MAPFAlgo
+enum class MAPFAlgo
 {
 	WHCA,
 	VCBS,

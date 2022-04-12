@@ -288,6 +288,11 @@ int AgentLattice::conflictHeuristic(const LatticeState& state)
 	int hc = 0;
 	switch (LLHC)
 	{
+		case LowLevelConflictHeuristic::ZERO:
+		{
+			hc = 0;
+			break;
+		}
 		case LowLevelConflictHeuristic::BINARY:
 		{
 			std::vector<LatticeState> other_poses;
