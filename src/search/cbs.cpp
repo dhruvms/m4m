@@ -688,6 +688,17 @@ void CBS::writeSolution(HighLevelNode* node)
 		// 			<< movable << '\n';
 		// }
 
+		// write goal states
+		DATA << 'G' << '\n';
+		DATA << m_objs.size() << '\n';
+		for (size_t oidx = 0; oidx < m_objs.size(); ++oidx)
+		{
+			auto g = m_objs[oidx]->Goal();
+			State gs;
+			DiscToCont(g, gs);
+			DATA << m_obj_idx_to_id[oidx] << ',' << gs.at(0) << ',' << gs.at(1) << '\n';
+		}
+
 		// write solution trajs
 		DATA << 'T' << '\n';
 		o = m_objs.size();

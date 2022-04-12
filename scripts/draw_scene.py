@@ -14,6 +14,7 @@ def ParseFile(filepath):
 	objs = {}
 	trajs = {}
 	ngr = []
+	goals = []
 	with open(filepath, 'r') as f:
 		done = False
 		while not done:
@@ -34,6 +35,14 @@ def ParseFile(filepath):
 					objs[obj[0]] += [line.split(',')[-1] == 'True']
 
 				objs = collections.OrderedDict(sorted(objs.items()))
+
+			if line == 'G':
+				line = f.readline()[:-1]
+				num_pts = int(line)
+				for i in range(num_pts):
+					line = f.readline()[:-1]
+					pt = [float(val) for val in line.split(',')]
+					goals.append(pt)
 
 			if line == 'T':
 				line = f.readline()[:-1]
@@ -60,9 +69,9 @@ def ParseFile(filepath):
 					pt = [float(val) for val in line.split(',')]
 					ngr.append(pt)
 
-	return objs, trajs, ngr
+	return objs, trajs, ngr, goals
 
-def DrawScene(filepath, objs, trajs, ngr, alpha=1.0):
+def DrawScene(filepath, objs, trajs, ngr, goals, alpha=1.0):
 	codes = [
 		Path.MOVETO,
 		Path.LINETO,
@@ -158,6 +167,11 @@ def DrawScene(filepath, objs, trajs, ngr, alpha=1.0):
 		NGR = np.asarray(ngr)*RES
 		AX.scatter(NGR[:, 0], NGR[:, 1], c='gray', alpha=0.25, zorder=2)
 
+	if (goals):
+		GOALS = np.asarray(goals)
+		AX.scatter(GOALS[:, 1], GOALS[:, 2], c='violet', zorder=11, marker='*')
+		for i, oid in enumerate(GOALS[:, 0]):
+			AX.text(GOALS[i, 1], GOALS[i, 2], str(int(oid)), color='violet', zorder=3)
 
 	AX.axis('equal')
 	AX.set_xlim([0.0, 1.2])
@@ -177,8 +191,8 @@ def main():
 			# 	continue
 
 			filepath = os.path.join(dirpath, filename)
-			objs, trajs, ngr = ParseFile(filepath)
-			DrawScene(filepath, objs, trajs, ngr)
+			objs, trajs, ngr, goals = ParseFile(filepath)
+			DrawScene(filepath, objs, trajs, ngr, goals)
 
 if __name__ == '__main__':
 	main()
