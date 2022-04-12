@@ -99,7 +99,7 @@ private:
 	bool animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 	bool rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 
-	bool setupProblem();
+	bool setupProblem(bool backwards);
 	void updateAgentPositions(
 		const comms::ObjectsPoses& result,
 		comms::ObjectsPoses& rearranged);

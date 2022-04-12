@@ -107,7 +107,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		SMPL_ERROR("Robot failed to compute grasp states!");
 		return false;
 	}
-	// m_robot->ProcessObstacles({ m_ooi->GetObject() });
 	m_robot->VizCC();
 
 	m_simulate = m_nh.advertiseService("run_sim", &Planner::runSim, this);
@@ -150,6 +149,7 @@ bool Planner::SetupAgentNGRs()
 	if (!m_robot->PlanOnce()) {
 		return false;
 	}
+	m_robot->ProcessObstacles({ m_ooi->GetObject() });
 
 	double ox, oy, oz, sx, sy, sz;
 	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
@@ -167,22 +167,24 @@ bool Planner::SetupAgentNGRs()
 		}
 	}
 
-	m_ooi->UpdateNGR(ngr_voxels);
-	m_ooi->SetObstacleGrid(m_robot->Grid());
-	if (ALGO == MAPFAlgo::OURS) {
-		m_ooi->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
-	}
+	// m_ooi->UpdateNGR(ngr_voxels);
+	// m_ooi->SetObstacleGrid(m_robot->Grid());
+	// if (ALGO == MAPFAlgo::OURS) {
+	// 	m_ooi->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
+	// }
 
 	return true;
 }
 
 bool Planner::Plan()
 {
-	while (!setupProblem()) {
+	// bool backwards = ALGO == MAPFAlgo::OURS;
+	bool backwards = false;
+	while (!setupProblem(backwards)) {
 		continue;
 	}
 
-	m_cbs->Solve();
+	m_cbs->Solve(backwards);
 	m_cbs->SaveStats();
 
 	return true;
@@ -461,14 +463,14 @@ void Planner::updateAgentPositions(
 	}
 }
 
-bool Planner::setupProblem()
+bool Planner::setupProblem(bool backwards)
 {
 	// CBS TODO: assign starts and goals to agents
 
-	int result = cleanupLogs();
-	if (result == -1) {
-		SMPL_ERROR("system command errored!");
-	}
+	// int result = cleanupLogs();
+	// if (result == -1) {
+	// 	SMPL_ERROR("system command errored!");
+	// }
 
 	// Set agent current positions and time
 	// m_robot->Init();
@@ -476,11 +478,8 @@ bool Planner::setupProblem()
 	// 	return false;
 	// }
 
-	bool backwards = ALGO == MAPFAlgo::OURS;
 	for (auto& a: m_agents) {
-		a->Init();
-		a->ComputeGoal(backwards);
-		a->CreateLatticeAndSearch(backwards);
+		a->Init(backwards);
 	}
 
 	return true;
