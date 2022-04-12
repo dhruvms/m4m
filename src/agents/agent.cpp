@@ -10,9 +10,11 @@
 #include <smpl/console/console.h>
 #include <smpl/ros/propagation_distance_field.h>
 #include <smpl/debug/visualizer_ros.h>
+#include <smpl/debug/marker_conversions.h>
 #include <smpl/debug/marker_utils.h>
 #include <smpl/debug/marker.h>
 #include <sbpl_collision_checking/collision_operations.h>
+#include <leatherman/viz.h>
 
 #include <iostream>
 #include <algorithm>
@@ -313,6 +315,56 @@ bool Agent::ObjectObjectsCollision(
 bool Agent::OutsideNGR(const LatticeState& s)
 {
 	return stateOutsideNGR(s);
+}
+
+void Agent::VisualiseState(const Coord& c, const std::string& ns, int hue)
+{
+	LatticeState s;
+	s.coord = c;
+	DiscToCont(s.coord, s.state);
+	VisualiseState(s, ns, hue);
+}
+
+void Agent::VisualiseState(const LatticeState& s, const std::string& ns, int hue)
+{
+	Eigen::Affine3d T = Eigen::Translation3d(s.state[0], s.state[1], m_obj_desc.o_z) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
+
+	m_obj.SetTransform(T);
+
+	std::vector<std::vector<double>> sphere_positions;
+	std::vector<double> sphere_radii;
+	for (auto& sphere : m_obj.SpheresState()->spheres)
+	{
+		if (!sphere.isLeaf()) {
+			continue;
+		}
+		m_obj.updateSphereState(smpl::collision::SphereIndex(sphere.parent_state->index, sphere.index()));
+
+		sphere_positions.push_back({ sphere.pos.x(), sphere.pos.y(), sphere.pos.z() });
+		sphere_radii.push_back(sphere.model->radius);
+	}
+
+	auto ma = viz::getSpheresMarkerArray(
+		sphere_positions, sphere_radii, hue, "", "agent_state", GetID());
+	for (auto& m : ma.markers) {
+		m.header.frame_id = m_ngr->getReferenceFrame();
+	}
+
+	std::vector<smpl::visual::Marker> markers;
+	markers.reserve(ma.markers.size());
+	smpl::visual::Marker m;
+	for (auto& mm : ma.markers) {
+		smpl::visual::ConvertMarkerMsgToMarker(mm, m);
+		markers.push_back(m);
+	}
+	for (auto& marker : markers) {
+		marker.ns = ns;
+	}
+
+	SV_SHOW_INFO_NAMED(ns, markers);
 }
 
 const Object* Agent::GetObject(const LatticeState& s)
