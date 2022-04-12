@@ -122,7 +122,7 @@ struct HighLevelNode
 		m_conflicts.clear();
 		m_priorities.Clear();
 	};
-	int fval() const { return this->m_g + (COST_MULT * this->m_h); };
+	int fval() const { return this->m_g + (ECBS_MULT * this->m_h); };
 
 	void recalcFlowtime();
 	void recalcMakespan();

@@ -487,7 +487,7 @@ bool Object::generateSpheresModel(
 	// spheres
 
 	// TODO: yeah...
-	const double object_enclosing_sphere_radius = 0.025;
+	const double object_enclosing_sphere_radius = 0.015;
 
 	// voxelize the object
 	std::vector<Eigen::Vector3d> voxels;

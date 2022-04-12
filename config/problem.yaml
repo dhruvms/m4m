@@ -51,10 +51,10 @@ mapf:
     window: 4
     grid: 4
   cbs:
-    algo: 1 # 0: WHCA, 1: CBS, 2: CBSw/P, 3: PBS, 4: ours
-    llhc: 1
-    hlhc: 2
-    ecbs_mult: 1000
+    algo: 4 # 0: WHCA, 1: CBS, 2: CBSw/P, 3: PBS, 4: ours
+    llhc: 0
+    hlhc: 0
+    ecbs_mult: 10
 
 objects:
   min_size: 0.03

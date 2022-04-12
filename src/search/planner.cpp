@@ -746,7 +746,7 @@ void Planner::setupGlobals()
 	m_ph.getParam("mapf/cbs/algo", algo);
 	m_ph.getParam("mapf/cbs/llhc", llhc);
 	m_ph.getParam("mapf/cbs/hlhc", hlhc);
-	m_ph.getParam("mapf/cbs/eecbs_mult", ECBS_MULT);
+	m_ph.getParam("mapf/cbs/ecbs_mult", ECBS_MULT);
 	ALGO = static_cast<MAPFAlgo>(algo);
 	LLHC = static_cast<LowLevelConflictHeuristic>(llhc);
 	HLHC = static_cast<HighLevelConflictHeuristic>(hlhc);
