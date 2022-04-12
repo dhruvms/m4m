@@ -18,6 +18,7 @@ m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_
 	m_num_agents = 0;
 	m_paths.clear();
 	m_min_fs.clear();
+	m_goal = nullptr;
 }
 
 CBS::CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs,
@@ -35,10 +36,12 @@ m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_
 		m_obj_id_to_idx[m_objs[i]->GetID()] = i;
 		m_obj_idx_to_id[i] = m_objs[i]->GetID();
 	}
+	m_goal = nullptr;
 }
 
-bool CBS::Solve()
+bool CBS::Solve(bool backwards)
 {
+	m_backwards = backwards;
 	m_search_time = 0.0;
 	m_conflict_time = 0.0;
 	m_ll_time = 0.0;
@@ -476,7 +479,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 				recalc_makespan = true;
 			}
 
-			m_objs[i]->Init();
+			m_objs[i]->Init(m_backwards);
 			start_time = GetTime();
 			if (!m_objs[i]->SatisfyPath(child, &m_paths[i], expands, min_f))
 			{

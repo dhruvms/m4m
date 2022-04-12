@@ -29,7 +29,7 @@ public:
 		m_objs.insert(m_objs.end(), objs.begin(), objs.end());
 	};
 
-	bool Solve();
+	bool Solve(bool backwards);
 	void SaveStats();
 
 protected:
@@ -44,7 +44,7 @@ protected:
 
 	int m_ct_generated, m_ct_deadends, m_ct_expanded, m_ll_expanded, m_soln_cost, m_scene_id, m_soln_lb, m_wf;
 	double m_search_time, m_time_limit, m_ll_time, m_conflict_time;
-	bool m_solved;
+	bool m_solved, m_backwards;
 	HighLevelNode* m_goal;
 
 	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::OPENCompare> > m_OPEN;
