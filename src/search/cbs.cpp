@@ -731,6 +731,32 @@ void CBS::writeSolution(HighLevelNode* node)
 					<< constraint->m_q.state.at(1) << '\n';
 		}
 
+		struct coord_compare
+		{
+			bool operator()(const Coord& u, const Coord& v) const
+			{
+				return std::tie(u.at(0), u.at(1)) < std::tie(v.at(0), v.at(1));
+			}
+		};
+		std::set<Coord, coord_compare> ngr;
+		auto ngr_voxels = m_robot->TrajVoxels();
+		for (auto itr_list = ngr_voxels->begin(); itr_list != ngr_voxels->end(); ++itr_list)
+		{
+			for (auto itr = itr_list->begin(); itr != itr_list->end(); ++itr)
+			{
+				State s = { itr->x(), itr->y() };
+				Coord c;
+				ContToDisc(s, c);
+				ngr.insert(c);
+			}
+		}
+		DATA << "NGR" << '\n';
+		DATA << ngr.size() << '\n';
+		for (const auto& p: ngr) {
+			DATA 	<< p.at(0) << ','
+					<< p.at(1) << '\n';
+		}
+
 		DATA.close();
 	}
 }

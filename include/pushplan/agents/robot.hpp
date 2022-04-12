@@ -135,6 +135,10 @@ public:
 		SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
 	}
 
+	auto TrajVoxels() const -> const std::vector<std::vector<Eigen::Vector3d>>* {
+		return &m_traj_voxels;
+	}
+
 private:
 	int m_id;
 	ros::NodeHandle m_nh, m_ph;
@@ -180,6 +184,7 @@ private:
 	moveit_msgs::Constraints m_goal;
 	std::string m_chain_tip_link;
 	trajectory_msgs::JointTrajectory m_traj;
+	std::vector<std::vector<Eigen::Vector3d>> m_traj_voxels;
 
 	int m_t, m_priority;
 	LatticeState m_init;

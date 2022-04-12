@@ -699,6 +699,7 @@ void Robot::VoxeliseTrajectory(
 	}
 
 	ROS_INFO("Robot trajectory voxelisation took %f seconds", GetTime() - start_time);
+	m_traj_voxels = voxels;
 
 	// TODO: make this faster by looping over cells in a sphere octant
 	// and computing the rest via symmetry

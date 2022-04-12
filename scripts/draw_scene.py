@@ -8,10 +8,12 @@ import collections
 
 FIG, AX = plt.subplots(figsize=(13, 13))
 FRIDGE = True
+RES = 0.01
 
 def ParseFile(filepath):
 	objs = {}
 	trajs = {}
+	ngr = []
 	with open(filepath, 'r') as f:
 		done = False
 		while not done:
@@ -50,9 +52,17 @@ def ParseFile(filepath):
 						traj.append(wp)
 					trajs[obj_id] = traj
 
-	return objs, trajs
+			if line == 'NGR':
+				line = f.readline()[:-1]
+				num_pts = int(line)
+				for i in range(num_pts):
+					line = f.readline()[:-1]
+					pt = [float(val) for val in line.split(',')]
+					ngr.append(pt)
 
-def DrawScene(filepath, objs, trajs, alpha=1.0):
+	return objs, trajs, ngr
+
+def DrawScene(filepath, objs, trajs, ngr, alpha=1.0):
 	codes = [
 		Path.MOVETO,
 		Path.LINETO,
@@ -144,6 +154,11 @@ def DrawScene(filepath, objs, trajs, alpha=1.0):
 			traj = np.asarray(trajs[key])
 			AX.plot(traj[:, 0], traj[:, 1], c=lc, alpha=0.75, zorder=10)
 
+	if (ngr):
+		NGR = np.asarray(ngr)*RES
+		AX.scatter(NGR[:, 0], NGR[:, 1], c='gray', alpha=0.25, zorder=2)
+
+
 	AX.axis('equal')
 	AX.set_xlim([0.0, 1.2])
 	AX.set_ylim([-1.1, 0.0])
@@ -162,8 +177,8 @@ def main():
 			# 	continue
 
 			filepath = os.path.join(dirpath, filename)
-			objs, trajs = ParseFile(filepath)
-			DrawScene(filepath, objs, trajs)
+			objs, trajs, ngr = ParseFile(filepath)
+			DrawScene(filepath, objs, trajs, ngr)
 
 if __name__ == '__main__':
 	main()
