@@ -173,8 +173,8 @@ bool PBS::initialiseRoot()
 		planned.at(i) = true;
 	}
 
-	// successive updatePlan calls find all conflicts
-	// findConflicts(*root);
+	// root->m_conflicts.clear();
+	CBS::findConflicts(*root);
 
 	root->m_h = 0;
 	root->m_h_computed = false;
@@ -280,11 +280,14 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 		m_ll_expanded += expands;
 		m_min_fs[replan_idx] = min_f;
 
-		// update conflicts replanned agent is involved in
-		removeConflicts(node, replan_id);
-		// find new conflicts created by path just computed
-		std::list<std::shared_ptr<Conflict> > new_conflicts;
-		findConflicts(node, replan_id);
+		if (node->m_parent != nullptr)
+		{
+			// update conflicts replanned agent is involved in
+			removeConflicts(node, replan_id);
+			// find new conflicts created by path just computed
+			std::list<std::shared_ptr<Conflict> > new_conflicts;
+			findConflicts(node, replan_id);
+		}
 
 		// update tree node's solution
 		bool soln_updated = false;
