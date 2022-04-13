@@ -280,15 +280,6 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 		m_ll_expanded += expands;
 		m_min_fs[replan_idx] = min_f;
 
-		if (node->m_parent != nullptr)
-		{
-			// update conflicts replanned agent is involved in
-			removeConflicts(node, replan_id);
-			// find new conflicts created by path just computed
-			std::list<std::shared_ptr<Conflict> > new_conflicts;
-			findConflicts(node, replan_id);
-		}
-
 		// update tree node's solution
 		bool soln_updated = false;
 		for (auto& agent_soln : node->m_solution)
@@ -302,6 +293,16 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 		}
 		if (!soln_updated) {
 			node->m_solution.emplace_back(replan_id, *(m_paths[replan_idx]));
+		}
+
+		// update node conflicts to account for new agent plan
+		if (node->m_parent != nullptr)
+		{
+			// update conflicts replanned agent is involved in
+			removeConflicts(node, replan_id);
+			// find new conflicts created by path just computed
+			std::list<std::shared_ptr<Conflict> > new_conflicts;
+			findConflicts(node, replan_id);
 		}
 
 		// on to the next one
