@@ -49,8 +49,12 @@ bool DAG::Connected(int from, int to) const
 
 std::unordered_set<int> DAG::GetHigherPriorities(int root)
 {
+
 	std::list<int> OPEN;
 	std::unordered_set<int> CLOSED;
+	if (!this->Contains(root)) {
+		return CLOSED;
+	}
 
 	OPEN.push_back(root);
 	while (!OPEN.empty())
@@ -81,6 +85,9 @@ std::unordered_set<int> DAG::GetHigherPriorities(int root)
 std::vector<int> DAG::GetParents(int root)
 {
 	std::vector<int> lower;
+	if (!this->Contains(root)) {
+		return lower;
+	}
 	for (const auto& n : m_G)
 	{
 		if (n.first == root) {

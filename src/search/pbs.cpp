@@ -50,7 +50,7 @@ bool PBS::Solve(bool backwards)
 		if (done(next)) {
 			m_search_time += GetTime() - start_time;
 			SMPL_WARN("YAYAYAY! We did it!");
-			// writeSolution(next);
+			CBS::writeSolution(next);
 			return m_solved;
 		}
 		// writeSolution(next);
@@ -229,7 +229,12 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 	replan_ids.push_back(agent_id);
 	// topological sort agents to replan to determine good order to replan in
 	std::queue<int> replan_order;
-	node->m_priorities.TopologicalSort(replan_ids, replan_order);
+	if (!node->m_priorities.Empty() && node->m_priorities.Contains(agent_id)) {
+		node->m_priorities.TopologicalSort(replan_ids, replan_order);
+	}
+	else {
+		replan_order.push(agent_id);
+	}
 
 	while (!replan_order.empty())
 	{
@@ -299,6 +304,8 @@ bool PBS::updatePlan(HighLevelNode* node, int agent_id)
 		// on to the next one
 		replan_order.pop();
 	}
+
+	return true;
 }
 
 void PBS::removeConflicts(HighLevelNode* node, int agent_id)

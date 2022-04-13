@@ -24,6 +24,9 @@ public:
 	void Clear() { m_G.clear(); };
 	bool Empty() const { return m_G.empty(); };
 	void Copy(const DAG& Gin) { m_G = Gin.GetDAG(); };
+	bool Contains(int root) {
+		return m_G.find(root) != m_G.end();
+	}
 
 	void Add(int from, int to) { m_G[from].insert(to); };
 	void Remove(int from, int to);
