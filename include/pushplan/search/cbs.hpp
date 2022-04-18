@@ -29,7 +29,7 @@ public:
 		m_objs.insert(m_objs.end(), objs.begin(), objs.end());
 	};
 
-	bool Solve(bool backwards);
+	virtual bool Solve(bool backwards);
 	void SaveStats();
 
 protected:
