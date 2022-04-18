@@ -41,33 +41,6 @@ namespace clutter
 // 	m_obj_desc.o_yaw = rpy.at(2);
 // }
 
-void Agent::InitNGR()
-{
-	bool propagate_negative_distances = true;
-	double sx, sy, sz, ox, oy, oz, max_distance;
-
-	m_ph.getParam("occupancy_grid/size_x", sx);
-	m_ph.getParam("occupancy_grid/size_y", sy);
-	m_ph.getParam("occupancy_grid/size_z", sz);
-	m_ph.getParam("occupancy_grid/origin_x", ox);
-	m_ph.getParam("occupancy_grid/origin_y", oy);
-	m_ph.getParam("occupancy_grid/origin_z", oz);
-	m_ph.getParam("occupancy_grid/max_dist", max_distance);
-	m_ph.getParam("planning_frame", m_planning_frame);
-
-	using DistanceMapType = smpl::PropagationDistanceField;
-
-	m_df = std::make_shared<DistanceMapType>(
-			ox, oy, oz,
-			sx, sy, sz,
-			DF_RES,
-			max_distance, propagate_negative_distances);
-
-	bool ref_counted = false;
-	m_ngr = std::make_unique<smpl::OccupancyGrid>(m_df, ref_counted);
-	m_ngr->setReferenceFrame(m_planning_frame);
-}
-
 bool Agent::Init(bool backwards)
 {
 	m_init.t = 0;
@@ -89,26 +62,13 @@ bool Agent::Init(bool backwards)
 	return true;
 }
 
-void Agent::UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels, bool vis)
-{
-	for (auto& voxel_list : voxels) {
-		m_ngr->addPointsToField(voxel_list);
-	}
-
-	if (vis) {
-		// SV_SHOW_INFO(m_ngr->getBoundingBoxVisualization());
-		// SV_SHOW_INFO(m_ngr->getDistanceFieldVisualization());
-		SV_SHOW_INFO(m_ngr->getOccupiedVoxelsVisualization());
-	}
-}
-
 void Agent::ComputeNGRComplement(
 	double ox, double oy, double oz,
 	double sx, double sy, double sz, bool vis)
 {
 	int x_c, y_c, z_c;
-	m_ngr->worldToGrid(ox + (sx / 2.0), oy + (sy / 2.0), oz + (sz / 2.0), x_c, y_c, z_c);
-	double res = m_ngr->resolution();
+	m_ngr_grid->worldToGrid(ox + (sx / 2.0), oy + (sy / 2.0), oz + (sz / 2.0), x_c, y_c, z_c);
+	double res = m_ngr_grid->resolution();
 	int x_s = ((sx / 2.0) / res) + 0.5;
 	int y_s = ((sy / 2.0) / res) + 0.5;
 	int z_s = (((sz / 2.0) - res) / res) + 0.5;
@@ -122,7 +82,7 @@ void Agent::ComputeNGRComplement(
 			double wx, wy, wz;
 			for (int z = z_c - z_s; z < z_c + z_s; ++z)
 			{
-				if (m_ngr->getDistanceField()->getCellDistance(x, y, z) <= 0.0 ||
+				if (m_ngr_grid->getDistanceField()->getCellDistance(x, y, z) <= 0.0 ||
 					m_obs_grid->getDistanceField()->getCellDistance(x, y, z) <= 0.0)
 				{
 					complement = false;
@@ -131,7 +91,7 @@ void Agent::ComputeNGRComplement(
 			}
 			if (complement)
 			{
-				m_ngr->gridToWorld(x, y, z_c - z_s, wx, wy, wz);
+				m_ngr_grid->gridToWorld(x, y, z_c - z_s, wx, wy, wz);
 				LatticeState s;
 				s.state = {wx, wy};
 
@@ -153,7 +113,7 @@ void Agent::ComputeNGRComplement(
 	{
 		SV_SHOW_INFO(smpl::visual::MakeCubesMarker(
 						complement_voxel_vecs,
-						m_ngr->resolution(),
+						m_ngr_grid->resolution(),
 						smpl::visual::Color{ 0.8f, 0.255f, 1.0f, 1.0f },
 						m_planning_frame,
 						"complement"));
@@ -257,7 +217,7 @@ void Agent::VisualiseState(const LatticeState& s, const std::string& ns, int hue
 	auto ma = viz::getSpheresMarkerArray(
 		sphere_positions, sphere_radii, hue, "", "agent_state", GetID());
 	for (auto& m : ma.markers) {
-		m.header.frame_id = m_ngr->getReferenceFrame();
+		m.header.frame_id = m_ngr_grid->getReferenceFrame();
 	}
 
 	std::vector<smpl::visual::Marker> markers;
@@ -366,9 +326,10 @@ bool Agent::computeGoal(bool backwards)
 		double best_pos_dist = std::numeric_limits<double>::lowest(), best_neg_dist = std::numeric_limits<double>::lowest(), dist;
 		Eigen::Vector3i best_outside_pos, best_inside_pos, pos;
 		bool inside = false, outside = false;
+		auto ngr_df = m_ngr_grid->getDistanceField();
 		for (const Eigen::Vector3d& v : voxels_state->voxels)
 		{
-			auto cell = std::dynamic_pointer_cast<smpl::PropagationDistanceField>(m_df)->getNearestCell(v[0], v[1], v[2], dist, pos);
+			auto cell = dynamic_cast<smpl::PropagationDistanceField&>(*ngr_df).getNearestCell(v[0], v[1], v[2], dist, pos);
 			if (dist > 0 && dist > best_pos_dist)
 			{
 				best_pos_dist = dist;
@@ -396,10 +357,10 @@ bool Agent::computeGoal(bool backwards)
 
 		double wx, wy, wz;
 		if (inside && outside) {
-			m_ngr->gridToWorld(best_outside_pos[0], best_outside_pos[1], best_outside_pos[2], wx, wy, wz);
+			m_ngr_grid->gridToWorld(best_outside_pos[0], best_outside_pos[1], best_outside_pos[2], wx, wy, wz);
 		}
 		else {
-			m_ngr->gridToWorld(best_inside_pos[0], best_inside_pos[1], best_inside_pos[2], wx, wy, wz);
+			m_ngr_grid->gridToWorld(best_inside_pos[0], best_inside_pos[1], best_inside_pos[2], wx, wy, wz);
 		}
 
 		State goal = {wx, wy};
@@ -459,7 +420,7 @@ bool Agent::stateOutsideNGR(const LatticeState& s)
 
 	double padding = 0.0, dist;
 	return smpl::collision::CheckVoxelsCollisions(
-							m_obj, q, *(m_ngr.get()), padding, dist);
+							m_obj, q, *(m_ngr_grid.get()), padding, dist);
 }
 
 } // namespace clutter

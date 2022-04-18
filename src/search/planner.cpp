@@ -117,7 +117,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
 
-
 	switch (ALGO)
 	{
 		case MAPFAlgo::VCBS:
@@ -170,30 +169,26 @@ bool Planner::Alive()
 	return true;
 }
 
-bool Planner::SetupAgentNGRs()
+bool Planner::SetupNGR()
 {
-	if (!m_robot->PlanOnce()) {
+	// if (!m_robot->PlanApproachOnly()) {
+	if (!m_robot->PlanRetrieval()) {
 		return false;
 	}
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
+	m_robot->UpdateNGR();
 
 	double ox, oy, oz, sx, sy, sz;
 	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
 
-	m_ooi->InitNGR();
-	std::vector<std::vector<Eigen::Vector3d>> ngr_voxels;
-	m_robot->VoxeliseTrajectory(m_ooi->NGR(), ngr_voxels);
-
 	for (auto& a: m_agents) {
-		a->InitNGR();
-		a->UpdateNGR(ngr_voxels);
-		a->SetObstacleGrid(m_robot->Grid());
+		a->SetObstacleGrid(m_robot->ObsGrid());
+		a->SetNGRGrid(m_robot->NGRGrid());
 		if (ALGO == MAPFAlgo::OURS) {
 			a->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
 		}
 	}
 
-	// m_ooi->UpdateNGR(ngr_voxels);
 	// m_ooi->SetObstacleGrid(m_robot->Grid());
 	// if (ALGO == MAPFAlgo::OURS) {
 	// 	m_ooi->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);

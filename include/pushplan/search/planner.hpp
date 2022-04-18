@@ -27,7 +27,7 @@ public:
 				m_ph("~") {};
 	bool Init(const std::string& scene_file, int scene_id, bool ycb);
 	bool Alive();
-	bool SetupAgentNGRs();
+	bool SetupNGR();
 
 	bool Plan();
 	bool SaveData();
@@ -82,7 +82,6 @@ private:
 	std::vector<double> m_goal;
 
 	trajectory_msgs::JointTrajectory m_exec;
-	Trajectory m_exec_interm;
 	std::vector<trajectory_msgs::JointTrajectory> m_rearrangements;
 	comms::ObjectsPoses m_rearranged;
 

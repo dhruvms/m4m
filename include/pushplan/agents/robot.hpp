@@ -48,14 +48,13 @@ public:
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
 	bool ProcessObstacles(const std::vector<Object*>& obstacles, bool remove=false);
 
-	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
 	bool Init();
+	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
 	bool RandomiseStart();
-	bool PlanOnce();
+	bool PlanApproachOnly();
+	bool PlanRetrieval();
+	void UpdateNGR(bool vis=false);
 	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f);
-	void VoxeliseTrajectory(
-		const smpl::OccupancyGrid* ngr,
-		std::vector<std::vector<Eigen::Vector3d>>& voxels);
 
 	void ProfileTraj(Trajectory& traj);
 	bool ComputeGrasps(
@@ -127,8 +126,11 @@ public:
 		return (m_stats["attach_fails"] > 0) || (m_stats["attach_collides"] > 0);
 	}
 
-	auto Grid() const -> const std::shared_ptr<smpl::OccupancyGrid>& {
+	auto ObsGrid() const -> const std::shared_ptr<smpl::OccupancyGrid>& {
 		return m_grid_i;
+	}
+	auto NGRGrid() const -> const std::shared_ptr<smpl::OccupancyGrid>& {
+		return m_grid_ngr;
 	}
 
 	void VizCC() {
@@ -170,8 +172,8 @@ private:
 	std::uniform_real_distribution<double> m_distD;
 	std::normal_distribution<> m_distG;
 
-	std::shared_ptr<smpl::DistanceMapInterface> m_df_i;
-	std::shared_ptr<smpl::OccupancyGrid> m_grid_i;
+	std::shared_ptr<smpl::DistanceMapInterface> m_df_i, m_df_ngr;
+	std::shared_ptr<smpl::OccupancyGrid> m_grid_i, m_grid_ngr;
 	std::unique_ptr<smpl::collision::CollisionSpace> m_cc_i;
 	std::vector<std::unique_ptr<smpl::collision::CollisionShape>> m_collision_shapes;
 	std::vector<std::unique_ptr<smpl::collision::CollisionObject>> m_collision_objects;
@@ -187,7 +189,6 @@ private:
 	std::vector<std::vector<Eigen::Vector3d>> m_traj_voxels;
 
 	int m_t, m_priority;
-	LatticeState m_init;
 	Trajectory m_solve;
 	Object m_ooi;
 	std::vector<moveit_msgs::CollisionObject> m_movables;
@@ -227,7 +228,7 @@ private:
 		const smpl::RobotState& parent,
 		const smpl::RobotState& succ);
 
-	void initOccupancyGrid();
+	void initOccupancyGrids();
 	bool initCollisionChecker();
 	bool getCollisionObjectMsg(
 		const Object& object,

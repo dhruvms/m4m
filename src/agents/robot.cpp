@@ -15,6 +15,7 @@
 #include <smpl/ros/factories.h>
 #include <smpl_urdf_robot_model/urdf_robot_model.h>
 #include <smpl/distance_map/euclid_distance_map.h>
+#include <smpl/ros/propagation_distance_field.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <leatherman/print.h>
 #include <moveit_msgs/PlanningScene.h>
@@ -92,7 +93,7 @@ bool Robot::Setup()
 	// Initialize Collision Checker //
 	//////////////////////////////////
 
-	initOccupancyGrid();
+	initOccupancyGrids();
 
 	if (!initCollisionChecker())
 	{
@@ -335,17 +336,12 @@ bool Robot::ProcessObstacles(const std::vector<Object*>& obstacles, bool remove)
 bool Robot::Init()
 {
 	m_solve.clear();
-
 	m_grasp_at = -1;
 
-	m_init.t = 0;
-	m_init.state.clear();
-	m_init.state.insert(m_init.state.begin(),
+	LatticeState s;
+	s.state.insert(s.state.begin(),
 		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
-
-	m_init.coord = Coord(m_rm->jointVariableCount());
-	stateToCoord(m_init.state, m_init.coord);
-	reinitObjects(m_init.state);
+	reinitObjects(s.state);
 
 	return true;
 }
@@ -358,12 +354,10 @@ bool Robot::RandomiseStart()
 		return false;
 	}
 
-	m_init.state.clear();
-	m_init.state.insert(m_init.state.begin(),
+	LatticeState s;
+	s.state.insert(s.state.begin(),
 		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
-	m_init.coord = Coord(m_rm->jointVariableCount());
-	stateToCoord(m_init.state, m_init.coord);
-	reinitObjects(m_init.state);
+	reinitObjects(s.state);
 
 	return true;
 }
@@ -680,17 +674,17 @@ void Robot::VoxeliseTrajectory(
 			co.shapes = std::move(shapes);
 			co.shape_poses = std::move(shape_poses);
 
-			const double res = ngr->resolution();
+			const double res = m_grid_ngr->resolution();
 			const Eigen::Vector3d origin(
-					ngr->originX(), ngr->originY(), ngr->originZ());
+					m_grid_ngr->originX(), m_grid_ngr->originY(), m_grid_ngr->originZ());
 
 			const Eigen::Vector3d gmin(
-					ngr->originX(), ngr->originY(), ngr->originZ());
+					m_grid_ngr->originX(), m_grid_ngr->originY(), m_grid_ngr->originZ());
 
 			const Eigen::Vector3d gmax(
-					ngr->originX() + ngr->sizeX(),
-					ngr->originY() + ngr->sizeY(),
-					ngr->originZ() + ngr->sizeZ());
+					m_grid_ngr->originX() + m_grid_ngr->sizeX(),
+					m_grid_ngr->originY() + m_grid_ngr->sizeY(),
+					m_grid_ngr->originZ() + m_grid_ngr->sizeZ());
 
 			if (!smpl::collision::VoxelizeObject(co, res, origin, gmin, gmax, voxels)) {
 				continue;
@@ -715,7 +709,22 @@ void Robot::VoxeliseTrajectory(
 	// }
 }
 
-bool Robot::PlanOnce()
+void Robot::UpdateNGR(bool vis)
+{
+	voxeliseTrajectory();
+	m_grid_ngr->reset();
+	for (auto& voxel_list : m_traj_voxels) {
+		m_grid_ngr->addPointsToField(voxel_list);
+	}
+
+	if (vis) {
+		// SV_SHOW_INFO(m_grid_ngr->getBoundingBoxVisualization());
+		// SV_SHOW_INFO(m_grid_ngr->getDistanceFieldVisualization());
+		SV_SHOW_INFO(m_grid_ngr->getOccupiedVoxelsVisualization());
+	}
+}
+
+bool Robot::PlanApproachOnly()
 {
 	std::vector<std::vector<double> > dummy;
 	return planApproach(dummy);
@@ -1690,7 +1699,7 @@ double Robot::profileAction(
 	return max_time;
 }
 
-void Robot::initOccupancyGrid()
+void Robot::initOccupancyGrids()
 {
 	double sx, sy, sz, ox, oy, oz, max_distance;
 
@@ -1703,9 +1712,7 @@ void Robot::initOccupancyGrid()
 	m_ph.getParam("occupancy_grid/max_dist", max_distance);
 	m_ph.getParam("planning_frame", m_planning_frame);
 
-	using DistanceMapType = smpl::EuclidDistanceMap;
-
-	m_df_i = std::make_shared<DistanceMapType>(
+	m_df_i = std::make_shared<smpl::EuclidDistanceMap>(
 			ox, oy, oz,
 			sx, sy, sz,
 			DF_RES,
@@ -1714,7 +1721,17 @@ void Robot::initOccupancyGrid()
 	bool ref_counted = false;
 	m_grid_i = std::make_unique<smpl::OccupancyGrid>(m_df_i, ref_counted);
 	m_grid_i->setReferenceFrame(m_planning_frame);
-	SV_SHOW_INFO(m_grid_i->getBoundingBoxVisualization());
+	// SV_SHOW_INFO(m_grid_i->getBoundingBoxVisualization());
+
+	bool propagate_negative_distances = true;
+	m_df_ngr = std::make_shared<smpl::PropagationDistanceField>(
+			ox, oy, oz,
+			sx, sy, sz,
+			DF_RES,
+			max_distance, propagate_negative_distances);
+
+	m_grid_ngr = std::make_unique<smpl::OccupancyGrid>(m_df_ngr, ref_counted);
+	m_grid_ngr->setReferenceFrame(m_planning_frame);
 }
 
 bool Robot::initCollisionChecker()

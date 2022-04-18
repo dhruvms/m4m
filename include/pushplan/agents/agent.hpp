@@ -47,9 +47,7 @@ public:
 	// 	const std::vector<double>& xyz,
 	// 	const std::vector<double>& rpy);
 
-	void InitNGR();
 	bool Init(bool backwards);
-	void UpdateNGR(const std::vector<std::vector<Eigen::Vector3d>>& voxels, bool vis=false);
 	void ComputeNGRComplement(
 		double ox, double oy, double oz,
 		double sx, double sy, double sz, bool vis=false);
@@ -68,6 +66,9 @@ public:
 	}
 	void SetObstacleGrid(const std::shared_ptr<smpl::OccupancyGrid>& obs_grid) {
 		m_obs_grid = obs_grid;
+	}
+	void SetNGRGrid(const std::shared_ptr<smpl::OccupancyGrid>& ngr_grid) {
+		m_ngr_grid = ngr_grid;
 	}
 
 	void GetSE2Push(std::vector<double>& push);
@@ -92,7 +93,9 @@ public:
 	void VisualiseState(const LatticeState& s, const std::string& ns="", int hue=180);
 
 	Coord Goal() const { return m_goal; };
-	const smpl::OccupancyGrid* NGR() const { return m_ngr.get(); };
+	double ObsDist(double x, double y, double z) {
+		return m_obs_grid->getDistanceFromPoint(x, y, z);
+	}
 
 private:
 	ros::NodeHandle m_ph;
@@ -104,9 +107,7 @@ private:
 
 	std::unique_ptr<AgentLattice> m_lattice;
 	std::string m_planning_frame;
-	std::shared_ptr<smpl::DistanceMapInterface> m_df;
-	std::unique_ptr<smpl::OccupancyGrid> m_ngr;
-	std::shared_ptr<smpl::OccupancyGrid> m_obs_grid;
+	std::shared_ptr<smpl::OccupancyGrid> m_obs_grid, m_ngr_grid;
 	std::set<Eigen::Vector3d, Eigen_Vector3d_compare> m_ngr_complement;
 	std::vector<LatticeState> m_ngr_complement_states;
 
