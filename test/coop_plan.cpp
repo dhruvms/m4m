@@ -105,11 +105,12 @@ int main(int argc, char** argv)
 			}
 			ROS_INFO("Planner and simulator init-ed!");
 
-			if (!p.SetupAgentNGRs()) {
+			if (!p.SetupNGR())
+			{
 				ROS_ERROR("Failed to initialise NGRs for movable objects!");
 				continue;
 			}
-			ROS_INFO("All movable object NGR grids init-ed!");
+			ROS_INFO("All movable object init-ed with NGR grid!");
 
 			int mapf_calls = 0, mapf_sucesses = 0;
 			bool dead = false, rearrange = true, lucky = false, rearranged = false;
@@ -121,10 +122,10 @@ int main(int argc, char** argv)
 				{
 					++mapf_sucesses;
 
-					// ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
-					// if (p.Alive() && p.TryExtract()) {
-					// 	lucky = true;
-					// }
+					ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
+					if (p.Alive() && p.TryExtract()) {
+						lucky = true;
+					}
 
 					// if (p.Alive()) {
 					// 	ROS_WARN("Try rearrangement!");

@@ -234,16 +234,14 @@ std::uint32_t Planner::RunSim()
 
 bool Planner::TryExtract()
 {
-	if (m_exec_interm.empty() || !setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID())) {
+	if (!setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID())) {
 		return false;
 	}
 
-	moveit_msgs::RobotTrajectory to_exec;
-	m_robot->ConvertTraj(m_exec_interm, to_exec);
 	comms::ObjectsPoses rearranged = m_rearranged;
 	bool success = true;
 	double start_time = GetTime();
-	if (!m_sim->ExecTraj(to_exec.joint_trajectory, rearranged, m_robot->GraspAt(), m_ooi->GetID()))
+	if (!m_sim->ExecTraj(m_robot->GetLastPlan(), rearranged, m_robot->GraspAt(), m_ooi->GetID()))
 	{
 		SMPL_ERROR("Failed to exec traj!");
 		success = false;
