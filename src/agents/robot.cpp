@@ -585,7 +585,9 @@ bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& s
 	return true;
 }
 
-bool Robot::planApproach(const std::vector<std::vector<double> >& approach_cvecs)
+bool Robot::planApproach(
+	const std::vector<std::vector<double> >& approach_cvecs,
+	moveit_msgs::MotionPlanResponse& res)
 {
 	///////////////////
 	// Plan approach //
@@ -598,7 +600,6 @@ bool Robot::planApproach(const std::vector<std::vector<double> >& approach_cvecs
 	bool goal_collides = !m_cc_i->isStateValid(m_pregrasp_state);
 
 	moveit_msgs::MotionPlanRequest req;
-	moveit_msgs::MotionPlanResponse res;
 
 	m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
 	createJointSpaceGoal(m_pregrasp_state, req);
@@ -623,7 +624,7 @@ bool Robot::planApproach(const std::vector<std::vector<double> >& approach_cvecs
 	// SMPL_INFO("Planning to pregrasp state.");
 	if (!m_planner->init_planner(planning_scene, req, res))
 	{
-		ROS_ERROR("Failed to init planner!");
+		// ROS_ERROR("Failed to init planner!");
 		return false;
 	}
 	if (!m_planner->solve_with_constraints(req, res, m_movables, approach_cvecs))
@@ -632,15 +633,82 @@ bool Robot::planApproach(const std::vector<std::vector<double> >& approach_cvecs
 		return false;
 	}
 	// SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
-	m_traj = res.trajectory.joint_trajectory;
 
 	return true;
 }
 
-void Robot::VoxeliseTrajectory(
-	const smpl::OccupancyGrid* ngr,
-	std::vector<std::vector<Eigen::Vector3d>>& voxels)
+bool Robot::planRetract(
+	const std::vector<std::vector<double> >& retract_cvecs,
+	moveit_msgs::MotionPlanResponse& res)
 {
+	// setGripper(true); // open
+	if (!attachAndCheckObject(m_ooi, m_postgrasp_state)) {
+		detachObject();
+		return false;
+	}
+	InitArmPlanner(false);
+
+	moveit_msgs::MotionPlanRequest req;
+
+	m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
+	req.max_acceleration_scaling_factor = 1.0;
+	req.max_velocity_scaling_factor = 1.0;
+	req.num_planning_attempts = 1;
+
+	// set start state for retract plan to postgrasp state
+	moveit_msgs::RobotState orig_start = m_start_state;
+	m_start_state.joint_state.position.erase(
+		m_start_state.joint_state.position.begin() + 1,
+		m_start_state.joint_state.position.begin() + 1 + m_postgrasp_state.size());
+	m_start_state.joint_state.position.insert(
+		m_start_state.joint_state.position.begin() + 1,
+		m_postgrasp_state.begin(), m_postgrasp_state.end());
+	req.start_state = m_start_state;
+
+	// set goal state for retract plan to home state
+	smpl::RobotState home;
+	home.insert(home.begin(),
+		orig_start.joint_state.position.begin() + 1, orig_start.joint_state.position.end());
+	createJointSpaceGoal(home, req);
+	bool goal_collides = !m_cc_i->isStateValid(home);
+	if (goal_collides) {
+		req.planner_id = "arastar.manip_cbs.joint_distance";
+	}
+	else {
+		req.planner_id = "mhastar.manip_cbs.bfs.joint_distance";
+	}
+
+	// add EE path constraint - cannot roll or pitch more than 5 degrees
+	addPathConstraint(req.path_constraints);
+
+	// completely unnecessary variable
+	moveit_msgs::PlanningScene planning_scene;
+	planning_scene.robot_state = m_start_state;
+
+	// SMPL_INFO("Planning to home state with attached body.");
+	if (!m_planner->init_planner(planning_scene, req, res))
+	{
+		ROS_ERROR("Failed to init planner!");
+		return false;
+	}
+	if (!m_planner->solve_with_constraints(req, res, m_movables, retract_cvecs))
+	{
+		// ROS_ERROR("Failed to plan to home state with attached body.");
+		detachObject();
+		m_start_state = orig_start;
+		return false;
+	}
+	// SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
+
+	detachObject();
+	m_start_state = orig_start;
+
+	return true;
+}
+
+void Robot::voxeliseTrajectory()
+{
+	m_traj_voxels.clear();
 	double start_time = GetTime();
 
 	int sphere_count = 0;
@@ -686,18 +754,16 @@ void Robot::VoxeliseTrajectory(
 					m_grid_ngr->originY() + m_grid_ngr->sizeY(),
 					m_grid_ngr->originZ() + m_grid_ngr->sizeZ());
 
-			if (!smpl::collision::VoxelizeObject(co, res, origin, gmin, gmax, voxels)) {
+			if (!smpl::collision::VoxelizeObject(co, res, origin, gmin, gmax, m_traj_voxels)) {
 				continue;
 			}
 		}
 	}
 
 	ROS_INFO("Robot trajectory voxelisation took %f seconds", GetTime() - start_time);
-	m_traj_voxels = voxels;
 
 	// TODO: make this faster by looping over cells in a sphere octant
 	// and computing the rest via symmetry
-	// start_time = GetTime();
 
 	// int sphere_count = 0;
 	// for (const auto& wp: m_traj.points)
@@ -727,42 +793,29 @@ void Robot::UpdateNGR(bool vis)
 bool Robot::PlanApproachOnly()
 {
 	std::vector<std::vector<double> > dummy;
-	return planApproach(dummy);
-}
-
-bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
-{
-	expands = 0;
-	min_f = 0;
-	// CBS TODO: must pick out constraints wrt planning phase:
-	// (i) for planning to pregrasp, all constraints with time <= m_grasp_at
-	// are active
-	// (ii) for planning to home, all constraints with times >= m_grasp_at + 2
-	// are active
-
-	// Get relevant constraints - check logic per above
-	std::list<std::shared_ptr<Constraint> > approach_constraints;
-	for (auto& constraint : ct_node->m_constraints)
-	{
-		if (constraint->m_me == ct_node->m_replanned) {
-			approach_constraints.push_back(constraint);
-		}
-	}
-
-	std::vector<std::vector<double> > approach_cvecs;
-	VecConstraints(approach_constraints, approach_cvecs);
-	approach_constraints.clear();
-
-	if (!planApproach(approach_cvecs)) {
+	moveit_msgs::MotionPlanResponse res;
+	if (!planApproach(dummy, res)) {
 		return false;
 	}
 
-	auto planner_stats = m_planner->getPlannerStats();
-	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
-	expands = planner_stats["expansions"];
-	min_f = planner_stats["min f val"];
+	m_traj = res.trajectory.joint_trajectory;
+	return true;
+}
 
-/*
+bool Robot::PlanRetrieval()
+{
+	///////////////////
+	// Plan approach //
+	///////////////////
+
+	std::vector<std::vector<double> > dummy;
+	moveit_msgs::MotionPlanResponse res_a;
+	if (!planApproach(dummy, res_a)) {
+		return false;
+	}
+
+	m_traj = res_a.trajectory.joint_trajectory;
+
 	//////////////////
 	// Append grasp //
 	//////////////////
@@ -786,54 +839,118 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 	// Plan extraction //
 	/////////////////////
 
-	// setGripper(true); // open
-	if (!attachAndCheckObject(m_ooi, m_postgrasp_state)) {
-		detachObject();
+	moveit_msgs::MotionPlanResponse res_r;
+	if (!planRetract(dummy, res_r)) {
 		return false;
 	}
-	InitArmPlanner(false);
-
-	moveit_msgs::RobotState orig_start = m_start_state;
-	m_start_state.joint_state.position.erase(
-		m_start_state.joint_state.position.begin() + 1,
-		m_start_state.joint_state.position.begin() + 1 + m_postgrasp_state.size());
-	m_start_state.joint_state.position.insert(
-		m_start_state.joint_state.position.begin() + 1,
-		m_postgrasp_state.begin(), m_postgrasp_state.end());
-	req.start_state = m_start_state;
-	planning_scene.robot_state = m_start_state;
-
-	smpl::RobotState home;
-	home.insert(home.begin(),
-		orig_start.joint_state.position.begin() + 1, orig_start.joint_state.position.end());
-	createJointSpaceGoal(home, req);
-
-	addPathConstraint(req.path_constraints);
-
-	SMPL_INFO("Planning to home state with attached body.");
-	if (!m_planner->solve_with_constraints(planning_scene, req, res, m_movables, retract_cvecs))
-	{
-		ROS_ERROR("Failed to plan to home state with attached body.");
-		detachObject();
-		m_start_state = orig_start;
-		return false;
-	}
-	SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
-
-	planner_stats = m_planner->getPlannerStats();
-	m_stats["extract_plan_time"] = planner_stats["initial solution planning time"];
-
-	detachObject();
-	m_start_state = orig_start;
 
 	auto extract_start_time = m_traj.points.back().time_from_start;
-	for (size_t i = 0; i < res.trajectory.joint_trajectory.points.size(); ++i)
+	for (size_t i = 0; i < res_r.trajectory.joint_trajectory.points.size(); ++i)
 	{
-		auto& wp = res.trajectory.joint_trajectory.points.at(i);
+		auto& wp = res_r.trajectory.joint_trajectory.points.at(i);
 		wp.time_from_start += extract_start_time;
 		m_traj.points.push_back(wp);
 	}
-*/
+
+	return true;
+}
+
+bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f)
+{
+	expands = 0;
+	min_f = 0;
+	// CBS TODO: must pick out constraints wrt planning phase:
+	// (i) for planning to pregrasp, all constraints with time <= m_grasp_at
+	// are active
+	// (ii) for planning to home, all constraints with times >= m_grasp_at + 2
+	// are active
+
+	// Get relevant constraints - check logic per above
+	std::list<std::shared_ptr<Constraint> > approach_constraints, retract_constraints;
+	for (auto& constraint : ct_node->m_constraints)
+	{
+		if (constraint->m_me == ct_node->m_replanned)
+		{
+			if (constraint->m_time <= m_grasp_at) {
+				approach_constraints.push_back(constraint);
+			}
+			else if (constraint->m_time >= m_grasp_at + 2)
+			{
+				std::shared_ptr<Constraint> new_constraint(new Constraint());
+				new_constraint->m_me = constraint->m_me;
+				new_constraint->m_other = constraint->m_other;
+				new_constraint->m_time = constraint->m_time - (m_grasp_at + 2);
+				new_constraint->m_q = constraint->m_q;
+				retract_constraints.push_back(new_constraint);
+			}
+		}
+	}
+
+	std::vector<std::vector<double> > approach_cvecs, retract_cvecs;
+	VecConstraints(approach_constraints, approach_cvecs);
+	VecConstraints(retract_constraints, retract_cvecs);
+	approach_constraints.clear();
+	retract_constraints.clear();
+
+	///////////////////
+	// Plan approach //
+	///////////////////
+
+	moveit_msgs::MotionPlanResponse res_a;
+	if (!planApproach(approach_cvecs, res_a)) {
+		return false;
+	}
+
+	auto planner_stats = m_planner->getPlannerStats();
+	m_stats["approach_plan_time"] = planner_stats["initial solution planning time"];
+	expands = planner_stats["expansions"];
+	min_f = planner_stats["min f val"];
+	m_traj = res_a.trajectory.joint_trajectory;
+
+	//////////////////
+	// Append grasp //
+	//////////////////
+
+	m_grasp_at = m_traj.points.size();
+
+	double grasp_time = profileAction(m_pregrasp_state, m_grasp_state);
+	double postgrasp_time = profileAction(m_grasp_state, m_postgrasp_state);
+	// double retreat_time = profileAction(m_postgrasp_state, m_pregrasp_state);
+
+	trajectory_msgs::JointTrajectoryPoint p;
+	p.positions = m_grasp_state;
+	p.time_from_start = ros::Duration(grasp_time) + m_traj.points.back().time_from_start;
+	m_traj.points.push_back(p);
+
+	p.positions = m_postgrasp_state;
+	p.time_from_start = ros::Duration(postgrasp_time) + m_traj.points.back().time_from_start;
+	m_traj.points.push_back(p);
+
+	/////////////////////
+	// Plan extraction //
+	/////////////////////
+
+	moveit_msgs::MotionPlanResponse res_r;
+	if (!planRetract(retract_cvecs, res_r)) {
+		return false;
+	}
+
+	planner_stats = m_planner->getPlannerStats();
+	m_stats["extract_plan_time"] = planner_stats["initial solution planning time"];
+	expands += planner_stats["expansions"];
+	min_f = std::min(min_f, (int)planner_stats["min f val"]);
+
+	auto extract_start_time = m_traj.points.back().time_from_start;
+	for (size_t i = 0; i < res_r.trajectory.joint_trajectory.points.size(); ++i)
+	{
+		auto& wp = res_r.trajectory.joint_trajectory.points.at(i);
+		wp.time_from_start += extract_start_time;
+		m_traj.points.push_back(wp);
+	}
+
+	/////////////////////////
+	// Update CBS solution //
+	/////////////////////////
 
 	m_solve.clear();
 	int t = 0;
@@ -846,7 +963,6 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 		s.t = t;
 
 		m_solve.push_back(s);
-		// SMPL_INFO("[m_solve] [t = %d] (%f, %f, %f, %f, %f, %f, %f)", t, m_solve.back().state.at(0), m_solve.back().state.at(1), m_solve.back().state.at(2), m_solve.back().state.at(3), m_solve.back().state.at(4), m_solve.back().state.at(5), m_solve.back().state.at(6));
 		++t;
 	}
 	*sol_path = &(this->m_solve);

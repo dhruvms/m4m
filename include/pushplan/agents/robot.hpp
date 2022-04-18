@@ -277,7 +277,13 @@ private:
 	bool detachObject();
 	void displayObjectMarker(const Object& object);
 
-	bool planApproach(const std::vector<std::vector<double> >& approach_cvecs);
+	bool planApproach(
+		const std::vector<std::vector<double> >& approach_cvecs,
+		moveit_msgs::MotionPlanResponse& res);
+	bool planRetract(
+		const std::vector<std::vector<double> >& retract_cvecs,
+		moveit_msgs::MotionPlanResponse& res);
+	void voxeliseTrajectory();
 };
 
 } // namespace clutter
