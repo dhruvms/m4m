@@ -794,7 +794,37 @@ void CBS::SaveStats()
 {
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../../dat/CBS.csv";
+	filename = filename.substr(0, found + 1) + "../../dat/?.csv";
+
+	std::string algoname;
+	switch (ALGO)
+	{
+		case MAPFAlgo::ECBS:
+		{
+			algoname = "ECBS";
+			break;
+		}
+		case MAPFAlgo::CBSWP:
+		{
+			algoname = "CBSwP";
+			break;
+		}
+		case MAPFAlgo::PBS:
+		{
+			algoname = "PBS";
+			break;
+		}
+		case MAPFAlgo::VCBS:
+		default:
+		{
+			algoname = "CBS";
+			break;
+		}
+	}
+	found = filename.find_last_of("?");
+	filename.insert(found, algoname);
+	found = filename.find_last_of("?");
+	filename.erase(found, 1);
 
 	bool exists = FileExists(filename);
 	std::ofstream STATS;

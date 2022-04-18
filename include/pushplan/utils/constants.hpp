@@ -27,6 +27,7 @@ enum class MAPFAlgo
 {
 	WHCA,
 	VCBS,
+	ECBS,
 	CBSWP,
 	PBS,
 	OURS,

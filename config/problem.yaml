@@ -51,7 +51,7 @@ mapf:
     window: 4
     grid: 4
   cbs:
-    algo: 4 # 0: WHCA, 1: CBS, 2: CBSw/P, 3: PBS, 4: ours
+    algo: 1 # 0: WHCA, 1: CBS, 2: ECBS, 3: CBSw/P, 4: PBS, 5: ours
     llhc: 0
     hlhc: 0
     ecbs_mult: 10

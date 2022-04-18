@@ -1,6 +1,8 @@
 #include <pushplan/search/planner.hpp>
 #include <pushplan/agents/agent.hpp>
 #include <pushplan/search/cbs.hpp>
+#include <pushplan/search/cbswp.hpp>
+#include <pushplan/search/pbs.hpp>
 #include <pushplan/utils/constants.hpp>
 #include <pushplan/utils/geometry.hpp>
 #include <pushplan/utils/helpers.hpp>
@@ -115,7 +117,31 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
 
-	m_cbs = std::make_shared<CBS>(m_robot, m_agents, m_scene_id);
+
+	switch (ALGO)
+	{
+		case MAPFAlgo::VCBS:
+		case MAPFAlgo::ECBS:
+		{
+			m_cbs = std::make_shared<CBS>(m_robot, m_agents, m_scene_id);
+			break;
+		}
+		case MAPFAlgo::CBSWP:
+		{
+			m_cbs = std::make_shared<CBSwP>(m_robot, m_agents, m_scene_id);
+			break;
+		}
+		case MAPFAlgo::PBS:
+		{
+			m_cbs = std::make_shared<PBS>(m_robot, m_agents, m_scene_id);
+			break;
+		}
+		default:
+		{
+			SMPL_ERROR("MAPF Algo type currently not supported!");
+			return false;
+		}
+	}
 	m_cbs->SetCC(m_cc);
 
 	return true;
@@ -178,8 +204,7 @@ bool Planner::SetupAgentNGRs()
 
 bool Planner::Plan()
 {
-	// bool backwards = ALGO == MAPFAlgo::OURS;
-	bool backwards = false;
+	bool backwards = ALGO == MAPFAlgo::OURS;
 	while (!setupProblem(backwards)) {
 		continue;
 	}
