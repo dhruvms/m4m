@@ -74,9 +74,9 @@ public:
 	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner(bool interp=false);
 	bool PlanPush(
-		int oid, const Trajectory* o_traj, const Object& o,
-		const comms::ObjectsPoses& rearranged,
-		comms::ObjectsPoses& result);
+		Agent* object, const std::vector<double>& push,
+		const std::vector<Object*>& other_movables,
+		const comms::ObjectsPoses& rearranged, comms::ObjectsPoses& result);
 	trajectory_msgs::JointTrajectory GetLastPlan() {
 		SMPL_INFO("rearrangmenet traj size = %d", m_traj.points.size());
 		return m_traj;
@@ -204,8 +204,8 @@ private:
 
 	bool samplePush(
 		const std::vector<double>& push,
-		const Trajectory* obj_traj, const std::vector<Object>& pushed_object,
-		const std::vector<Object>& movable_obstacles,
+		const Trajectory* obj_traj, const std::vector<Object*>& pushed_object,
+		const std::vector<Object*>& movable_obstacles,
 		smpl::RobotState& push_start, smpl::RobotState& push_end);
 
 	void getRandomState(smpl::RobotState& s);

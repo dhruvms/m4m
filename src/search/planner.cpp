@@ -274,10 +274,10 @@ bool Planner::rearrange()
 		SMPL_INFO("Object %d push is (%f, %f, %f)", path.first, push[0], push[1], push[2]);
 
 		// other movables to be considered as obstacles
-		std::vector<Object> movable_obstacles;
+		std::vector<Object*> movable_obstacles;
 		for (const auto& a: m_agents)
 		{
-			if (a->GetObject()->back().id == path.first) {
+			if (a->GetID() == path.first) {
 				continue; // selected object cannot be obstacle
 			}
 			movable_obstacles.push_back(a->GetObject());
@@ -290,7 +290,6 @@ bool Planner::rearrange()
 
 		if (m_robot->PlanPush(m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result))
 		{
-			push_found = true;
 			m_rearrangements.push_back(m_robot->GetLastPlan());
 
 			// update positions of moved objects

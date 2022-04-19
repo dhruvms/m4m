@@ -1110,7 +1110,7 @@ bool Robot::InitArmPlanner(bool interp)
 }
 
 bool Robot::PlanPush(
-	Agent* object, const std::vector<double>& push, const std::vector<Object>& other_movables,
+	Agent* object, const std::vector<double>& push, const std::vector<Object*>& other_movables,
 	const comms::ObjectsPoses& rearranged, comms::ObjectsPoses& result)
 {
 	m_pushes.clear();
@@ -1122,20 +1122,20 @@ bool Robot::PlanPush(
 
 	// required info about object being pushed
 	const Trajectory* obj_traj = object->SolveTraj();
-	std::vector<Object> pushed_obj = { object->GetObject() };
+	std::vector<Object*> pushed_obj = { object->GetObject() };
 
 	int i = 0;
 	double start_time = GetTime(), time_spent;
 	while((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time))
 	{
 		smpl::RobotState push_start, push_end;
-		if (samplePush(push, obj_traj, pushed_obj, movable_obstacles, push_start, push_end))
+		if (samplePush(push, obj_traj, pushed_obj, other_movables, push_start, push_end))
 		{
 			SMPL_INFO("Found push! Plan to push start!");
 
 			UpdateKDLRobot(0);
 			ProcessObstacles(pushed_obj);
-			ProcessObstacles(movable_obstacles);
+			ProcessObstacles(other_movables);
 			InitArmPlanner(false);
 
 			moveit_msgs::MotionPlanRequest req;
@@ -1164,11 +1164,11 @@ bool Robot::PlanPush(
 			{
 				ROS_ERROR("Failed to plan.");
 				ProcessObstacles(pushed_obj, true);
-				ProcessObstacles(movable_obstacles, true);
+				ProcessObstacles(other_movables, true);
 				continue;
 			}
 			ProcessObstacles(pushed_obj, true);
-			ProcessObstacles(movable_obstacles, true);
+			ProcessObstacles(other_movables, true);
 
 			auto planner_stats = m_planner->getPlannerStats();
 			m_stats["push_traj_plan_time"] += planner_stats["initial solution planning time"];
@@ -1208,7 +1208,7 @@ bool Robot::PlanPush(
 
 	int pidx, successes;
 	start_time = GetTime();
-	m_sim->SimPushes(m_pushes, oid, o_traj->back().state.at(0), o_traj->back().state.at(1), pidx, successes, rearranged, result);
+	m_sim->SimPushes(m_pushes, object->GetID(), obj_traj->back().state.at(0), obj_traj->back().state.at(1), pidx, successes, rearranged, result);
 	time_spent = GetTime() - start_time;
 
 	m_stats["push_sim_time"] = time_spent;
@@ -1261,8 +1261,8 @@ State Robot::GetEEState(const State& state)
 
 bool Robot::samplePush(
 	const std::vector<double>& push,
-	const Trajectory* obj_traj, const std::vector<Object>& pushed_object,
-	const std::vector<Object>& movable_obstacles,
+	const Trajectory* obj_traj, const std::vector<Object*>& pushed_object,
+	const std::vector<Object*>& other_movables,
 	smpl::RobotState& push_start, smpl::RobotState& push_end)
 {
 	bool success = false;
@@ -1311,13 +1311,13 @@ bool Robot::samplePush(
 
 	// add all movable objects as obstacles when finding a push start state
 	ProcessObstacles(pushed_object);
-	ProcessObstacles(movable_obstacles);
+	ProcessObstacles(other_movables);
 	// run IK for push start pose
 	if (getStateNearPose(push_pose, seed, push_start, 1))
 	{
 		// remove other movable objects not being pushed from obstacle space
 		// since a push action is allowed to collide with them
-		ProcessObstacles(movable_obstacles, true);
+		ProcessObstacles(other_movables, true);
 
 		// vis_name = "push_start";
 		// auto markers = m_cc_i->getCollisionModelVisualization(push_start);
@@ -1370,7 +1370,7 @@ bool Robot::samplePush(
 	else
 	{
 		ProcessObstacles(pushed_object, true);
-		ProcessObstacles(movable_obstacles, true);
+		ProcessObstacles(other_movables, true);
 		return false;
 	}
 

@@ -257,7 +257,7 @@ bool Agent::GetSE2Push(std::vector<double>& push)
 	// https://www.scratchapixel.com/code.php?id=10&origin=/lessons/3d-basic-rendering/ray-tracing-rendering-simple-shapes&src=1
 
 	// AABB bounds
-	m_obj.UpdatePose(m_init.state);
+	m_obj.UpdatePose(m_init);
 	auto aabb = m_obj.GetFCLObject()->getAABB();
 	std::vector<fcl::Vec3f> bounds = {aabb.min_, aabb.max_};
 
@@ -266,7 +266,7 @@ bool Agent::GetSE2Push(std::vector<double>& push)
 			std::cos(move_dir + M_PI),
 			std::sin(move_dir + M_PI),
 			0.0);
-	push_dir = push_dir.normalize();
+	push_dir.normalize();
 	Eigen::Vector3f inv_dir = push_dir.array().inverse();
 
 	// Push direction sign vector
