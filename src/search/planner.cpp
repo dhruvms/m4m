@@ -111,10 +111,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	}
 	m_robot->VizCC();
 
-	m_simulate = m_nh.advertiseService("run_sim", &Planner::runSim, this);
-	m_animate = m_nh.advertiseService("anim_soln", &Planner::animateSolution, this);
-	m_rearrange = m_nh.advertiseService("rearrange", &Planner::rearrange, this);
-
 	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
 
 	switch (ALGO)
@@ -212,9 +208,7 @@ bool Planner::Plan()
 
 bool Planner::Rearrange()
 {
-	std_srvs::Empty::Request req;
-	std_srvs::Empty::Response resp;
-	if (!rearrange(req, resp)) {
+	if (!rearrange()) {
 		SMPL_WARN("There were no conflicts to rearrange!");
 		return false;
 	}
@@ -223,10 +217,7 @@ bool Planner::Rearrange()
 
 std::uint32_t Planner::RunSim()
 {
-	std_srvs::Empty::Request req;
-	std_srvs::Empty::Response resp;
-
-	if (!runSim(req, resp)) {
+	if (!runSim()) {
 		SMPL_ERROR("Simulation failed!");
 	}
 	return m_violation;
@@ -261,12 +252,10 @@ void Planner::AnimateSolution()
 	}
 	m_robot->ProcessObstacles(final_objects);
 
-	std_srvs::Empty::Request req;
-	std_srvs::Empty::Response resp;
-	animateSolution(req, resp);
+	animateSolution();
 }
 
-bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
+bool Planner::rearrange()
 {
 	// for (auto& a: m_agents) {
 	// 	a->ResetObject();
@@ -389,13 +378,13 @@ bool Planner::rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response
 	return true;
 }
 
-bool Planner::animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
+bool Planner::animateSolution()
 {
 	m_robot->AnimateSolution();
 	return true;
 }
 
-bool Planner::runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp)
+bool Planner::runSim()
 {
 	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
 

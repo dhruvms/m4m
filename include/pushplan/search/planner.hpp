@@ -88,15 +88,14 @@ private:
 	std::vector<size_t> m_priorities;
 
 	ros::NodeHandle m_ph, m_nh;
-	ros::ServiceServer m_simulate, m_animate, m_rearrange;
 	std::uint32_t m_violation;
 
 	std::map<std::string, double> m_stats;
 	double m_plan_time, m_plan_budget, m_sim_budget, m_total_budget;
 
-	bool runSim(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
-	bool animateSolution(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
-	bool rearrange(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
+	bool runSim();
+	bool animateSolution();
+	bool rearrange();
 
 	bool setupProblem(bool backwards);
 	void updateAgentPositions(
