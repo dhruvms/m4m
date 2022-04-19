@@ -241,50 +241,88 @@ const Object* Agent::GetObject(const LatticeState& s)
 	return &m_obj;
 }
 
-void Agent::GetSE2Push(std::vector<double>& push)
+bool Agent::GetSE2Push(std::vector<double>& push)
 {
 	push.clear();
-	push.resize(3, 0.0); // (x, y, yaw)
-
 	double move_dir = std::atan2(
 					m_solve.back().state.at(1) - m_solve.front().state.at(1),
 					m_solve.back().state.at(0) - m_solve.front().state.at(0));
-	push.at(0) = m_obj_desc.o_x + std::cos(move_dir + M_PI) * (m_obj_desc.x_size + 0.05);
-	push.at(1) = m_obj_desc.o_y + std::sin(move_dir + M_PI) * (m_obj_desc.x_size + 0.05);
-	push.at(2) = move_dir;
 
-	if (m_obj_desc.shape == 0)
-	{
-		// get my object rectangle
-		std::vector<State> rect;
-		State o = {m_obj_desc.o_x, m_obj_desc.o_y};
-		GetRectObjAtPt(o, m_obj_desc, rect);
+	// default values
+	push[0] = m_obj_desc.o_x;
+	push[1] = m_obj_desc.o_y;
+	push[2] = move_dir;
 
-		// find rectangle side away from push direction
-		push.at(0) = m_obj_desc.o_x + std::cos(move_dir + M_PI) * 0.5;
-		push.at(1) = m_obj_desc.o_y + std::sin(move_dir + M_PI) * 0.5;
-		State p = {push.at(0), push.at(1)}, intersection;
-		double op = EuclideanDist(o, p);
-		int side = 0;
-		for (; side <= 3; ++side)
-		{
-			LineLineIntersect(o, p, rect.at(side), rect.at((side + 1) % 4), intersection);
-			if (PointInRectangle(intersection, rect))
-			{
-				if (EuclideanDist(intersection, o) + EuclideanDist(intersection, p) <= op + 1e-6) {
-					break;
-				}
-			}
-		}
+	// Ray-AABB intersection code from
+	// https://www.scratchapixel.com/code.php?id=10&origin=/lessons/3d-basic-rendering/ray-tracing-rendering-simple-shapes&src=1
 
-		// compute push point on side
-		intersection.at(0) += std::cos(move_dir + M_PI) * 0.08;
-		intersection.at(1) += std::sin(move_dir + M_PI) * 0.08;
+	// AABB bounds
+	m_obj.UpdatePose(m_init.state);
+	auto aabb = m_obj.GetFCLObject()->getAABB();
+	std::vector<fcl::Vec3f> bounds = {aabb.min_, aabb.max_};
 
-		// update push
-		push.at(0) = intersection.at(0);
-		push.at(1) = intersection.at(1);
+	// Push direction and inverse direction
+	Eigen::Vector3f push_dir(
+			std::cos(move_dir + M_PI),
+			std::sin(move_dir + M_PI),
+			0.0);
+	push_dir = push_dir.normalize();
+	Eigen::Vector3f inv_dir = push_dir.array().inverse();
+
+	// Push direction sign vector
+	Eigen::Vector3i push_sign(
+		inv_dir[0] < 0, inv_dir[1] < 0, inv_dir[2] < 0);
+
+	float tmin, tmax, tymin, tymax, tzmin, tzmax;
+	tmin = (bounds[push_sign[0]][0] - m_obj_desc.o_x) * inv_dir[0];
+	tmax = (bounds[1 - push_sign[0]][0] - m_obj_desc.o_x) * inv_dir[0];
+	tymin = (bounds[push_sign[1]][1] - m_obj_desc.o_y) * inv_dir[1];
+	tymax = (bounds[1 - push_sign[1]][1] - m_obj_desc.o_y) * inv_dir[1];
+
+	if ((tmin > tymax) || (tymin > tmax)) {
+		return false;
 	}
+
+	if (tymin > tmin) {
+		tmin = tymin;
+	}
+	if (tymax < tmax) {
+		tmax = tymax;
+	}
+
+	tzmin = (bounds[push_sign[2]][2] - m_obj_desc.o_z) * inv_dir[2];
+	tzmax = (bounds[1 - push_sign[2]][2] - m_obj_desc.o_z) * inv_dir[2];
+
+	if ((tmin > tzmax) || (tzmin > tmax)) {
+		return false;
+	}
+
+	if (tzmin > tmin) {
+		tmin = tzmin;
+	}
+	if (tzmax < tmax) {
+		tmax = tzmax;
+	}
+
+	float t = tmin;
+
+	if (t < 0)
+	{
+		t = tmax;
+		if (t < 0) {
+			return false;
+		}
+	}
+
+	if (t > 1) {
+		return false;
+	}
+
+	push[0] = m_obj_desc.o_x + push_dir[0] * t;
+	push[1] = m_obj_desc.o_y + push_dir[1] * t;
+	push[2] = move_dir;
+
+	return true;
 }
 
 // find best NGR complement cell

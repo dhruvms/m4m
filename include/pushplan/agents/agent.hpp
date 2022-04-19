@@ -71,7 +71,7 @@ public:
 		m_ngr_grid = ngr_grid;
 	}
 
-	void GetSE2Push(std::vector<double>& push);
+	bool GetSE2Push(std::vector<double>& push);
 	int GetID() { return m_obj.desc.id; };
 
 	Object* GetObject() { return &m_obj; };
