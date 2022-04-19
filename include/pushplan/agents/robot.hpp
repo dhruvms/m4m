@@ -73,7 +73,6 @@ public:
 
 	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner(bool interp=false);
-	void SetPushGoal(const std::vector<double>& push);
 	bool PlanPush(
 		int oid, const Trajectory* o_traj, const Object& o,
 		const comms::ObjectsPoses& rearranged,

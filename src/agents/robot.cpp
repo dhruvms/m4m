@@ -1109,41 +1109,33 @@ bool Robot::InitArmPlanner(bool interp)
 	}
 }
 
-void Robot::SetPushGoal(const std::vector<double>& push)
-{
-	m_goal_vec.clear();
-	m_goal_vec.resize(6, 0.0);
-
-	m_goal_vec[0] = push[0]; // x
-	m_goal_vec[1] = push[1]; // y
-	m_goal_vec[5] = push[2]; // yaw
-	m_goal_vec[2] = m_table_z + 0.075; // z
-	m_goal_vec[3] = 0.0; // roll
-	m_goal_vec[4] = 0.0; // pitch
-
-	fillGoalConstraint();
-}
-
 bool Robot::PlanPush(
-	int oid, const Trajectory* o_traj, const Object& o,
+	Agent* object, const std::vector<double>& push, const std::vector<Object>& other_movables,
 	const comms::ObjectsPoses& rearranged, comms::ObjectsPoses& result)
 {
+	m_pushes.clear();
+
 	if (m_pushes_per_object == -1) {
 		m_ph.getParam("robot/pushes", m_pushes_per_object);
 		m_ph.getParam("robot/plan_push_time", m_plan_push_time);
 	}
 
-	m_pushes.clear();
-	std::vector<Object> obs = {o};
+	// required info about object being pushed
+	const Trajectory* obj_traj = object->SolveTraj();
+	std::vector<Object> pushed_obj = { object->GetObject() };
+
 	int i = 0;
 	double start_time = GetTime(), time_spent;
 	while((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time))
 	{
 		smpl::RobotState push_start, push_end;
-		if (samplePush(o_traj, obs, push_start, push_end))
+		if (samplePush(push, obj_traj, pushed_obj, movable_obstacles, push_start, push_end))
 		{
+			SMPL_INFO("Found push! Plan to push start!");
+
 			UpdateKDLRobot(0);
-			ProcessObstacles(obs);
+			ProcessObstacles(pushed_obj);
+			ProcessObstacles(movable_obstacles);
 			InitArmPlanner(false);
 
 			moveit_msgs::MotionPlanRequest req;
@@ -1163,9 +1155,6 @@ bool Robot::PlanPush(
 			// completely unnecessary variable
 			moveit_msgs::PlanningScene planning_scene;
 			planning_scene.robot_state = m_start_state;
-
-			SMPL_INFO("Found push! Plan to push start!");
-
 			if (!m_planner->init_planner(planning_scene, req, res))
 			{
 				ROS_ERROR("Failed to init planner!");
@@ -1174,10 +1163,12 @@ bool Robot::PlanPush(
 			if (!m_planner->solve(req, res))
 			{
 				ROS_ERROR("Failed to plan.");
-				ProcessObstacles(obs, true);
+				ProcessObstacles(pushed_obj, true);
+				ProcessObstacles(movable_obstacles, true);
 				continue;
 			}
-			ProcessObstacles(obs, true);
+			ProcessObstacles(pushed_obj, true);
+			ProcessObstacles(movable_obstacles, true);
 
 			auto planner_stats = m_planner->getPlannerStats();
 			m_stats["push_traj_plan_time"] += planner_stats["initial solution planning time"];
