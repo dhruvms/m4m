@@ -204,7 +204,9 @@ private:
 	double m_planner_time, m_sim_time;
 
 	bool samplePush(
-		const Trajectory* object, const std::vector<Object>& obs,
+		const std::vector<double>& push,
+		const Trajectory* obj_traj, const std::vector<Object>& pushed_object,
+		const std::vector<Object>& movable_obstacles,
 		smpl::RobotState& push_start, smpl::RobotState& push_end);
 
 	void getRandomState(smpl::RobotState& s);

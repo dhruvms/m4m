@@ -1269,84 +1269,118 @@ State Robot::GetEEState(const State& state)
 }
 
 bool Robot::samplePush(
-	const Trajectory* object, const std::vector<Object>& obs,
+	const std::vector<double>& push,
+	const Trajectory* obj_traj, const std::vector<Object>& pushed_object,
+	const std::vector<Object>& movable_obstacles,
 	smpl::RobotState& push_start, smpl::RobotState& push_end)
 {
 	bool success = false;
 
-	// sample push_end via IK
-	smpl::RobotState dummy;
-	Eigen::Affine3d push_pose;
+	// sample seed via IK
+	smpl::RobotState seed;
+	Eigen::Affine3d push_pose = Eigen::Translation3d(push[0], push[1], m_grasp_z) *
+				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
+				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
+	if (!getStateNearPose(push_pose, m_grasp_state, seed, 4)) {
+		return false;
+	}
 
 	// sample robot link
 	int link = std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
 	UpdateKDLRobot(link);
 
+	// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise
+	double yaw = push[2] + (m_distG(m_rng) * DEG5);
+	if (link > 0) {
+		yaw += sgn(m_distD(m_rng) * 2 - 1) * M_PI_2;
+	}
+
 	// sample push dist fraction
-	double push_frac = (m_distD(m_rng) * 0.75) + 0.3;
+	double push_frac = (m_distD(m_rng) * 0.25) + 0.75;
 
-	// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise (from -10 to 10 degrees)
-	double yaw = m_goal_vec[5] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * DEG5);
-
-	// roll and pitch are noise (from 0 to 10 degrees)
-	double roll = (m_distD(m_rng) * 6 * DEG5);
+	// pitch is noise (from 0 to 30 degrees)
 	double pitch = (m_distD(m_rng) * 6 * DEG5);
 
-	// z is between 2.5 to 7.5cm above table height
+	// z is between 1 to 5cm above table height
 	double z = m_table_z + (m_distD(m_rng) * 0.04) + 0.01;
 
-	// (x, y) are linearly interpolated between object start and end
-	double x = object->front().state.at(0) * (1 - push_frac) + object->back().state.at(0) * push_frac;
-	double y = object->front().state.at(1) * (1 - push_frac) + object->back().state.at(1) * push_frac;
-	x += (m_distG(m_rng) * 0.025);
-	y += (m_distG(m_rng) * 0.025);
+	// (x, y) is randomly sampled near push start location
+	double x = push[0] + std::cos(push[2] + M_PI) * (m_distG(m_rng) * 0.025);
+	double y = push[1] + std::sin(push[2] + M_PI) * (m_distG(m_rng) * 0.025);
 
 	push_pose = Eigen::Translation3d(x, y, z) *
 				Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
 				Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
-				Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
+				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
 
-	// auto* vis_name = "push_end_pose";
+	// auto* vis_name = "push_start_pose";
 	// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
 	// 	push_pose, m_grid_i->getReferenceFrame(), vis_name));
 
-	// run IK for push end pose with random seed
-	if (getStateNearPose(push_pose, dummy, push_end, 1))
+	// add all movable objects as obstacles when finding a push start state
+	ProcessObstacles(pushed_object);
+	ProcessObstacles(movable_obstacles);
+	// run IK for push start pose
+	if (getStateNearPose(push_pose, seed, push_start, 1))
 	{
-		// vis_name = "push_end";
-		// auto markers = m_cc_i->getCollisionModelVisualization(push_end);
+		// remove other movable objects not being pushed from obstacle space
+		// since a push action is allowed to collide with them
+		ProcessObstacles(movable_obstacles, true);
+
+		// vis_name = "push_start";
+		// auto markers = m_cc_i->getCollisionModelVisualization(push_start);
 		// for (auto& marker : markers) {
 		// 	marker.ns = vis_name;
 		// }
 		// SV_SHOW_INFO_NAMED(vis_name, markers);
 
-		push_pose = m_rm->computeFK(push_end);
-		push_pose.translation().x() = m_goal_vec[0] + (m_distG(m_rng) * 0.025);
-		push_pose.translation().y() = m_goal_vec[1] + (m_distG(m_rng) * 0.025);
+		push_pose = m_rm->computeFK(push_start);
+		push_pose.translation().x() = obj_traj->front().state.at(0) * (1 - push_frac) + obj_traj->back().state.at(0) * push_frac;
+		push_pose.translation().y() = obj_traj->front().state.at(1) * (1 - push_frac) + obj_traj->back().state.at(1) * push_frac;
 
-		// vis_name = "push_start_pose";
+		// vis_name = "push_end_pose";
 		// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
 		// 	push_pose, m_grid_i->getReferenceFrame(), vis_name));
 
-		ProcessObstacles(obs);
-		if (getStateNearPose(push_pose, push_end, push_start, 1))
+		// run IK for push start pose
+		if (m_rm->computeIKSearch(push_pose, push_start, push_end))
 		{
-			// vis_name = "push_start";
-			// markers = m_cc_i->getCollisionModelVisualization(push_start);
-			// for (auto& marker : markers) {
-			// 	marker.ns = vis_name;
-			// }
-			// SV_SHOW_INFO_NAMED(vis_name, markers);
 
-			bool collides = !(m_cc_i->isStateToStateValid(push_start, push_end));
-			ProcessObstacles(obs, true);
-			if (collides && m_cc_i->isStateToStateValid(push_start, push_end)) {
-				success = true;
+			if (!m_rm->checkJointLimits(push_end))
+			{
+				ProcessObstacles(pushed_object, true);
+				return false;
+			}
+			else
+			{
+				// vis_name = "push_end";
+				// markers = m_cc_i->getCollisionModelVisualization(push_end);
+				// for (auto& marker : markers) {
+				// 	marker.ns = vis_name;
+				// }
+				// SV_SHOW_INFO_NAMED(vis_name, markers);
+
+				// check if push action collides with intended pushed_object
+				bool collides = !(m_cc_i->isStateToStateValid(push_start, push_end));
+				ProcessObstacles(pushed_object, true);
+				// check if push action does not collide with immovable obstacles
+				if (collides) {
+					success = m_cc_i->isStateToStateValid(push_start, push_end);
+				}
 			}
 		}
-		else {
-			ProcessObstacles(obs, true);
+		else
+		{
+			ProcessObstacles(pushed_object, true);
+			return false;
 		}
+	}
+	else
+	{
+		ProcessObstacles(pushed_object, true);
+		ProcessObstacles(movable_obstacles, true);
+		return false;
 	}
 
 	// if (success)
