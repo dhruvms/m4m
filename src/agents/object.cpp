@@ -409,6 +409,17 @@ void Object::updateSphereState(const smpl::collision::SphereIndex& sidx)
     sphere_state.pos = m_T * sphere_state.model->center;
 }
 
+void Object::updateVoxelsState(const Eigen::Affine3d& T)
+{
+	// transform voxels into the model frame
+	std::vector<Eigen::Vector3d> new_voxels(voxels_state->model->voxels.size());
+	for (size_t i = 0; i < voxels_state->model->voxels.size(); ++i) {
+		new_voxels[i] = T * voxels_state->model->voxels[i];
+	}
+
+	voxels_state->voxels = std::move(new_voxels);
+}
+
 bool Object::createSpheresModel(
 	const std::vector<shapes::ShapeConstPtr>& shapes,
 	const smpl::collision::Affine3dVector& transforms)

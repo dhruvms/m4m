@@ -49,6 +49,7 @@ struct Object
 
 	void SetTransform(const Eigen::Affine3d& T) { m_T = T; };
 	void updateSphereState(const smpl::collision::SphereIndex& sidx);
+	void updateVoxelsState(const Eigen::Affine3d& T);
 
 	// bool TransformAndVoxelise(
 	// 	const Eigen::Affine3d& transform,

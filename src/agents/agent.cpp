@@ -352,18 +352,13 @@ bool Agent::computeGoal(bool backwards)
 						Eigen::AngleAxisd(m_obj_desc.o_yaw, Eigen::Vector3d::UnitZ()) *
 						Eigen::AngleAxisd(m_obj_desc.o_pitch, Eigen::Vector3d::UnitY()) *
 						Eigen::AngleAxisd(m_obj_desc.o_roll, Eigen::Vector3d::UnitX());
+		m_obj.updateVoxelsState(T);
 		auto voxels_state = m_obj.VoxelsState();
-		// transform voxels into the model frame
-		std::vector<Eigen::Vector3d> new_voxels(voxels_state->model->voxels.size());
-		for (size_t i = 0; i < voxels_state->model->voxels.size(); ++i) {
-			new_voxels[i] = T * voxels_state->model->voxels[i];
-		}
-
-		voxels_state->voxels = std::move(new_voxels);
 
 		double best_pos_dist = std::numeric_limits<double>::lowest(), best_neg_dist = std::numeric_limits<double>::lowest(), dist;
 		Eigen::Vector3i best_outside_pos, best_inside_pos, pos;
 		bool inside = false, outside = false;
+
 		auto ngr_df = m_ngr_grid->getDistanceField();
 		for (const Eigen::Vector3d& v : voxels_state->voxels)
 		{
