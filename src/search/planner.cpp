@@ -200,10 +200,10 @@ bool Planner::Plan()
 		continue;
 	}
 
-	m_cbs->Solve(backwards);
+	bool result = m_cbs->Solve(backwards);
 	m_cbs->SaveStats();
 
-	return true;
+	return result;
 }
 
 bool Planner::Rearrange()
@@ -257,123 +257,50 @@ void Planner::AnimateSolution()
 
 bool Planner::rearrange()
 {
-	// for (auto& a: m_agents) {
-	// 	a->ResetObject();
-	// }
+	comms::ObjectsPoses rearranged = m_rearranged;
 
-	// auto robot_conflicts = m_cc->GetConflictsOf(100); // get first order conflicts
-	// if (robot_conflicts.empty()) {
-	// 	return false;
-	// }
+	auto cbs_soln = m_cbs->GetSolution();
+	for (auto& path: cbs_soln->m_solution)
+	{
+		if (path.first == 0 || path.second.front().coord == path.second.back().coord)
+		{
+			// either this is robot or the object did not move
+			continue;
+		}
 
-	// comms::ObjectsPoses rearranged = m_rearranged;
-	// std::vector<int> ids_attempted;
+		// get push location
+		std::vector<double> push;
+		m_agents.at(m_agent_map[path.first])->GetSE2Push(push);
+		SMPL_INFO("Object %d push is (%f, %f, %f)", path.first, push[0], push[1], push[2]);
 
-	// bool push_found = false;
-	// while (!push_found && !robot_conflicts.empty())
-	// {
-	// 	auto i = robot_conflicts.begin();
-	// 	for (auto iter = robot_conflicts.begin(); iter != robot_conflicts.end(); ++iter)
-	// 	{
-	// 		if (iter == i) {
-	// 			continue;
-	// 		}
+		// other movables to be considered as obstacles
+		std::vector<Object> movable_obstacles;
+		for (const auto& a: m_agents)
+		{
+			if (a->GetObject()->back().id == path.first) {
+				continue; // selected object cannot be obstacle
+			}
+			movable_obstacles.push_back(a->GetObject());
+		}
 
-	// 		if (iter->second < i->second) {
-	// 			i = iter;
-	// 		}
-	// 	}
+		// plan to push location
+		// m_robot->PlanPush creates the planner internally, because it might
+		// change KDL chain during the process
+		comms::ObjectsPoses result;
 
-	// 	int oid = i->first.first;
-	// 	int oid_t = i->second;
-	// 	SMPL_INFO("Rearranging object %d", oid);
-	// 	// m_agents.at(m_agent_map[oid])->ResetObject();
+		if (m_robot->PlanPush(m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result))
+		{
+			push_found = true;
+			m_rearrangements.push_back(m_robot->GetLastPlan());
 
-	// 	auto oid_conflicts = m_cc->GetConflictsOf(oid);
-	// 	std::vector<Object> new_obstacles;
-	// 	for (const auto& a: m_agents)
-	// 	{
-	// 		if (a->GetObject()->back().id == oid) {
-	// 			continue; // selected object cannot be obstacle
-	// 		}
-
-	// 		bool oid_child = false;
-	// 		for (const auto& c: oid_conflicts)
-	// 		{
-	// 			if (c.first.first == a->GetObject()->back().id) {
-	// 				oid_child = true;
-	// 				break;
-	// 			}
-	// 		}
-	// 		if (oid_child) {
-	// 			continue; // children of selected object may not be obstacle
-	// 		}
-
-	// 		new_obstacles.push_back(a->GetObject()->back());
-	// 		SMPL_INFO("Adding object %d as obstacle", a->GetObject()->back().id);
-	// 	}
-
-	// 	for (const auto& c: robot_conflicts)
-	// 	{
-	// 		if (c.first.first != oid && c.second < oid_t)
-	// 		{
-	// 			// first order conflicts earlier than selected object
-	// 			// must be obstacles
-	// 			new_obstacles.push_back(m_agents.at(m_agent_map[c.first.first])->GetObject()->back());
-	// 			SMPL_INFO("Adding object %d as obstacle", c.first.first);
-	// 		}
-	// 	}
-
-	// 	for (const auto& id: ids_attempted)
-	// 	{
-	// 		if (id == oid) {
-	// 			continue;
-	// 		}
-
-	// 		// first order conflicts already selected (for which no push was found)
-	// 		// must be obstacles
-	// 		new_obstacles.push_back(m_agents.at(m_agent_map[id])->GetObject()->back());
-	// 		SMPL_INFO("Adding rearranged object %d as obstacle", id);
-	// 	}
-	// 	// add new obstacles
-	// 	m_robot->ProcessObstacles(new_obstacles);
-
-	// 	// get push location
-	// 	std::vector<double> push;
-	// 	m_agents.at(m_agent_map[oid])->GetSE2Push(push);
-	// 	SMPL_INFO("Object %d push is (%f, %f, %f)", oid, push[0], push[1], push[2]);
-
-	// 	// set push location goal for robot
-	// 	m_robot->SetPushGoal(push);
-
-	// 	// plan to push location
-	// 	// m_robot->PlanPush creates the planner internally, because it might
-	// 	// change KDL chain during the process
-	// 	comms::ObjectsPoses result;
-
-	// 	if (m_robot->PlanPush(oid, m_agents.at(m_agent_map[oid]).SolveTraj(), m_agents.at(m_agent_map[oid])->GetObject()->back(), rearranged, result))
-	// 	{
-	// 		push_found = true;
-	// 		m_rearrangements.push_back(m_robot->GetLastPlan());
-
-	// 		// update positions of moved objects
-	// 		updateAgentPositions(result, rearranged);
-	// 	}
-	// 	if (SAVE) {
-	// 		m_robot->SavePushData(m_scene_id);
-	// 	}
-
-	// 	// remove new obstacles
-	// 	m_robot->ProcessObstacles(new_obstacles, true);
-
-	// 	robot_conflicts.erase(i);
-
-	// 	auto it = std::find(begin(ids_attempted), end(ids_attempted), oid);
-	// 	if (it == end(ids_attempted)) {
-	// 		ids_attempted.push_back(oid);
-	// 	}
-	// }
-	// m_rearranged = rearranged;
+			// update positions of moved objects
+			updateAgentPositions(result, rearranged);
+		}
+		if (SAVE) {
+			m_robot->SavePushData(m_scene_id);
+		}
+	}
+	m_rearranged = rearranged;
 
 	return true;
 }

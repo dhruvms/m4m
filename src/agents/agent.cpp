@@ -320,7 +320,6 @@ bool Agent::GetSE2Push(std::vector<double>& push)
 
 	push[0] = m_obj_desc.o_x + push_dir[0] * t;
 	push[1] = m_obj_desc.o_y + push_dir[1] * t;
-	push[2] = move_dir;
 
 	return true;
 }

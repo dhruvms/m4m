@@ -31,6 +31,7 @@ public:
 
 	virtual bool Solve(bool backwards);
 	void SaveStats();
+	HighLevelNode* GetSolution() const { return m_goal; };
 
 protected:
 	std::shared_ptr<CollisionChecker> m_cc;
