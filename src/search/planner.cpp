@@ -113,32 +113,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
 
-	switch (ALGO)
-	{
-		case MAPFAlgo::VCBS:
-		case MAPFAlgo::ECBS:
-		{
-			m_cbs = std::make_shared<CBS>(m_robot, m_agents, m_scene_id);
-			break;
-		}
-		case MAPFAlgo::CBSWP:
-		{
-			m_cbs = std::make_shared<CBSwP>(m_robot, m_agents, m_scene_id);
-			break;
-		}
-		case MAPFAlgo::PBS:
-		{
-			m_cbs = std::make_shared<PBS>(m_robot, m_agents, m_scene_id);
-			break;
-		}
-		default:
-		{
-			SMPL_ERROR("MAPF Algo type currently not supported!");
-			return false;
-		}
-	}
-	m_cbs->SetCC(m_cc);
-
 	return true;
 }
 
@@ -193,11 +167,46 @@ bool Planner::SetupNGR()
 	return true;
 }
 
+bool Planner::createCBS()
+{
+	switch (ALGO)
+	{
+		case MAPFAlgo::VCBS:
+		case MAPFAlgo::ECBS:
+		{
+			m_cbs = std::make_shared<CBS>(m_robot, m_agents, m_scene_id);
+			break;
+		}
+		case MAPFAlgo::CBSWP:
+		{
+			m_cbs = std::make_shared<CBSwP>(m_robot, m_agents, m_scene_id);
+			break;
+		}
+		case MAPFAlgo::PBS:
+		{
+			m_cbs = std::make_shared<PBS>(m_robot, m_agents, m_scene_id);
+			break;
+		}
+		default:
+		{
+			SMPL_ERROR("MAPF Algo type currently not supported!");
+			return false;
+		}
+	}
+	m_cbs->SetCC(m_cc);
+
+	return true;
+}
+
 bool Planner::Plan()
 {
 	bool backwards = ALGO == MAPFAlgo::OURS;
 	while (!setupProblem(backwards)) {
 		continue;
+	}
+
+	if (!createCBS()) {
+		return false;
 	}
 
 	bool result = m_cbs->Solve(backwards);
@@ -344,23 +353,6 @@ bool Planner::runSim()
 
 	return m_violation == 0;
 }
-
-// fcl::CollisionObject* Planner::GetObject(const LatticeState& s, int priority)
-// {
-// 	fcl::Transform3f pose;
-// 	pose.setIdentity();
-
-// 	if (priority == 1)
-// 	{
-// 		m_ooi->UpdatePose(s);
-// 		return m_ooi->GetFCLObject();;
-// 	}
-// 	else
-// 	{
-// 		m_agents.at(m_priorities.at(priority-2)).UpdatePose(s);
-// 		return m_agents.at(m_priorities.at(priority-2)).GetFCLObject();
-// 	}
-// }
 
 void Planner::updateAgentPositions(
 	const comms::ObjectsPoses& result,

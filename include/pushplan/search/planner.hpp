@@ -36,7 +36,6 @@ public:
 	bool TryExtract();
 	void AnimateSolution();
 
-	// fcl::CollisionObject* GetObject(const LatticeState& s, int priority);
 	Agent* GetAgent(const int& id) {
 		assert(id > 0); // 0 is robot
 		return m_agents.at(m_agent_map[id]).get();
@@ -92,6 +91,8 @@ private:
 
 	std::map<std::string, double> m_stats;
 	double m_plan_time, m_plan_budget, m_sim_budget, m_total_budget;
+
+	bool createCBS();
 
 	bool runSim();
 	bool animateSolution();
