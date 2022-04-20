@@ -1128,80 +1128,110 @@ bool Robot::PlanPush(
 	double start_time = GetTime(), time_spent;
 	while((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time))
 	{
-		smpl::RobotState push_start, push_end;
-		if (samplePush(push, obj_traj, pushed_obj, other_movables, push_start, push_end))
+		// get push start pose
+		Eigen::Affine3d push_pose;
+		getPushStartPose(push, push_pose);
+		if (m_grid_i->getDistanceFromPoint(
+			push_pose.translation().x(),
+			push_pose.translation().y(),
+			push_pose.translation().z()) == 0.0)
 		{
-			SMPL_INFO("Found push! Plan to push start!");
+			++m_stats["push_sample_fails"];
+			continue;
+		}
 
-			UpdateKDLRobot(0);
-			ProcessObstacles(pushed_obj);
-			ProcessObstacles(other_movables);
-			InitArmPlanner(false);
+		// add all movable objects as obstacles
+		// they should be at their latest positions
+		ProcessObstacles(pushed_obj);
+		ProcessObstacles(other_movables);
+a
+		// create planning problem to push start pose
+		InitArmPlanner(false);
 
-			moveit_msgs::MotionPlanRequest req;
-			moveit_msgs::MotionPlanResponse res;
+		moveit_msgs::MotionPlanRequest req;
+		moveit_msgs::MotionPlanResponse res;
 
-			m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
-			createJointSpaceGoal(push_start, req);
-			req.max_acceleration_scaling_factor = 1.0;
-			req.max_velocity_scaling_factor = 1.0;
-			req.num_planning_attempts = 1;
-			// req.path_constraints;
-			req.planner_id = "arastar.manip.joint_distance";
-			req.start_state = m_start_state;
-			// req.trajectory_constraints;
-			// req.workspace_parameters;
+		m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
+		createPoseGoalConstraint(push_pose, req);
+		req.max_acceleration_scaling_factor = 1.0;
+		req.max_velocity_scaling_factor = 1.0;
+		req.num_planning_attempts = 1;
+		req.planner_id = "arastar.manip.bfs";
+		req.start_state = m_start_state;
 
-			// completely unnecessary variable
-			moveit_msgs::PlanningScene planning_scene;
-			planning_scene.robot_state = m_start_state;
-			if (!m_planner->init_planner(planning_scene, req, res))
-			{
-				ROS_ERROR("Failed to init planner!");
-				return false;
-			}
-			if (!m_planner->solve(req, res))
-			{
-				ROS_ERROR("Failed to plan.");
-				ProcessObstacles(pushed_obj, true);
-				ProcessObstacles(other_movables, true);
-				continue;
-			}
+		moveit_msgs::PlanningScene planning_scene; // completely unnecessary variable
+		planning_scene.robot_state = m_start_state;
+		// solve for path to push start pose
+		if (!m_planner->init_planner(planning_scene, req, res))
+		{
+			ROS_ERROR("Failed to init planner!");
+			return false;
+		}
+		if (!m_planner->solve(req, res))
+		{
+			ROS_ERROR("Failed to plan.");
 			ProcessObstacles(pushed_obj, true);
 			ProcessObstacles(other_movables, true);
 
-			auto planner_stats = m_planner->getPlannerStats();
-			m_stats["push_traj_plan_time"] += planner_stats["initial solution planning time"];
-			m_planner_time += planner_stats["initial solution planning time"];
-
-			m_pushes.push_back(res.trajectory.joint_trajectory);
-
-			double push_time = profileAction(push_start, push_end);
-
-			// add push
-			trajectory_msgs::JointTrajectoryPoint push_pt = m_pushes.back().points.back();
-			push_pt.positions = push_end;
-			push_pt.time_from_start += ros::Duration(push_time);
-			m_pushes.back().points.push_back(push_pt);
-
-			// reset back to push start
-			push_pt = m_pushes.back().points.back();
-			push_pt.positions = push_start;
-			push_pt.time_from_start += ros::Duration(push_time);
-			m_pushes.back().points.push_back(push_pt);
-
-			++i;
-		}
-		else {
 			++m_stats["push_sample_fails"];
+			continue;
 		}
+		// remove all movable objects from collision space
+		ProcessObstacles(pushed_obj, true);
+		ProcessObstacles(other_movables, true);
+
+		auto planner_stats = m_planner->getPlannerStats();
+		m_stats["push_traj_plan_time"] += planner_stats["initial solution planning time"];
+		m_planner_time += planner_stats["initial solution planning time"];
+		auto push_traj = res.trajectory.joint_trajectory;
+
+		smpl::RobotState push_start, push_end;
+		push_start = push_traj.points.back().positions; // final state is start of push
+
+		// sample push dist fraction
+		double push_frac = (m_distD(m_rng) * 0.25) + 0.75;
+		// compute push action end pose
+		push_pose = m_rm->computeFK(push_start);
+		push_pose.translation().x() = obj_traj->front().state.at(0) * (1 - push_frac)
+											 + obj_traj->back().state.at(0) * push_frac;
+		push_pose.translation().y() = obj_traj->front().state.at(1) * (1 - push_frac)
+											 + obj_traj->back().state.at(1) * push_frac;
+
+		if (!getStateNearPose(push_pose, push_start, push_end, 1))
+		{
+			// Failed to find valid push action
+			++m_stats["push_sample_fails"];
+			continue;
+		}
+
+		double push_time = profileAction(push_start, push_end);
+
+		// add push end state
+		trajectory_msgs::JointTrajectoryPoint push_pt = push_traj.points.back();
+		push_pt.positions = push_end;
+		push_pt.time_from_start += ros::Duration(push_time);
+		push_traj.points.push_back(push_pt);
+
+		// reset back to push start
+		push_pt = push_traj.points.back();
+		push_pt.positions = push_start;
+		push_pt.time_from_start += ros::Duration(push_time);
+		push_traj.points.push_back(push_pt);
+
+		m_pushes.push_back(std::move(push_traj));
+		++i;
 	}
+
+	// reset robot model back to chain tip link
+	UpdateKDLRobot(0);
+
 	time_spent = GetTime() - start_time;
 	SMPL_INFO("Simulate %d pushes! Sampling took %f seconds total. Planning took %f seconds.", i, time_spent, m_stats["push_traj_plan_time"]);
 	m_stats["pushes_sampled"] = i;
 	m_stats["push_sample_time"] = time_spent;
 
-	if (i == 0) {
+	if (i == 0)
+	{
 		SMPL_INFO("No pushes found! Do nothing!");
 		return false;
 	}
@@ -1215,7 +1245,8 @@ bool Robot::PlanPush(
 	m_sim_time += time_spent;
 	m_stats["push_successes"] = successes;
 
-	if (pidx == -1) {
+	if (pidx == -1)
+	{
 		SMPL_WARN("Failed to find a good push for the object! Simulating took %f seconds.", time_spent);
 		return false;
 	}
