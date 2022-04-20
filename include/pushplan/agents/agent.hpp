@@ -42,10 +42,9 @@ public:
 		m_obj_desc = o.desc;
 	}
 
-	// void ResetObject();
-	// bool SetObjectPose(
-	// 	const std::vector<double>& xyz,
-	// 	const std::vector<double>& rpy);
+	bool SetObjectPose(
+		const std::vector<double>& xyz,
+		const std::vector<double>& rpy);
 
 	bool Init(bool backwards);
 	void ComputeNGRComplement(
@@ -75,7 +74,6 @@ public:
 	int GetID() { return m_obj.desc.id; };
 
 	Object* GetObject() { return &m_obj; };
-	const Object* GetObject(const LatticeState& s);
 	fcl::CollisionObject* GetFCLObject() { return m_obj.GetFCLObject(); };
 	void GetMoveitObj(moveit_msgs::CollisionObject& msg) const {
 		m_obj.GetMoveitObj(msg);

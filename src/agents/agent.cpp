@@ -22,24 +22,23 @@
 namespace clutter
 {
 
-// void Agent::ResetObject()
-// {
-// 	m_obj_desc.o_x = m_obj_desc.o_x;
-// 	m_obj_desc.o_y = m_obj_desc.o_y;
-// }
+bool Agent::SetObjectPose(
+	const std::vector<double>& xyz,
+	const std::vector<double>& rpy)
+{
+	m_obj_desc.o_x = xyz.at(0);
+	m_obj_desc.o_y = xyz.at(1);
+	m_obj_desc.o_z = xyz.at(2);
 
-// bool Agent::SetObjectPose(
-// 	const std::vector<double>& xyz,
-// 	const std::vector<double>& rpy)
-// {
-// 	m_obj_desc.o_x = xyz.at(0);
-// 	m_obj_desc.o_y = xyz.at(1);
-// 	m_obj_desc.o_z = xyz.at(2);
+	m_obj_desc.o_roll = rpy.at(0);
+	m_obj_desc.o_pitch = rpy.at(1);
+	m_obj_desc.o_yaw = rpy.at(2);
 
-// 	m_obj_desc.o_roll = rpy.at(0);
-// 	m_obj_desc.o_pitch = rpy.at(1);
-// 	m_obj_desc.o_yaw = rpy.at(2);
-// }
+	LatticeState s;
+	s.state = { 	m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z,
+						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };
+	UpdatePose(s);
+}
 
 bool Agent::Init(bool backwards)
 {
@@ -234,16 +233,10 @@ void Agent::VisualiseState(const LatticeState& s, const std::string& ns, int hue
 	SV_SHOW_INFO_NAMED(ns, markers);
 }
 
-const Object* Agent::GetObject(const LatticeState& s)
-{
-	m_obj.desc.o_x = s.state.at(0);
-	m_obj.desc.o_y = s.state.at(1);
-	return &m_obj;
-}
-
 bool Agent::GetSE2Push(std::vector<double>& push)
 {
 	push.clear();
+	push.resize(3, 0.0);
 	double move_dir = std::atan2(
 					m_solve.back().state.at(1) - m_solve.front().state.at(1),
 					m_solve.back().state.at(0) - m_solve.front().state.at(0));
