@@ -1259,24 +1259,10 @@ State Robot::GetEEState(const State& state)
 	return ee;
 }
 
-bool Robot::samplePush(
+void Robot::getPushStartPose(
 	const std::vector<double>& push,
-	const Trajectory* obj_traj, const std::vector<Object*>& pushed_object,
-	const std::vector<Object*>& other_movables,
-	smpl::RobotState& push_start, smpl::RobotState& push_end)
+	Eigen::Affine3d& push_pose)
 {
-	bool success = false;
-
-	// sample seed via IK
-	smpl::RobotState seed;
-	Eigen::Affine3d push_pose = Eigen::Translation3d(push[0], push[1], m_grasp_z) *
-				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
-				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
-				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
-	if (!getStateNearPose(push_pose, m_grasp_state, seed, 4)) {
-		return false;
-	}
-
 	// sample robot link
 	int link = std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
 	UpdateKDLRobot(link);
@@ -1286,9 +1272,6 @@ bool Robot::samplePush(
 	if (link > 0) {
 		yaw += sgn(m_distD(m_rng) * 2 - 1) * M_PI_2;
 	}
-
-	// sample push dist fraction
-	double push_frac = (m_distD(m_rng) * 0.25) + 0.75;
 
 	// pitch is noise (from 0 to 30 degrees)
 	double pitch = (m_distD(m_rng) * 6 * DEG5);
@@ -1304,94 +1287,6 @@ bool Robot::samplePush(
 				Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
 				Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
 				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
-
-	// auto* vis_name = "push_start_pose";
-	// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
-	// 	push_pose, m_grid_i->getReferenceFrame(), vis_name));
-
-	// add all movable objects as obstacles when finding a push start state
-	ProcessObstacles(pushed_object);
-	ProcessObstacles(other_movables);
-	// run IK for push start pose
-	if (getStateNearPose(push_pose, seed, push_start, 1))
-	{
-		// remove other movable objects not being pushed from obstacle space
-		// since a push action is allowed to collide with them
-		ProcessObstacles(other_movables, true);
-
-		// vis_name = "push_start";
-		// auto markers = m_cc_i->getCollisionModelVisualization(push_start);
-		// for (auto& marker : markers) {
-		// 	marker.ns = vis_name;
-		// }
-		// SV_SHOW_INFO_NAMED(vis_name, markers);
-
-		push_pose = m_rm->computeFK(push_start);
-		push_pose.translation().x() = obj_traj->front().state.at(0) * (1 - push_frac) + obj_traj->back().state.at(0) * push_frac;
-		push_pose.translation().y() = obj_traj->front().state.at(1) * (1 - push_frac) + obj_traj->back().state.at(1) * push_frac;
-
-		// vis_name = "push_end_pose";
-		// SV_SHOW_INFO_NAMED(vis_name, smpl::visual::MakePoseMarkers(
-		// 	push_pose, m_grid_i->getReferenceFrame(), vis_name));
-
-		// run IK for push start pose
-		if (m_rm->computeIKSearch(push_pose, push_start, push_end))
-		{
-
-			if (!m_rm->checkJointLimits(push_end))
-			{
-				ProcessObstacles(pushed_object, true);
-				return false;
-			}
-			else
-			{
-				// vis_name = "push_end";
-				// markers = m_cc_i->getCollisionModelVisualization(push_end);
-				// for (auto& marker : markers) {
-				// 	marker.ns = vis_name;
-				// }
-				// SV_SHOW_INFO_NAMED(vis_name, markers);
-
-				// check if push action collides with intended pushed_object
-				bool collides = !(m_cc_i->isStateToStateValid(push_start, push_end));
-				ProcessObstacles(pushed_object, true);
-				// check if push action does not collide with immovable obstacles
-				if (collides) {
-					success = m_cc_i->isStateToStateValid(push_start, push_end);
-				}
-			}
-		}
-		else
-		{
-			ProcessObstacles(pushed_object, true);
-			return false;
-		}
-	}
-	else
-	{
-		ProcessObstacles(pushed_object, true);
-		ProcessObstacles(other_movables, true);
-		return false;
-	}
-
-	// if (success)
-	// {
-	// 	auto* vis_name = "push_start";
-	// 	auto markers = m_cc_i->getCollisionModelVisualization(push_start);
-	// 	for (auto& marker : markers) {
-	// 		marker.ns = vis_name;
-	// 	}
-	// 	SV_SHOW_INFO_NAMED(vis_name, markers);
-
-	// 	vis_name = "push_end";
-	// 	markers = m_cc_i->getCollisionModelVisualization(push_end);
-	// 	for (auto& marker : markers) {
-	// 		marker.ns = vis_name;
-	// 	}
-	// 	SV_SHOW_INFO_NAMED(vis_name, markers);
-	// }
-
-	return success;
 }
 
 void Robot::getRandomState(smpl::RobotState& s)

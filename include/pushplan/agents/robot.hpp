@@ -202,11 +202,9 @@ private:
 	std::map<std::string, double> m_stats;
 	double m_planner_time, m_sim_time;
 
-	bool samplePush(
+	void getPushStartPose(
 		const std::vector<double>& push,
-		const Trajectory* obj_traj, const std::vector<Object*>& pushed_object,
-		const std::vector<Object*>& movable_obstacles,
-		smpl::RobotState& push_start, smpl::RobotState& push_end);
+		Eigen::Affine3d& push_pose);
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();
