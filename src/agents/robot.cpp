@@ -2571,10 +2571,10 @@ void Robot::createPoseGoalConstraint(
 
 	fillGoalConstraint();
 	// set tight tolerances
-	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions.resize(3, 0.2);
-	m_goal.orientation_constraints[0].absolute_x_axis_tolerance = M_PI_4;
-	m_goal.orientation_constraints[0].absolute_y_axis_tolerance = M_PI_4;
-	m_goal.orientation_constraints[0].absolute_z_axis_tolerance = M_PI_4;
+	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions.resize(3, 0.05);
+	m_goal.orientation_constraints[0].absolute_x_axis_tolerance = M_PI;
+	m_goal.orientation_constraints[0].absolute_y_axis_tolerance = M_PI;
+	m_goal.orientation_constraints[0].absolute_z_axis_tolerance = M_PI;
 
 	req.goal_constraints.clear();
 	req.goal_constraints.resize(1);
