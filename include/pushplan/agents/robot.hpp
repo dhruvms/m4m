@@ -205,6 +205,16 @@ private:
 	void getPushStartPose(
 		const std::vector<double>& push,
 		Eigen::Affine3d& push_pose);
+	bool planToPoseGoal(
+		const Eigen::Affine3d& pose_goal,
+		trajectory_msgs::JointTrajectory& push_traj);
+	bool computePushAction(
+		const double time_start,
+		const smpl::RobotState& jnt_positions,
+		const smpl::RobotState& jnt_velocities,
+		const Eigen::Affine3d& start_pose,
+		const Eigen::Affine3d& end_pose,
+		trajectory_msgs::JointTrajectory& action);
 
 	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();

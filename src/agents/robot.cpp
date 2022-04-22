@@ -1108,11 +1108,176 @@ bool Robot::InitArmPlanner(bool interp)
 	}
 }
 
+bool Robot::planToPoseGoal(
+	const Eigen::Affine3d& pose_goal,
+	trajectory_msgs::JointTrajectory& push_traj)
+{
+	// create planning problem to push start pose
+	InitArmPlanner(false);
+
+	moveit_msgs::MotionPlanRequest req;
+	moveit_msgs::MotionPlanResponse res;
+
+	createPoseGoalConstraint(pose_goal, req);
+	req.allowed_planning_time = 0.5;
+	req.max_acceleration_scaling_factor = 1.0;
+	req.max_velocity_scaling_factor = 1.0;
+	req.num_planning_attempts = 1;
+	req.planner_id = "arastar.manip.bfs";
+	req.start_state = m_start_state;
+
+	moveit_msgs::PlanningScene planning_scene; // completely unnecessary variable
+	planning_scene.robot_state = m_start_state;
+	// solve for path to push start pose
+	if (!m_planner->init_planner(planning_scene, req, res))
+	{
+		ROS_ERROR("Failed to init planner!");
+
+		return false;
+	}
+	if (!m_planner->solve(req, res))
+	{
+		ROS_ERROR("Failed to plan.");
+
+		return false;
+	}
+
+	push_traj = res.trajectory.joint_trajectory;
+	return true;
+}
+
+bool Robot::computePushAction(
+	const double time_start,
+	const smpl::RobotState& jnt_positions,
+	const smpl::RobotState& jnt_velocities,
+	const Eigen::Affine3d& start_pose,
+	const Eigen::Affine3d& end_pose,
+	trajectory_msgs::JointTrajectory& action)
+{
+	// ee velocity during push
+	Eigen::Vector3d ee_velocity(
+		end_pose.translation().x() - start_pose.translation().x(),
+		end_pose.translation().y() - start_pose.translation().y(),
+		0.0);
+	ee_velocity /= m_push_action_time;
+
+	// Constants
+	double xy_thresh = 0.02;
+
+	// Variables
+	Eigen::Affine3d x_;
+	auto q_ = jnt_positions;
+	auto q_dot = jnt_velocities;
+	std::vector<double> x_dot(6, 0.0), error(6, 0.0), integral(6, 0.0), derivative(6, 0.0), previous(6, 0.0);
+	Eigen::Affine3d xo_ = start_pose;
+
+	bool push_end = false;
+	for(int iter = 0; iter< m_invvel_iters; iter++)
+	{
+
+		// Get difference between current EE pose and desired EE pose
+		x_ = m_rm->computeFK(q_);
+		auto diff = xo_ * x_.inverse();
+		// auto rot = diff.rotation().eulerAngles(2, 1, 0);
+
+		// Update P error terms
+		error[0] = xo_.translation().x() - x_.translation().x();
+		error[1] = xo_.translation().y() - x_.translation().y();
+		error[2] = xo_.translation().z() - x_.translation().z();
+		// error[3] = 0.0; // rot[2];
+		// error[4] = 0.0; // rot[1];
+		// error[5] = 0.0; // rot[0];
+
+		// Update I error terms
+		integral[0] += error[0] * m_dt;
+		integral[1] += error[1] * m_dt;
+		integral[2] += error[2] * m_dt;
+		// integral[3] += error[3] * m_dt;
+		// integral[4] += error[4] * m_dt;
+		// integral[5] += error[5] * m_dt;
+
+		// Update D error terms
+		derivative[0] = (error[0] - previous[0]) / m_dt;
+		derivative[1] = (error[1] - previous[1]) / m_dt;
+		derivative[2] = (error[2] - previous[2]) / m_dt;
+		// derivative[3] = (error[3] - previous[3]) / m_dt;
+		// derivative[4] = (error[4] - previous[4]) / m_dt;
+		// derivative[5] = (error[5] - previous[5]) / m_dt;
+
+		// Compute Cartesian velocities
+		x_dot[0] = m_Kp * error[0] + m_Ki * integral[0] + m_Kd * derivative[0];
+		x_dot[1] = m_Kp * error[1] + m_Ki * integral[1] + m_Kd * derivative[1];
+		x_dot[2] = m_Kp * error[2] + m_Ki * integral[2] + m_Kd * derivative[2];
+		// x_dot[3] = m_Kp * error[3] + m_Ki * integral[3] + m_Kd * derivative[3];
+		// x_dot[4] = m_Kp * error[4] + m_Ki * integral[4] + m_Kd * derivative[4];
+		// x_dot[5] = m_Kp * error[5] + m_Ki * integral[5] + m_Kd * derivative[5];
+
+		if (!m_rm->computeInverseVelocity(q_, x_dot, q_dot))
+		{
+			// SMPL_INFO("Failed to compute inverse velocity");
+			return false;
+		}
+
+		// Add waypoint to action
+		trajectory_msgs::JointTrajectoryPoint action_pt;
+		action_pt.positions = q_;
+		action_pt.time_from_start = ros::Duration(time_start + m_dt * (iter));
+		action.points.push_back(std::move(action_pt));
+
+		double dx = std::fabs(xo_.translation().x() - end_pose.translation().x());
+		double dy = std::fabs(xo_.translation().y() - end_pose.translation().y());
+		double dz = std::fabs(xo_.translation().z() - end_pose.translation().z());
+
+		if (push_end)
+		{
+			// point being tracked has reached the push_end_pose
+			// has the EE reached there as well?
+			dx = std::fabs(xo_.translation().x() - x_.translation().x());
+			dy = std::fabs(xo_.translation().y() - x_.translation().y());
+			dz = std::fabs(xo_.translation().z() - x_.translation().z());
+
+			if (dx <= xy_thresh && dy <= xy_thresh && dz <= xy_thresh)
+			{
+				// if so, we are done
+				return true;
+			}
+		}
+		else if (dx <= xy_thresh/2.0 && dy <= xy_thresh/2.0 && dz <= xy_thresh/2.0)
+		{
+			// point being tracked no longer needs to move
+			ee_velocity *= 0.0;
+			push_end = true;
+		}
+
+		// Move arm joints
+		for(size_t i = 0; i < q_.size(); ++i) {
+			q_[i] += (q_dot[i] * m_dt);
+		}
+
+		// TODO: check velocity limit
+		// Check joint limits
+		if (!m_rm->checkJointLimits(q_)) {
+			// SMPL_INFO("Violates joint limits");
+			return false;
+		}
+
+		// Move object
+		xo_.translation().x() += ee_velocity[0] * m_dt;
+		xo_.translation().y() += ee_velocity[1] * m_dt;
+		xo_.translation().z() += ee_velocity[2] * m_dt;
+
+	}
+
+	// SMPL_INFO("Failed to reach end pose");
+	return false;
+}
+
 bool Robot::PlanPush(
 	Agent* object, const std::vector<double>& push, const std::vector<Object*>& other_movables,
 	const comms::ObjectsPoses& rearranged, comms::ObjectsPoses& result)
 {
-	m_pushes.clear();
+	m_push_trajs.clear();
+	m_push_actions.clear();
 
 	if (m_pushes_per_object == -1) {
 		m_ph.getParam("robot/pushing/num", m_pushes_per_object);
@@ -1132,100 +1297,106 @@ bool Robot::PlanPush(
 
 	int i = 0;
 	double start_time = GetTime(), time_spent;
+	bool added = false;
 	while((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time))
 	{
-		// get push start pose
-		Eigen::Affine3d push_pose;
-		getPushStartPose(push, push_pose);
-		if (m_grid_i->getDistanceFromPoint(
-			push_pose.translation().x(),
-			push_pose.translation().y(),
-			push_pose.translation().z()) == 0.0)
-		{
-			++m_stats["push_sample_fails"];
-			continue;
-		}
-
 		// add all movable objects as obstacles
 		// they should be at their latest positions
-		ProcessObstacles(pushed_obj);
-		ProcessObstacles(other_movables);
-a
-		// create planning problem to push start pose
-		InitArmPlanner(false);
-
-		moveit_msgs::MotionPlanRequest req;
-		moveit_msgs::MotionPlanResponse res;
-
-		m_ph.param("allowed_planning_time", req.allowed_planning_time, 10.0);
-		createPoseGoalConstraint(push_pose, req);
-		req.max_acceleration_scaling_factor = 1.0;
-		req.max_velocity_scaling_factor = 1.0;
-		req.num_planning_attempts = 1;
-		req.planner_id = "arastar.manip.bfs";
-		req.start_state = m_start_state;
-
-		moveit_msgs::PlanningScene planning_scene; // completely unnecessary variable
-		planning_scene.robot_state = m_start_state;
-		// solve for path to push start pose
-		if (!m_planner->init_planner(planning_scene, req, res))
+		if (!added)
 		{
-			ROS_ERROR("Failed to init planner!");
-			return false;
+			ProcessObstacles(pushed_obj);
+			ProcessObstacles(other_movables);
+			m_planning_config.xyzrpy_snap_dist_thresh = 0.05;
+			added = true;
 		}
-		if (!m_planner->solve(req, res))
-		{
-			ROS_ERROR("Failed to plan.");
-			ProcessObstacles(pushed_obj, true);
-			ProcessObstacles(other_movables, true);
 
+		// get push start pose
+		Eigen::Affine3d push_start_pose, push_end_pose;
+		getPushStartPose(push, push_start_pose);
+		if (m_grid_i->getDistanceFromPoint(
+			push_start_pose.translation().x(),
+			push_start_pose.translation().y(),
+			push_start_pose.translation().z()) <= m_grid_i->resolution())
+		{
 			++m_stats["push_sample_fails"];
 			continue;
 		}
-		// remove all movable objects from collision space
-		ProcessObstacles(pushed_obj, true);
-		ProcessObstacles(other_movables, true);
 
+		trajectory_msgs::JointTrajectory push_traj;
+		if (!planToPoseGoal(push_start_pose, push_traj))
+		{
+			++m_stats["push_sample_fails"];
+			continue;
+		}
 		auto planner_stats = m_planner->getPlannerStats();
 		m_stats["push_traj_plan_time"] += planner_stats["initial solution planning time"];
 		m_planner_time += planner_stats["initial solution planning time"];
-		auto push_traj = res.trajectory.joint_trajectory;
 
-		smpl::RobotState push_start, push_end;
-		push_start = push_traj.points.back().positions; // final state is start of push
+		if (added)
+		{
+			// remove all movable objects from collision space
+			ProcessObstacles(pushed_obj, true);
+			ProcessObstacles(other_movables, true);
+			m_ph.getParam("planning/xyzrpy_snap_dist_thresh", m_planning_config.xyzrpy_snap_dist_thresh);
+			added = false;
+		}
 
 		// sample push dist fraction
 		double push_frac = (m_distD(m_rng) * 0.25) + 0.75;
 		// compute push action end pose
-		push_pose = m_rm->computeFK(push_start);
-		push_pose.translation().x() = obj_traj->front().state.at(0) * (1 - push_frac)
+		push_end_pose = m_rm->computeFK(push_traj.points.back().positions);
+		push_end_pose.translation().x() = obj_traj->front().state.at(0) * (1 - push_frac)
 											 + obj_traj->back().state.at(0) * push_frac;
-		push_pose.translation().y() = obj_traj->front().state.at(1) * (1 - push_frac)
+		push_end_pose.translation().y() = obj_traj->front().state.at(1) * (1 - push_frac)
 											 + obj_traj->back().state.at(1) * push_frac;
 
-		if (!getStateNearPose(push_pose, push_start, push_end, 1))
+		// get push action trajectory via inverse velocity
+		smpl::RobotState joint_vel(m_rm->jointVariableCount(), 0.0);
+		trajectory_msgs::JointTrajectory push_action;
+		double inv_vel_time = GetTime();
+		computePushAction(
+			push_traj.points.back().time_from_start.toSec(),
+			push_traj.points.back().positions,
+			joint_vel,
+			push_start_pose,
+			push_end_pose,
+			push_action);
+		m_stats["push_traj_plan_time"] += GetTime() - inv_vel_time;
+		m_planner_time += GetTime() - inv_vel_time;
+
+		if (!push_action.points.empty())
 		{
-			// Failed to find valid push action
+			auto push_action_copy = push_action;
+			auto t_reverse = push_action_copy.points.rbegin()->time_from_start;
+			for (auto itr = push_action_copy.points.rbegin() + 1; itr != push_action_copy.points.rend(); ++itr)
+			{
+				itr->time_from_start = t_reverse + ros::Duration(0.01);
+				push_action.points.push_back(*itr);
+				t_reverse = itr->time_from_start;
+			}
+
+			for (auto itr = push_action.points.begin() + 1; itr != push_action.points.end(); ++itr) {
+				push_traj.points.push_back(*itr);
+			}
+
+			m_push_actions.push_back(std::move(push_action));
+			m_push_trajs.push_back(std::move(push_traj));
+			++i;
+		}
+		else
+		{
 			++m_stats["push_sample_fails"];
 			continue;
 		}
+	}
 
-		double push_time = profileAction(push_start, push_end);
-
-		// add push end state
-		trajectory_msgs::JointTrajectoryPoint push_pt = push_traj.points.back();
-		push_pt.positions = push_end;
-		push_pt.time_from_start += ros::Duration(push_time);
-		push_traj.points.push_back(push_pt);
-
-		// reset back to push start
-		push_pt = push_traj.points.back();
-		push_pt.positions = push_start;
-		push_pt.time_from_start += ros::Duration(push_time);
-		push_traj.points.push_back(push_pt);
-
-		m_pushes.push_back(std::move(push_traj));
-		++i;
+	if (added)
+	{
+		// remove all movable objects from collision space
+		ProcessObstacles(pushed_obj, true);
+		ProcessObstacles(other_movables, true);
+		m_ph.getParam("planning/xyzrpy_snap_dist_thresh", m_planning_config.xyzrpy_snap_dist_thresh);
+		added = false;
 	}
 
 	// reset robot model back to chain tip link
@@ -1244,7 +1415,7 @@ a
 
 	int pidx, successes;
 	start_time = GetTime();
-	m_sim->SimPushes(m_pushes, object->GetID(), obj_traj->back().state.at(0), obj_traj->back().state.at(1), pidx, successes, rearranged, result);
+	m_sim->SimPushes(m_push_actions, object->GetID(), obj_traj->back().state.at(0), obj_traj->back().state.at(1), pidx, successes, rearranged, result);
 	time_spent = GetTime() - start_time;
 
 	m_stats["push_sim_time"] = time_spent;
@@ -1257,7 +1428,7 @@ a
 		return false;
 	}
 
-	m_traj = m_pushes.at(pidx);
+	m_traj = m_push_trajs.at(pidx);
 	SMPL_INFO("Found good push traj of length %d!", m_traj.points.size());
 	return true;
 }
@@ -2400,10 +2571,10 @@ void Robot::createPoseGoalConstraint(
 
 	fillGoalConstraint();
 	// set tight tolerances
-	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions.resize(3, 0.01);
-	m_goal.orientation_constraints[0].absolute_x_axis_tolerance = 0.0174533; // 1 degree
-	m_goal.orientation_constraints[0].absolute_y_axis_tolerance = 0.0174533; // 1 degree
-	m_goal.orientation_constraints[0].absolute_z_axis_tolerance = 0.0174533; // 1 degree
+	m_goal.position_constraints[0].constraint_region.primitives[0].dimensions.resize(3, 0.2);
+	m_goal.orientation_constraints[0].absolute_x_axis_tolerance = M_PI_4;
+	m_goal.orientation_constraints[0].absolute_y_axis_tolerance = M_PI_4;
+	m_goal.orientation_constraints[0].absolute_z_axis_tolerance = M_PI_4;
 
 	req.goal_constraints.clear();
 	req.goal_constraints.resize(1);
