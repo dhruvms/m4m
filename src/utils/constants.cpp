@@ -11,7 +11,6 @@ int clutter::WINDOW;
 int clutter::GRID;
 
 double clutter::SEMI_MINOR;
-double clutter::R_MASS;
 double clutter::R_SPEED;
 
 bool clutter::SAVE;

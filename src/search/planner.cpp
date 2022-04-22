@@ -660,7 +660,6 @@ void Planner::setupGlobals()
 	m_ph.getParam("mapf/whca/window", WINDOW);
 	m_ph.getParam("mapf/whca/grid", GRID);
 	m_ph.getParam("robot/semi_minor", SEMI_MINOR);
-	m_ph.getParam("robot/robot_obj_mass", R_MASS);
 	m_ph.getParam("robot/speed", R_SPEED);
 	m_ph.getParam("goal/save", SAVE);
 	m_ph.getParam("goal/cc_2d", CC_2D);

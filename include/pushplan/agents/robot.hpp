@@ -159,7 +159,7 @@ private:
 	std::vector<double> m_coord_deltas;
 
 	int m_grasp_at;
-	double m_mass, m_b, m_table_z;
+	double m_b, m_table_z;
 	std::string m_shoulder, m_elbow, m_wrist, m_tip;
 	const smpl::urdf::Link* m_link_s = nullptr;
 	const smpl::urdf::Link* m_link_e = nullptr;	const smpl::urdf::Link* m_link_w = nullptr;

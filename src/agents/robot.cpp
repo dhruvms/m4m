@@ -161,7 +161,6 @@ bool Robot::Setup()
 	// setup planar approx
 	m_priority = 0;
 	m_grasp_at = -1;
-	m_mass = R_MASS;
 	m_b = SEMI_MINOR;
 	m_shoulder = "r_shoulder_pan_link";
 	m_elbow = "r_elbow_flex_link";
@@ -1700,7 +1699,7 @@ void Robot::initObjects()
 	o.desc.x_size = 0.0; // TBD
 	o.desc.y_size = 0.0; // TBD
 	o.desc.z_size = 0.0; // NA
-	o.desc.mass = m_mass;
+	o.desc.mass = 1.0;
 	o.desc.locked = o.desc.mass == 0;
 	o.desc.mu = 0.8;
 	o.desc.movable = true;
