@@ -1301,29 +1301,29 @@ void Robot::getPushStartPose(
 	Eigen::Affine3d& push_pose)
 {
 	// sample robot link
-	int link = std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
+	int link = 1; // std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
 	UpdateKDLRobot(link);
 
 	// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise
-	double yaw = push[2] + (m_distG(m_rng) * DEG5);
-	if (link > 0) {
-		yaw += sgn(m_distD(m_rng) * 2 - 1) * M_PI_2;
-	}
+	double yaw = push[2] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * DEG5);
 
 	// pitch is noise (from 0 to 30 degrees)
 	double pitch = (m_distD(m_rng) * 6 * DEG5);
 
-	// z is between 1 to 5cm above table height
-	double z = m_table_z + (m_distD(m_rng) * 0.04) + 0.01;
+	// z is between 2 to 5cm above table height
+	double z = m_table_z + (m_distD(m_rng) * 0.03) + 0.02;
 
 	// (x, y) is randomly sampled near push start location
-	double x = push[0] + std::cos(push[2] + M_PI) * (m_distG(m_rng) * 0.025);
-	double y = push[1] + std::sin(push[2] + M_PI) * (m_distG(m_rng) * 0.025);
+	double x = push[0] + std::cos(push[2] + M_PI) * (m_distG(m_rng) * 0.05);
+	double y = push[1] + std::sin(push[2] + M_PI) * (m_distG(m_rng) * 0.05);
 
 	push_pose = Eigen::Translation3d(x, y, z) *
 				Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
 				Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
 				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
+
+	SV_SHOW_INFO_NAMED("sampled_push_pose", smpl::visual::MakePoseMarkers(
+		push_pose, m_grid_i->getReferenceFrame(), "sampled_push_pose"));
 }
 
 void Robot::getRandomState(smpl::RobotState& s)

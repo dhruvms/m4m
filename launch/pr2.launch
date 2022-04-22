@@ -27,7 +27,7 @@
             chain_tip_link:
                 r_gripper_finger_dummy_planning_link
             push_links:
-                r_gripper_r_finger_link
+                r_gripper_tool_frame
             gripper_joints:
                 r_gripper_l_finger_joint
                 r_gripper_r_finger_joint
