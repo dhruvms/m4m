@@ -15,7 +15,7 @@
 #include <smpl/occupancy_grid.h>
 #include <smpl/debug/visualizer_ros.h>
 #include <sbpl_collision_checking/collision_space.h>
-#include <sbpl_kdl_robot_model/kdl_robot_model.h>
+#include <sbpl_kdl_robot_model/pushing_kdl_robot_model.h>
 #include <moveit_msgs/RobotState.h>
 #include <moveit_msgs/RobotTrajectory.h>
 #include <moveit_msgs/Constraints.h>
@@ -145,7 +145,7 @@ private:
 	ros::NodeHandle m_nh, m_ph;
 	std::string m_robot_description, m_planning_frame;
 	RobotModelConfig m_robot_config;
-	std::unique_ptr<smpl::KDLRobotModel> m_rm;
+	std::unique_ptr<smpl::PushingKDLRobotModel> m_rm;
 	moveit_msgs::RobotState m_start_state;
 	ros::Publisher m_vis_pub;
 

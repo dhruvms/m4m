@@ -1520,7 +1520,7 @@ bool Robot::setupRobotModel()
 		return false;
 	}
 
-	m_rm = std::make_unique<smpl::KDLRobotModel>();
+	m_rm = std::make_unique<smpl::PushingKDLRobotModel>();
 
 	if (!m_rm->init(m_robot_description, m_robot_config.kinematics_frame, m_robot_config.chain_tip_link)) {
 		ROS_ERROR("Failed to initialize robot model.");
