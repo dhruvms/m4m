@@ -190,8 +190,8 @@ bool Robot::Setup()
 
 	m_planner_init = false;
 	m_pushes_per_object = -1;
-	m_ph.getParam("robot/grasp_lift", m_grasp_lift);
-	m_ph.getParam("robot/grasp_tries", m_grasp_tries);
+	m_ph.getParam("robot/grasping/tries", m_grasp_tries);
+	m_ph.getParam("robot/grasping/lift", m_grasp_lift);
 	m_vis_pub = m_nh.advertise<visualization_msgs::Marker>( "/visualization_marker", 10);
 
 	return true;
@@ -1115,8 +1115,15 @@ bool Robot::PlanPush(
 	m_pushes.clear();
 
 	if (m_pushes_per_object == -1) {
-		m_ph.getParam("robot/pushes", m_pushes_per_object);
-		m_ph.getParam("robot/plan_push_time", m_plan_push_time);
+		m_ph.getParam("robot/pushing/num", m_pushes_per_object);
+		m_ph.getParam("robot/pushing/action_time", m_push_action_time);
+		m_ph.getParam("robot/pushing/plan_time", m_plan_push_time);
+
+		m_ph.param<double>("robot/pushing/control/Kp", m_Kp, 1.0);
+		m_ph.param<double>("robot/pushing/control/Ki", m_Ki, 1.0);
+		m_ph.param<double>("robot/pushing/control/Kd", m_Kd, 1.0);
+		m_ph.param<double>("robot/pushing/control/dt", m_dt, 0.01);
+		m_ph.param<int>("robot/pushing/control/iters", m_invvel_iters, 1000);
 	}
 
 	// required info about object being pushed

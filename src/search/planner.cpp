@@ -97,7 +97,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	// m_robot->SetMovables(m_agents);
 
 	int t = 0, grasp_tries;
-	m_ph.getParam("robot/grasp_tries", grasp_tries);
+	m_ph.getParam("robot/grasping/tries", grasp_tries);
 	for (; t < grasp_tries; ++t)
 	{
 		if (m_robot->ComputeGrasps(m_goal)) {

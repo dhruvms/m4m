@@ -305,13 +305,13 @@ bool BulletSim::addRobot(int replay_id, const std::string& suffix)
 	if (replay_id < 0)
 	{
 		m_robot.resize(7);
-		m_nh.param("robot/x", m_robot[0], 0.0);
-		m_nh.param("robot/y", m_robot[1], 0.0);
-		m_nh.param("robot/z", m_robot[2], 0.0);
-		m_nh.param("robot/qx", m_robot[3], 0.0);
-		m_nh.param("robot/qy", m_robot[4], 0.0);
-		m_nh.param("robot/qz", m_robot[5], 0.0);
-		m_nh.param("robot/qw", m_robot[6], 1.0);
+		m_nh.param("robot/start/x", m_robot[0], 0.0);
+		m_nh.param("robot/start/y", m_robot[1], 0.0);
+		m_nh.param("robot/start/z", m_robot[2], 0.0);
+		m_nh.param("robot/start/qx", m_robot[3], 0.0);
+		m_nh.param("robot/start/qy", m_robot[4], 0.0);
+		m_nh.param("robot/start/qz", m_robot[5], 0.0);
+		m_nh.param("robot/start/qw", m_robot[6], 1.0);
 	}
 	else
 	{
