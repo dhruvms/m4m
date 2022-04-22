@@ -593,8 +593,8 @@ class BulletSim:
 		for pidx in range(num_pushes):
 			push_traj = req.pushes[pidx]
 
-			curr_timestep = push_traj.points[-3].time_from_start.to_sec()
-			curr_pose = np.asarray(push_traj.points[-3].positions)
+			curr_timestep = push_traj.points[0].time_from_start.to_sec()
+			curr_pose = np.asarray(push_traj.points[0].positions)
 
 			self.disableCollisionsWithObjects(sim_id)
 
@@ -623,7 +623,7 @@ class BulletSim:
 			violation_flag = False
 			cause = 0
 			robot_contacts = []
-			for point in push_traj.points[-2:]:
+			for point in push_traj.points[1:]:
 				sim.setJointMotorControlArray(
 						robot_id, gripper_joints,
 						controlMode=sim.POSITION_CONTROL,
