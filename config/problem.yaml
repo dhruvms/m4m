@@ -25,21 +25,29 @@ goal:
   cc_3d: false
 
 robot:
-  x: 0.0
-  y: 0.0
-  z: 0.0
-  qx: 0.0
-  qy: 0.0
-  qz: 0.0
-  qw: 1.0
+  start:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    qx: 0.0
+    qy: 0.0
+    qz: 0.0
+    qw: 1.0
+  pushing:
+    num: 4
+    action_time: 2.0
+    plan_time: 30.0
+    control:
+      dt: 0.01
+      Kp: 1.0
+      Ki: 1.0
+      Kd: 1.0
+      iters: 1000
+  grasping:
+    tries: 10
+    lift: 0.075
   semi_minor: 0.05
-  robot_obj_mass: 0.5
   speed: 1.0
-  pushes: 4
-  plan_push_time: 30.0
-  grasp_tries: 10
-  grasp_lift: 0.075
-  grasp_clip: 5
   interpolate: false
 
 mapf:
