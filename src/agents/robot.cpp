@@ -846,7 +846,7 @@ bool Robot::PlanRetrieval()
 	auto extract_start_time = m_traj.points.back().time_from_start;
 	for (size_t i = 0; i < res_r.trajectory.joint_trajectory.points.size(); ++i)
 	{
-		auto& wp = res_r.trajectory.joint_trajectory.points.at(i);
+		auto& wp = res_r.trajectory.joint_trajectory.points[i];
 		wp.time_from_start += extract_start_time;
 		m_traj.points.push_back(wp);
 	}
@@ -942,7 +942,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 	auto extract_start_time = m_traj.points.back().time_from_start;
 	for (size_t i = 0; i < res_r.trajectory.joint_trajectory.points.size(); ++i)
 	{
-		auto& wp = res_r.trajectory.joint_trajectory.points.at(i);
+		auto& wp = res_r.trajectory.joint_trajectory.points[i];
 		wp.time_from_start += extract_start_time;
 		m_traj.points.push_back(wp);
 	}
@@ -1143,6 +1143,9 @@ bool Robot::planToPoseGoal(
 	}
 
 	push_traj = res.trajectory.joint_trajectory;
+	if (push_traj.points.size() <= 1) {
+		return false;
+	}
 	return true;
 }
 
@@ -1150,17 +1153,9 @@ bool Robot::computePushAction(
 	const double time_start,
 	const smpl::RobotState& jnt_positions,
 	const smpl::RobotState& jnt_velocities,
-	const Eigen::Affine3d& start_pose,
 	const Eigen::Affine3d& end_pose,
 	trajectory_msgs::JointTrajectory& action)
 {
-	// ee velocity during push
-	Eigen::Vector3d ee_velocity(
-		end_pose.translation().x() - start_pose.translation().x(),
-		end_pose.translation().y() - start_pose.translation().y(),
-		0.0);
-	ee_velocity /= m_push_action_time;
-
 	// Constants
 	double xy_thresh = 0.02;
 
@@ -1169,10 +1164,10 @@ bool Robot::computePushAction(
 	auto q_ = jnt_positions;
 	auto q_dot = jnt_velocities;
 	std::vector<double> x_dot(6, 0.0), error(6, 0.0), integral(6, 0.0), derivative(6, 0.0), previous(6, 0.0);
-	Eigen::Affine3d xo_ = start_pose;
+	Eigen::Affine3d xo_ = end_pose;
 
 	bool push_end = false;
-	for(int iter = 0; iter< m_invvel_iters; iter++)
+	for(int iter = 0; iter < m_invvel_iters; iter++)
 	{
 
 		// Get difference between current EE pose and desired EE pose
@@ -1212,6 +1207,9 @@ bool Robot::computePushAction(
 		// x_dot[4] = m_Kp * error[4] + m_Ki * integral[4] + m_Kd * derivative[4];
 		// x_dot[5] = m_Kp * error[5] + m_Ki * integral[5] + m_Kd * derivative[5];
 
+		// Update previous error term
+		previous = error;
+
 		if (!m_rm->computeInverseVelocity(q_, x_dot, q_dot))
 		{
 			// SMPL_INFO("Failed to compute inverse velocity");
@@ -1224,29 +1222,15 @@ bool Robot::computePushAction(
 		action_pt.time_from_start = ros::Duration(time_start + m_dt * (iter));
 		action.points.push_back(std::move(action_pt));
 
-		double dx = std::fabs(xo_.translation().x() - end_pose.translation().x());
-		double dy = std::fabs(xo_.translation().y() - end_pose.translation().y());
-		double dz = std::fabs(xo_.translation().z() - end_pose.translation().z());
+		// has the EE reached the push_end_pose
+		double dx = std::fabs(xo_.translation().x() - x_.translation().x());
+		double dy = std::fabs(xo_.translation().y() - x_.translation().y());
+		double dz = std::fabs(xo_.translation().z() - x_.translation().z());
 
-		if (push_end)
+		if (dx <= xy_thresh && dy <= xy_thresh && dz <= xy_thresh)
 		{
-			// point being tracked has reached the push_end_pose
-			// has the EE reached there as well?
-			dx = std::fabs(xo_.translation().x() - x_.translation().x());
-			dy = std::fabs(xo_.translation().y() - x_.translation().y());
-			dz = std::fabs(xo_.translation().z() - x_.translation().z());
-
-			if (dx <= xy_thresh && dy <= xy_thresh && dz <= xy_thresh)
-			{
-				// if so, we are done
-				return true;
-			}
-		}
-		else if (dx <= xy_thresh/2.0 && dy <= xy_thresh/2.0 && dz <= xy_thresh/2.0)
-		{
-			// point being tracked no longer needs to move
-			ee_velocity *= 0.0;
-			push_end = true;
+			// if so, we are done
+			return true;
 		}
 
 		// Move arm joints
@@ -1260,12 +1244,6 @@ bool Robot::computePushAction(
 			// SMPL_INFO("Violates joint limits");
 			return false;
 		}
-
-		// Move object
-		xo_.translation().x() += ee_velocity[0] * m_dt;
-		xo_.translation().y() += ee_velocity[1] * m_dt;
-		xo_.translation().z() += ee_velocity[2] * m_dt;
-
 	}
 
 	// SMPL_INFO("Failed to reach end pose");
@@ -1358,7 +1336,6 @@ bool Robot::PlanPush(
 			push_traj.points.back().time_from_start.toSec(),
 			push_traj.points.back().positions,
 			joint_vel,
-			push_start_pose,
 			push_end_pose,
 			push_action);
 		m_stats["push_traj_plan_time"] += GetTime() - inv_vel_time;
@@ -1366,6 +1343,33 @@ bool Robot::PlanPush(
 
 		if (!push_action.points.empty())
 		{
+			// // collision check push action against immovable obstacles
+			// if (push_action.points.size() <= 1
+			// 	||!m_cc_i->isStateValid(push_action.points[0].positions)
+			// 	|| !m_cc_i->isStateValid(push_action.points.back().positions)
+			// 	|| m_cc_i->isStateToStateValid(push_action.points[0].positions, push_action.points[1].positions))
+			// {
+			// 	++m_stats["push_sample_fails"];
+			// 	continue;
+			// }
+
+			// bool collides = false;
+			// for (size_t wp = 1; wp < push_action.points.size(); ++wp)
+			// {
+			// 	auto& prev_istate = push_action.points[wp - 1].positions;
+			// 	auto& curr_istate = push_action.points[wp].positions;
+			// 	if (!m_cc_i->isStateToStateValid(prev_istate, curr_istate))
+			// 	{
+			// 		collides = true;
+			// 		break;
+			// 	}
+			// }
+			// if (collides)
+			// {
+			// 	++m_stats["push_sample_fails"];
+			// 	continue;
+			// }
+
 			auto push_action_copy = push_action;
 			auto t_reverse = push_action_copy.points.rbegin()->time_from_start;
 			for (auto itr = push_action_copy.points.rbegin() + 1; itr != push_action_copy.points.rend(); ++itr)

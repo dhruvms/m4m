@@ -212,7 +212,6 @@ private:
 		const double time_start,
 		const smpl::RobotState& jnt_positions,
 		const smpl::RobotState& jnt_velocities,
-		const Eigen::Affine3d& start_pose,
 		const Eigen::Affine3d& end_pose,
 		trajectory_msgs::JointTrajectory& action);
 

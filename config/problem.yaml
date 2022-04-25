@@ -39,9 +39,9 @@ robot:
     plan_time: 30.0
     control:
       dt: 0.01
-      Kp: 1.0
-      Ki: 1.0
-      Kd: 1.0
+      Kp: 2.0
+      Ki: 2.0
+      Kd: 0.01
       iters: 1000
   grasping:
     tries: 10
