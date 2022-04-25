@@ -393,10 +393,10 @@ bool Planner::setupProblem(bool backwards)
 {
 	// CBS TODO: assign starts and goals to agents
 
-	// int result = cleanupLogs();
-	// if (result == -1) {
-	// 	SMPL_ERROR("system command errored!");
-	// }
+	int result = cleanupLogs();
+	if (result == -1) {
+		SMPL_ERROR("system command errored!");
+	}
 
 	// Set agent current positions and time
 	// m_robot->Init();

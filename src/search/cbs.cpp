@@ -77,7 +77,7 @@ bool CBS::Solve(bool backwards)
 		if (done(next)) {
 			m_search_time += GetTime() - start_time;
 			SMPL_WARN("YAYAYAY! We did it!");
-			// writeSolution(next);
+			writeSolution(next);
 			return m_solved;
 		}
 		// writeSolution(next);
