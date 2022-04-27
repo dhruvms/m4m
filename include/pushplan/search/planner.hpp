@@ -24,12 +24,13 @@ class Planner
 {
 public:
 	Planner() : m_num_objs(-1), m_scene_id(-1),
-				m_ph("~") {};
+				m_ph("~"), m_replan(true) {};
 	bool Init(const std::string& scene_file, int scene_id, bool ycb);
 	bool Alive();
 	bool SetupNGR();
 
 	bool Plan();
+	bool FinalisePlan();
 	bool SaveData();
 	bool Rearrange();
 	std::uint32_t RunSim();
@@ -71,6 +72,7 @@ private:
 	std::shared_ptr<Robot> m_robot;
 	std::shared_ptr<BulletSim> m_sim;
 	std::shared_ptr<CBS> m_cbs;
+	bool m_replan;
 
 	int m_num_objs, m_scene_id;
 	std::vector<std::shared_ptr<Agent> > m_agents;

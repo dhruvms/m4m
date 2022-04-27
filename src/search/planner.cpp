@@ -154,6 +154,7 @@ bool Planner::SetupNGR()
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
 	m_robot->UpdateNGR();
 	m_exec = m_robot->GetLastPlan();
+	SMPL_WARN("[SET] m_exec.points.size() = %d", m_exec.points.size());
 
 	double ox, oy, oz, sx, sy, sz;
 	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
@@ -171,6 +172,26 @@ bool Planner::SetupNGR()
 	// if (ALGO == MAPFAlgo::OURS) {
 	// 	m_ooi->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
 	// }
+
+	return true;
+}
+
+bool Planner::FinalisePlan()
+{
+	std::vector<Object*> movable_obstacles;
+	for (const auto& a: m_agents) {
+		movable_obstacles.push_back(a->GetObject());
+	}
+
+	m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
+	// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
+	SMPL_INFO("FinalisePlan!");
+	if (!m_robot->PlanRetrieval(movable_obstacles, true)) {
+		return false;
+	}
+	m_robot->ProcessObstacles({ m_ooi->GetObject() });
+	m_exec = m_robot->GetLastPlan();
+	SMPL_WARN("[SET] m_exec.points.size() = %d", m_exec.points.size());
 
 	return true;
 }
@@ -208,20 +229,33 @@ bool Planner::createCBS()
 
 bool Planner::Plan()
 {
-	double start_time = GetTime();
-	while (!SetupNGR()) {
-		continue;
+	if (!m_replan) {
+		return true;
 	}
+
+	double start_time = GetTime();
+	if (!SetupNGR())
+	{
+		m_plan_time += GetTime() - start_time;
+		return false;
+	}
+	SMPL_INFO("Agent NGRs set!");
 
 	bool backwards = true; // ALGO == MAPFAlgo::OURS;
-	while (!setupProblem(backwards)) {
-		continue;
+	if (!setupProblem(backwards))
+	{
+		m_plan_time += GetTime() - start_time;
+		return false;
 	}
+	SMPL_INFO("Agents init-ed!");
 
-	if (!createCBS()) {
+	if (!createCBS())
+	{
+		m_plan_time += GetTime() - start_time;
 		return false;
 	}
 
+	SMPL_INFO("Run CBS!");
 	bool result = m_cbs->Solve(backwards);
 	m_cbs->SaveStats();
 
@@ -256,7 +290,8 @@ bool Planner::TryExtract()
 	comms::ObjectsPoses rearranged = m_rearranged;
 	bool success = true;
 	double start_time = GetTime();
-	if (!m_sim->ExecTraj(m_robot->GetLastPlan(), rearranged, m_robot->GraspAt(), m_ooi->GetID()))
+	SMPL_WARN("[EXEC] m_exec.points.size() = %d", m_exec.points.size());
+	if (!m_sim->ExecTraj(m_exec, rearranged, m_robot->GraspAt(), m_ooi->GetID()))
 	{
 		SMPL_ERROR("Failed to exec traj!");
 		success = false;
@@ -330,6 +365,7 @@ bool Planner::rearrange()
 		}
 	}
 	m_rearranged = rearranged;
+	m_replan = push_found;
 
 	return movement;
 }
