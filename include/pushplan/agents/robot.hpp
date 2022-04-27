@@ -196,8 +196,8 @@ private:
 
 	std::shared_ptr<BulletSim> m_sim;
 	std::vector<trajectory_msgs::JointTrajectory> m_push_trajs, m_push_actions;
-	int m_pushes_per_object, m_grasp_tries, m_invvel_iters;
-	double m_push_action_time, m_plan_push_time, m_grasp_lift, m_grasp_z, m_Kp, m_Ki, m_Kd, m_dt;
+	int m_pushes_per_object, m_push_splits, m_grasp_tries, m_invvel_iters;
+	double m_plan_push_time, m_grasp_lift, m_grasp_z, m_Kp, m_Ki, m_Kd, m_dt;
 
 	std::map<std::string, double> m_stats;
 	double m_planner_time, m_sim_time;

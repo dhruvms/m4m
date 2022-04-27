@@ -1298,7 +1298,7 @@ bool Robot::PlanPush(
 
 	if (m_pushes_per_object == -1) {
 		m_ph.getParam("robot/pushing/num", m_pushes_per_object);
-		m_ph.getParam("robot/pushing/action_time", m_push_action_time);
+		m_ph.getParam("robot/pushing/splits", m_push_splits);
 		m_ph.getParam("robot/pushing/plan_time", m_plan_push_time);
 
 		m_ph.param<double>("robot/pushing/control/Kp", m_Kp, 1.0);
@@ -1323,7 +1323,6 @@ bool Robot::PlanPush(
 		{
 			ProcessObstacles(pushed_obj);
 			ProcessObstacles(other_movables);
-			m_planning_config.xyzrpy_snap_dist_thresh = 0.05;
 			added = true;
 		}
 
@@ -1354,83 +1353,91 @@ bool Robot::PlanPush(
 			// remove all movable objects from collision space
 			ProcessObstacles(pushed_obj, true);
 			ProcessObstacles(other_movables, true);
-			m_ph.getParam("planning/xyzrpy_snap_dist_thresh", m_planning_config.xyzrpy_snap_dist_thresh);
 			added = false;
 		}
 
-		// sample push dist fraction
-		double push_frac = (m_distD(m_rng) * 0.25) + 0.75;
-		// compute push action end pose
-		push_end_pose = m_rm->computeFK(push_traj.points.back().positions);
-		push_end_pose.translation().x() = obj_traj->front().state.at(0) * (1 - push_frac)
-											 + obj_traj->back().state.at(0) * push_frac;
-		push_end_pose.translation().y() = obj_traj->front().state.at(1) * (1 - push_frac)
-											 + obj_traj->back().state.at(1) * push_frac;
-
-		// get push action trajectory via inverse velocity
-		smpl::RobotState joint_vel(m_rm->jointVariableCount(), 0.0);
-		trajectory_msgs::JointTrajectory push_action;
-		double inv_vel_time = GetTime();
-		computePushAction(
-			push_traj.points.back().time_from_start.toSec(),
-			push_traj.points.back().positions,
-			joint_vel,
-			push_end_pose,
-			push_action);
-		m_stats["push_traj_plan_time"] += GetTime() - inv_vel_time;
-		m_planner_time += GetTime() - inv_vel_time;
-
-		if (!push_action.points.empty())
+		bool split_found = false;
+		for (int s = 0; s < m_push_splits; ++s)
 		{
-			// // collision check push action against immovable obstacles
-			// if (push_action.points.size() <= 1
-			// 	||!m_cc_i->isStateValid(push_action.points[0].positions)
-			// 	|| !m_cc_i->isStateValid(push_action.points.back().positions)
-			// 	|| m_cc_i->isStateToStateValid(push_action.points[0].positions, push_action.points[1].positions))
-			// {
-			// 	++m_stats["push_sample_fails"];
-			// 	continue;
-			// }
+			trajectory_msgs::JointTrajectory push_action, split_traj = push_traj;
 
-			// bool collides = false;
-			// for (size_t wp = 1; wp < push_action.points.size(); ++wp)
-			// {
-			// 	auto& prev_istate = push_action.points[wp - 1].positions;
-			// 	auto& curr_istate = push_action.points[wp].positions;
-			// 	if (!m_cc_i->isStateToStateValid(prev_istate, curr_istate))
-			// 	{
-			// 		collides = true;
-			// 		break;
-			// 	}
-			// }
-			// if (collides)
-			// {
-			// 	++m_stats["push_sample_fails"];
-			// 	continue;
-			// }
+			// sample push dist fraction
+			double push_frac = 0.25 + (s/double(m_push_splits - 1)) * 0.75;
+			// compute push action end pose
+			push_end_pose = m_rm->computeFK(split_traj.points.back().positions);
+			push_end_pose.translation().x() = obj_traj->front().state.at(0) * (1 - push_frac)
+												 + obj_traj->back().state.at(0) * push_frac;
+			push_end_pose.translation().y() = obj_traj->front().state.at(1) * (1 - push_frac)
+												 + obj_traj->back().state.at(1) * push_frac;
 
-			auto push_action_copy = push_action;
-			auto t_reverse = push_action_copy.points.rbegin()->time_from_start;
-			for (auto itr = push_action_copy.points.rbegin() + 1; itr != push_action_copy.points.rend(); ++itr)
+			// get push action trajectory via inverse velocity
+			smpl::RobotState joint_vel(m_rm->jointVariableCount(), 0.0);
+			double inv_vel_time = GetTime();
+			if (computePushAction(
+					split_traj.points.back().time_from_start.toSec(),
+					split_traj.points.back().positions,
+					joint_vel,
+					push_end_pose,
+					push_action))
 			{
-				itr->time_from_start = t_reverse + ros::Duration(0.01);
-				push_action.points.push_back(*itr);
-				t_reverse = itr->time_from_start;
-			}
+				m_stats["push_traj_plan_time"] += GetTime() - inv_vel_time;
+				m_planner_time += GetTime() - inv_vel_time;
+				if (!split_found) {
+					split_found = true;
+				}
 
-			for (auto itr = push_action.points.begin() + 1; itr != push_action.points.end(); ++itr) {
-				push_traj.points.push_back(*itr);
-			}
+				// // collision check push action against immovable obstacles
+				// if (push_action.points.size() <= 1
+				// 	||!m_cc_i->isStateValid(push_action.points[0].positions)
+				// 	|| !m_cc_i->isStateValid(push_action.points.back().positions)
+				// 	|| m_cc_i->isStateToStateValid(push_action.points[0].positions, push_action.points[1].positions))
+				// {
+				// 	++m_stats["push_sample_fails"];
+				// 	continue;
+				// }
 
-			m_push_actions.push_back(std::move(push_action));
-			m_push_trajs.push_back(std::move(push_traj));
-			++i;
+				// bool collides = false;
+				// for (size_t wp = 1; wp < push_action.points.size(); ++wp)
+				// {
+				// 	auto& prev_istate = push_action.points[wp - 1].positions;
+				// 	auto& curr_istate = push_action.points[wp].positions;
+				// 	if (!m_cc_i->isStateToStateValid(prev_istate, curr_istate))
+				// 	{
+				// 		collides = true;
+				// 		break;
+				// 	}
+				// }
+				// if (collides)
+				// {
+				// 	++m_stats["push_sample_fails"];
+				// 	continue;
+				// }
+
+				auto push_action_copy = push_action;
+				auto t_reverse = push_action_copy.points.rbegin()->time_from_start;
+				for (auto itr = push_action_copy.points.rbegin() + 1; itr != push_action_copy.points.rend(); ++itr)
+				{
+					itr->time_from_start = t_reverse + ros::Duration(0.01);
+					push_action.points.push_back(*itr);
+					t_reverse = itr->time_from_start;
+				}
+
+				for (auto itr = push_action.points.begin() + 1; itr != push_action.points.end(); ++itr) {
+					split_traj.points.push_back(*itr);
+				}
+
+				m_push_actions.push_back(std::move(push_action));
+				m_push_trajs.push_back(std::move(split_traj));
+			}
+			else
+			{
+				m_stats["push_traj_plan_time"] += GetTime() - inv_vel_time;
+				m_planner_time += GetTime() - inv_vel_time;
+				++m_stats["push_sample_fails"];
+				break;
+			}
 		}
-		else
-		{
-			++m_stats["push_sample_fails"];
-			continue;
-		}
+		i += (int)split_found;
 	}
 
 	if (added)
@@ -1438,7 +1445,6 @@ bool Robot::PlanPush(
 		// remove all movable objects from collision space
 		ProcessObstacles(pushed_obj, true);
 		ProcessObstacles(other_movables, true);
-		m_ph.getParam("planning/xyzrpy_snap_dist_thresh", m_planning_config.xyzrpy_snap_dist_thresh);
 		added = false;
 	}
 
