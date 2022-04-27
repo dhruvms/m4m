@@ -482,7 +482,7 @@ class BulletSim:
 
 			prev_timestep = curr_timestep
 			curr_timestep = point.time_from_start.to_sec()
-			time_diff = (curr_timestep - prev_timestep) * 3
+			time_diff = (curr_timestep - prev_timestep) * 1
 			duration = time_diff * 240
 			prev_pose = get_joint_positions(robot_id, arm_joints, sim=sim)
 			curr_pose = np.asarray(point.positions)
@@ -631,7 +631,7 @@ class BulletSim:
 
 				prev_timestep = curr_timestep
 				curr_timestep = point.time_from_start.to_sec()
-				time_diff = (curr_timestep - prev_timestep) * 3
+				time_diff = (curr_timestep - prev_timestep) * 1
 				duration = time_diff * 240
 				prev_pose = get_joint_positions(robot_id, arm_joints, sim=sim)
 				curr_pose = np.asarray(point.positions)

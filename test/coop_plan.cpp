@@ -27,16 +27,17 @@ void SaveData(
 	if (!exists)
 	{
 		STATS << "UID,"
-				<< "MAPFCalls,MAPFSuccesses,"
-				<< "NotLucky,NotRearranged,"
-				<< "Timeout?,Rearranged?,ExecViolation?\n";
+				// << "MAPFCalls,MAPFSuccesses,"
+				// << "NotLucky,NotRearranged,"
+				<< "Timeout?,NotRearranged?\n";
 	}
 
 	STATS << scene_id << ','
-			<< mapf_calls << ',' << mapf_sucesses << ','
-			<< lucky << ',' << rearranged << ','
+			// << mapf_calls << ',' << mapf_sucesses << ','
+			// << lucky << ',' << rearranged << ','
 			<< dead << ',' << rearrange << ','
-			<< violation << '\n';
+			// << violation
+			<< '\n';
 	STATS.close();
 }
 
@@ -107,7 +108,7 @@ int main(int argc, char** argv)
 
 			int mapf_calls = 0, mapf_sucesses = 0;
 			bool dead = false, rearrange = true, lucky = false, rearranged = false;
-			std::uint32_t violation;
+			std::uint32_t violation = 0x00000000;
 			do
 			{
 				++mapf_calls;
@@ -139,7 +140,7 @@ int main(int argc, char** argv)
 				}
 			}
 			while (rearrange && p.Alive());
-			// dead = !p.Alive();
+			dead = !p.Alive();
 
 			// if (p.Alive()) {
 			// 	violation = p.RunSim();
@@ -156,13 +157,13 @@ int main(int argc, char** argv)
 			// 	ROS_ERROR("Planner terminated!!!");
 			// }
 
-			// if (SAVE)
-			// {
-			// 	SaveData(
-			// 		scene_id,
-			// 		mapf_calls, mapf_sucesses, lucky, rearranged,
-			// 		dead, rearrange, violation);
-			// }
+			if (SAVE)
+			{
+				SaveData(
+					scene_id,
+					mapf_calls, mapf_sucesses, lucky, rearranged,
+					dead, rearrange, violation);
+			}
 		}
 	}
 	else
