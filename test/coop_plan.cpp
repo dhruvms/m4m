@@ -105,13 +105,6 @@ int main(int argc, char** argv)
 			}
 			ROS_INFO("Planner and simulator init-ed!");
 
-			if (!p.SetupNGR())
-			{
-				ROS_ERROR("Failed to initialise NGRs for movable objects!");
-				continue;
-			}
-			ROS_INFO("All movable object init-ed with NGR grid!");
-
 			int mapf_calls = 0, mapf_sucesses = 0;
 			bool dead = false, rearrange = true, lucky = false, rearranged = false;
 			std::uint32_t violation;
