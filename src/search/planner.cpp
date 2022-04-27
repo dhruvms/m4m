@@ -141,8 +141,14 @@ bool Planner::Alive()
 
 bool Planner::SetupNGR()
 {
-	// if (!m_robot->PlanApproachOnly()) {
-	if (!m_robot->PlanRetrieval()) {
+	std::vector<Object*> movable_obstacles;
+	for (const auto& a: m_agents) {
+		movable_obstacles.push_back(a->GetObject());
+	}
+
+	m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
+	// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
+	if (!m_robot->PlanRetrieval(movable_obstacles)) {
 		return false;
 	}
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
@@ -154,6 +160,7 @@ bool Planner::SetupNGR()
 	for (auto& a: m_agents) {
 		a->SetObstacleGrid(m_robot->ObsGrid());
 		a->SetNGRGrid(m_robot->NGRGrid());
+		a->ResetSolution();
 		if (ALGO == MAPFAlgo::OURS) {
 			a->ComputeNGRComplement(ox, oy, oz, sx, sy, sz);
 		}
