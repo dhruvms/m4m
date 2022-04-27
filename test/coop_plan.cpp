@@ -27,14 +27,14 @@ void SaveData(
 	if (!exists)
 	{
 		STATS << "UID,"
-				// << "MAPFCalls,MAPFSuccesses,"
-				// << "NotLucky,NotRearranged,"
+				<< "MAPFCalls,MAPFSuccesses,"
+				<< "Lucky?,RearrangedLucky?,"
 				<< "Timeout?,NotRearranged?\n";
 	}
 
 	STATS << scene_id << ','
-			// << mapf_calls << ',' << mapf_sucesses << ','
-			// << lucky << ',' << rearranged << ','
+			<< mapf_calls << ',' << mapf_sucesses << ','
+			<< lucky << ',' << rearranged << ','
 			<< dead << ',' << rearrange << ','
 			// << violation
 			<< '\n';
@@ -116,27 +116,32 @@ int main(int argc, char** argv)
 				{
 					++mapf_sucesses;
 
-					// ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
-					// if (p.Alive() && p.TryExtract()) {
-					// 	lucky = true;
-					// }
+					ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
+					if (p.Alive() && p.TryExtract())
+					{
+						lucky = true;
+						break;
+					}
 
-					if (p.Alive()) {
+					if (p.Alive())
+					{
 						ROS_WARN("Try rearrangement!");
 						rearrange = p.Rearrange();
 					}
 
-					// ROS_WARN("Try extraction after rearrangement! Did we successfully rearrange?");
-					// if (p.Alive() && p.TryExtract()) {
-					// 	rearranged = true;
-					// }
+					ROS_WARN("Try extraction after rearrangement! Did we successfully rearrange?");
+					if (p.Alive() && p.TryExtract())
+					{
+						rearranged = true;
+						break;
+					}
 
-					// ROS_WARN("Try planning with all objects as obstacles! Are we done?");
-					// if (p.Alive())
-					// {
-					// 	// ROS_WARN("YAYAYAY! We did it!");
-					// 	break;
-					// }
+					ROS_WARN("Try planning with all objects as obstacles! Are we done?");
+					if (p.Alive() && p.FinalisePlan())
+					{
+						ROS_WARN("MAMO Solved!");
+						break;
+					}
 				}
 			}
 			while (rearrange && p.Alive());
