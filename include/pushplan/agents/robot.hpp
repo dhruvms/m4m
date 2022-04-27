@@ -52,7 +52,7 @@ public:
 	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
 	bool RandomiseStart();
 	bool PlanApproachOnly(const std::vector<Object*>& movable_obstacles);
-	bool PlanRetrieval(const std::vector<Object*>& movable_obstacles);
+	bool PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool finalise=false);
 	void UpdateNGR(bool vis=false);
 	bool SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expands, int& min_f);
 
@@ -78,7 +78,6 @@ public:
 		const std::vector<Object*>& other_movables,
 		const comms::ObjectsPoses& rearranged, comms::ObjectsPoses& result);
 	trajectory_msgs::JointTrajectory GetLastPlan() {
-		SMPL_INFO("rearrangmenet traj size = %d", m_traj.points.size());
 		return m_traj;
 	};
 	void SetSim(const std::shared_ptr<BulletSim>& sim) {
@@ -288,11 +287,13 @@ private:
 	bool planApproach(
 		const std::vector<std::vector<double> >& approach_cvecs,
 		moveit_msgs::MotionPlanResponse& res,
-		const std::vector<Object*>& movable_obstacles);
+		const std::vector<Object*>& movable_obstacles,
+		bool finalise=false);
 	bool planRetract(
 		const std::vector<std::vector<double> >& retract_cvecs,
 		moveit_msgs::MotionPlanResponse& res,
-		const std::vector<Object*>& movable_obstacles);
+		const std::vector<Object*>& movable_obstacles,
+		bool finalise=false);
 	void voxeliseTrajectory();
 };
 

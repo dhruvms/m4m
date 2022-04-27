@@ -302,7 +302,7 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 		}
 	}
 
-	// SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
 	return true;
 }
 
@@ -328,7 +328,7 @@ bool Robot::ProcessObstacles(const std::vector<Object*>& obstacles, bool remove)
 		}
 	}
 
-	// SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
 	return true;
 }
 
@@ -587,7 +587,8 @@ bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& s
 bool Robot::planApproach(
 	const std::vector<std::vector<double> >& approach_cvecs,
 	moveit_msgs::MotionPlanResponse& res,
-	const std::vector<Object*>& movable_obstacles)
+	const std::vector<Object*>& movable_obstacles,
+	bool finalise)
 {
 	bool have_obs = !movable_obstacles.empty();
 
@@ -638,16 +639,23 @@ bool Robot::planApproach(
 		return false;
 	}
 
-	if (have_obs) {
+	if (have_obs && !finalise) {
 		ProcessObstacles(movable_obstacles, true);
 	}
 
 	if (!m_planner->solve_with_constraints(req, res, m_movables, approach_cvecs))
 	{
 		// ROS_ERROR("Failed to plan to pregrasp state.");
+		if (have_obs && finalise) {
+			ProcessObstacles(movable_obstacles, true);
+		}
 		return false;
 	}
 	// SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
+
+	if (have_obs && finalise) {
+		ProcessObstacles(movable_obstacles, true);
+	}
 
 	return true;
 }
@@ -655,7 +663,8 @@ bool Robot::planApproach(
 bool Robot::planRetract(
 	const std::vector<std::vector<double> >& retract_cvecs,
 	moveit_msgs::MotionPlanResponse& res,
-	const std::vector<Object*>& movable_obstacles)
+	const std::vector<Object*>& movable_obstacles,
+	bool finalise)
 {
 	bool have_obs = !movable_obstacles.empty();
 
@@ -711,6 +720,7 @@ bool Robot::planRetract(
 	if (!m_planner->init_planner(planning_scene, req, res))
 	{
 		// ROS_ERROR("Failed to init planner!");
+		m_start_state = orig_start;
 
 		if (have_obs) {
 			ProcessObstacles(movable_obstacles, true);
@@ -718,7 +728,7 @@ bool Robot::planRetract(
 		return false;
 	}
 
-	if (have_obs) {
+	if (have_obs && !finalise) {
 		ProcessObstacles(movable_obstacles, true);
 	}
 
@@ -727,9 +737,16 @@ bool Robot::planRetract(
 		// ROS_ERROR("Failed to plan to home state with attached body.");
 		detachObject();
 		m_start_state = orig_start;
+
+		if (have_obs && finalise) {
+			ProcessObstacles(movable_obstacles, true);
+		}
 		return false;
 	}
 	// SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
+	if (have_obs && finalise) {
+		ProcessObstacles(movable_obstacles, true);
+	}
 
 	detachObject();
 	m_start_state = orig_start;
@@ -833,7 +850,7 @@ bool Robot::PlanApproachOnly(const std::vector<Object*>& movable_obstacles)
 	return true;
 }
 
-bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles)
+bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool finalise)
 {
 	///////////////////
 	// Plan approach //
@@ -841,9 +858,10 @@ bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles)
 
 	std::vector<std::vector<double> > dummy;
 	moveit_msgs::MotionPlanResponse res_a;
-	if (!planApproach(dummy, res_a, movable_obstacles)) {
+	if (!planApproach(dummy, res_a, movable_obstacles, finalise)) {
 		return false;
 	}
+	SMPL_INFO("Approach plan found!");
 
 	m_traj = res_a.trajectory.joint_trajectory;
 
@@ -871,9 +889,10 @@ bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles)
 	/////////////////////
 
 	moveit_msgs::MotionPlanResponse res_r;
-	if (!planRetract(dummy, res_r, movable_obstacles)) {
+	if (!planRetract(dummy, res_r, movable_obstacles, finalise)) {
 		return false;
 	}
+	SMPL_INFO("Retract plan found!");
 
 	auto extract_start_time = m_traj.points.back().time_from_start;
 	for (size_t i = 0; i < res_r.trajectory.joint_trajectory.points.size(); ++i)
@@ -882,6 +901,7 @@ bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles)
 		wp.time_from_start += extract_start_time;
 		m_traj.points.push_back(wp);
 	}
+	m_planner->ProfilePath(m_rm.get(), m_traj);
 
 	return true;
 }
