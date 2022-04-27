@@ -77,7 +77,7 @@ bool CBS::Solve(bool backwards)
 		if (done(next)) {
 			m_search_time += GetTime() - start_time;
 			SMPL_WARN("YAYAYAY! We did it!");
-			writeSolution(next);
+			// writeSolution(next);
 			return m_solved;
 		}
 		// writeSolution(next);
@@ -144,7 +144,7 @@ bool CBS::initialiseRoot()
 	// m_min_fs[0] = min_f;
 	// root->m_solution.emplace_back(m_robot->GetID(), *(m_paths[0]));
 	// root->m_g += m_min_fs[0];
-	// root->m_flowtime += m_paths[0]->size();
+	// root->m_flowtime += m_paths[0]->size() - 1;
 	// root->m_makespan = std::max(root->m_makespan, (int)m_paths[0]->size());
 
 	// Plan for objects
@@ -160,7 +160,7 @@ bool CBS::initialiseRoot()
 		m_min_fs[i] = min_f;
 		root->m_solution.emplace_back(m_obj_idx_to_id[i], *(m_paths[i]));
 		root->m_g += m_min_fs[i];
-		root->m_flowtime += m_paths[i]->size();
+		root->m_flowtime += m_paths[i]->size() - 1;
 		root->m_makespan = std::max(root->m_makespan, (int)m_paths[i]->size());
 	}
 
@@ -179,7 +179,7 @@ void CBS::pushNode(HighLevelNode* node)
 	++m_ct_generated;
 	node->m_generate = m_ct_generated;
 	node->m_OPEN_h = m_OPEN.push(node);
-	if (node->m_flowtime <= m_wf * m_soln_lb){
+	if (node->m_flowtime <= m_wf * m_soln_lb) {
 		node->m_FOCAL_h = m_FOCAL.push(node);
 	}
 }
@@ -433,7 +433,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 	// if (child->m_replanned == 0)
 	// {
 	// 	child->m_g -= m_min_fs[0];
-	// 	child->m_flowtime -= m_paths[0]->size();
+	// 	child->m_flowtime -= m_paths[0]->size() - 1;
 	// 	if (child->m_makespan == m_paths[0]->size()) {
 	// 		recalc_makespan = true;
 	// 	}
@@ -456,7 +456,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 	// 	}
 
 	// 	child->m_g += min_f;
-	// 	child->m_flowtime += m_paths[0]->size();
+	// 	child->m_flowtime += m_paths[0]->size() - 1;
 	// 	m_min_fs[0] = min_f;
 	// 	if (recalc_makespan) {
 	// 		child->recalcMakespan();
@@ -474,7 +474,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 			}
 
 			child->m_g -= m_min_fs[i];
-			child->m_flowtime -= m_paths[i]->size();
+			child->m_flowtime -= m_paths[i]->size() - 1;
 			if (child->m_makespan == m_paths[i]->size()) {
 				recalc_makespan = true;
 			}
@@ -499,7 +499,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 			}
 
 			child->m_g += min_f;
-			child->m_flowtime += m_paths[i]->size();
+			child->m_flowtime += m_paths[i]->size() - 1;
 			m_min_fs[i] = min_f;
 			if (recalc_makespan) {
 				child->recalcMakespan();
@@ -530,19 +530,19 @@ bool CBS::done(HighLevelNode* node)
 		m_goal = node;
 		m_soln_cost = m_goal->m_flowtime;
 
-		if (!m_goal->m_priorities.Empty())
-		{
-			SMPL_WARN("Solution Priority DAG:");
-			auto G = m_goal->m_priorities.GetDAG();
-			for (const auto& parent: G) {
-				for (const auto& child: parent.second) {
-					SMPL_WARN("\t%d -> %d", parent.first, child);
-				}
-			}
-		}
-		else {
-			SMPL_WARN("Solution has empty Priority DAG!");
-		}
+		// if (!m_goal->m_priorities.Empty())
+		// {
+		// 	SMPL_WARN("Solution Priority DAG:");
+		// 	auto G = m_goal->m_priorities.GetDAG();
+		// 	for (const auto& parent: G) {
+		// 		for (const auto& child: parent.second) {
+		// 			SMPL_WARN("\t%d -> %d", parent.first, child);
+		// 		}
+		// 	}
+		// }
+		// else {
+		// 	SMPL_WARN("Solution has empty Priority DAG!");
+		// }
 
 		return true;
 	}
