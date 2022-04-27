@@ -207,7 +207,12 @@ bool Planner::createCBS()
 
 bool Planner::Plan()
 {
-	bool backwards = ALGO == MAPFAlgo::OURS;
+	double start_time = GetTime();
+	while (!SetupNGR()) {
+		continue;
+	}
+
+	bool backwards = true; // ALGO == MAPFAlgo::OURS;
 	while (!setupProblem(backwards)) {
 		continue;
 	}
@@ -218,6 +223,8 @@ bool Planner::Plan()
 
 	bool result = m_cbs->Solve(backwards);
 	m_cbs->SaveStats();
+
+	m_plan_time += GetTime() - start_time;
 
 	return result;
 }
