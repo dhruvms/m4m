@@ -411,6 +411,7 @@ class BulletSim:
 
 		self.disableCollisionsWithObjects(sim_id)
 
+		self.ResetScene(ResetSceneRequest(-1, True), sim_id)
 		if (len(req.objects.poses) != 0):
 			self.resetObjects(sim_id, req.objects.poses)
 

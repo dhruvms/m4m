@@ -34,6 +34,8 @@ bool Agent::SetObjectPose(
 	m_obj_desc.o_pitch = rpy.at(1);
 	m_obj_desc.o_yaw = rpy.at(2);
 
+	m_obj.desc = m_obj_desc;
+
 	LatticeState s;
 	s.state = { 	m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z,
 						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };

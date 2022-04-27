@@ -11,7 +11,7 @@ namespace clutter
 {
 
 CBS::CBS() :
-m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(180.0), m_soln_lb(0), m_wf(1000)
+m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(30.0), m_soln_lb(0), m_wf(1000)
 {
 	m_robot = nullptr;
 	m_objs.clear();
@@ -23,7 +23,7 @@ m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_
 
 CBS::CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs,
 	int scene_id) :
-m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(180.0), m_scene_id(scene_id), m_soln_lb(0), m_wf(1000)
+m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_limit(30.0), m_scene_id(scene_id), m_soln_lb(0), m_wf(1000)
 {
 	m_robot = r;
 	m_objs = objs;
