@@ -132,9 +132,9 @@ bool Planner::Alive()
 		return false;
 	}
 
-	if (m_robot->BadAttach()) {
-		return false;
-	}
+	// if (m_robot->BadAttach()) {
+	// 	return false;
+	// }
 
 	return true;
 }
@@ -153,6 +153,7 @@ bool Planner::SetupNGR()
 	}
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
 	m_robot->UpdateNGR();
+	m_exec = m_robot->GetLastPlan();
 
 	double ox, oy, oz, sx, sy, sz;
 	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
@@ -282,6 +283,7 @@ bool Planner::rearrange()
 {
 	comms::ObjectsPoses rearranged = m_rearranged;
 
+	bool push_found = false, movement = false;
 	auto cbs_soln = m_cbs->GetSolution();
 	for (auto& path: cbs_soln->m_solution)
 	{
@@ -290,6 +292,7 @@ bool Planner::rearrange()
 			// either this is robot or the object did not move
 			continue;
 		}
+		movement = true;
 
 		// get push location
 		std::vector<double> push;
@@ -317,14 +320,18 @@ bool Planner::rearrange()
 
 			// update positions of moved objects
 			updateAgentPositions(result, rearranged);
+			push_found = true;
 		}
 		if (SAVE) {
 			m_robot->SavePushData(m_scene_id);
 		}
+		if (push_found) {
+			break;
+		}
 	}
 	m_rearranged = rearranged;
 
-	return true;
+	return movement;
 }
 
 bool Planner::animateSolution()
