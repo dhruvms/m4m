@@ -586,8 +586,11 @@ bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& s
 
 bool Robot::planApproach(
 	const std::vector<std::vector<double> >& approach_cvecs,
-	moveit_msgs::MotionPlanResponse& res)
+	moveit_msgs::MotionPlanResponse& res,
+	const std::vector<Object*>& movable_obstacles)
 {
+	bool have_obs = !movable_obstacles.empty();
+
 	///////////////////
 	// Plan approach //
 	///////////////////
@@ -620,12 +623,25 @@ bool Robot::planApproach(
 	moveit_msgs::PlanningScene planning_scene;
 	planning_scene.robot_state = m_start_state;
 
+	if (have_obs) {
+		ProcessObstacles(movable_obstacles);
+	}
+
 	// SMPL_INFO("Planning to pregrasp state.");
 	if (!m_planner->init_planner(planning_scene, req, res))
 	{
 		// ROS_ERROR("Failed to init planner!");
+
+		if (have_obs) {
+			ProcessObstacles(movable_obstacles, true);
+		}
 		return false;
 	}
+
+	if (have_obs) {
+		ProcessObstacles(movable_obstacles, true);
+	}
+
 	if (!m_planner->solve_with_constraints(req, res, m_movables, approach_cvecs))
 	{
 		// ROS_ERROR("Failed to plan to pregrasp state.");
@@ -638,8 +654,11 @@ bool Robot::planApproach(
 
 bool Robot::planRetract(
 	const std::vector<std::vector<double> >& retract_cvecs,
-	moveit_msgs::MotionPlanResponse& res)
+	moveit_msgs::MotionPlanResponse& res,
+	const std::vector<Object*>& movable_obstacles)
 {
+	bool have_obs = !movable_obstacles.empty();
+
 	// setGripper(true); // open
 	if (!attachAndCheckObject(m_ooi, m_postgrasp_state)) {
 		detachObject();
@@ -684,12 +703,25 @@ bool Robot::planRetract(
 	moveit_msgs::PlanningScene planning_scene;
 	planning_scene.robot_state = m_start_state;
 
+	if (have_obs) {
+		ProcessObstacles(movable_obstacles);
+	}
+
 	// SMPL_INFO("Planning to home state with attached body.");
 	if (!m_planner->init_planner(planning_scene, req, res))
 	{
-		ROS_ERROR("Failed to init planner!");
+		// ROS_ERROR("Failed to init planner!");
+
+		if (have_obs) {
+			ProcessObstacles(movable_obstacles, true);
+		}
 		return false;
 	}
+
+	if (have_obs) {
+		ProcessObstacles(movable_obstacles, true);
+	}
+
 	if (!m_planner->solve_with_constraints(req, res, m_movables, retract_cvecs))
 	{
 		// ROS_ERROR("Failed to plan to home state with attached body.");
@@ -789,11 +821,11 @@ void Robot::UpdateNGR(bool vis)
 	}
 }
 
-bool Robot::PlanApproachOnly()
+bool Robot::PlanApproachOnly(const std::vector<Object*>& movable_obstacles)
 {
 	std::vector<std::vector<double> > dummy;
 	moveit_msgs::MotionPlanResponse res;
-	if (!planApproach(dummy, res)) {
+	if (!planApproach(dummy, res, movable_obstacles)) {
 		return false;
 	}
 
@@ -801,7 +833,7 @@ bool Robot::PlanApproachOnly()
 	return true;
 }
 
-bool Robot::PlanRetrieval()
+bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles)
 {
 	///////////////////
 	// Plan approach //
@@ -809,7 +841,7 @@ bool Robot::PlanRetrieval()
 
 	std::vector<std::vector<double> > dummy;
 	moveit_msgs::MotionPlanResponse res_a;
-	if (!planApproach(dummy, res_a)) {
+	if (!planApproach(dummy, res_a, movable_obstacles)) {
 		return false;
 	}
 
@@ -839,7 +871,7 @@ bool Robot::PlanRetrieval()
 	/////////////////////
 
 	moveit_msgs::MotionPlanResponse res_r;
-	if (!planRetract(dummy, res_r)) {
+	if (!planRetract(dummy, res_r, movable_obstacles)) {
 		return false;
 	}
 
@@ -896,7 +928,8 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 	///////////////////
 
 	moveit_msgs::MotionPlanResponse res_a;
-	if (!planApproach(approach_cvecs, res_a)) {
+	std::vector<Object*> dummy;
+	if (!planApproach(approach_cvecs, res_a, dummy)) {
 		return false;
 	}
 
@@ -930,7 +963,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 	/////////////////////
 
 	moveit_msgs::MotionPlanResponse res_r;
-	if (!planRetract(retract_cvecs, res_r)) {
+	if (!planRetract(retract_cvecs, res_r, dummy)) {
 		return false;
 	}
 
