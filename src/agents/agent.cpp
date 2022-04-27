@@ -56,7 +56,8 @@ bool Agent::Init(bool backwards)
 	else {
 		m_goal = m_solve.back().coord;
 	}
-	createLatticeAndSearch(backwards);
+	// createLatticeAndSearch(backwards);
+	createLatticeAndSearch(false);
 
 	return true;
 }

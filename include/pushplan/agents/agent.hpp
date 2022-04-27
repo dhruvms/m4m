@@ -69,6 +69,9 @@ public:
 	void SetNGRGrid(const std::shared_ptr<smpl::OccupancyGrid>& ngr_grid) {
 		m_ngr_grid = ngr_grid;
 	}
+	void ResetSolution() {
+		m_solve.clear();
+	}
 
 	bool GetSE2Push(std::vector<double>& push);
 	int GetID() { return m_obj.desc.id; };

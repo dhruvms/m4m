@@ -195,6 +195,7 @@ int Focal::replan(
 		m_search_time += GetTime() - expand_time;
 	}
 
+	// SMPL_WARN("FOCAL failed! OPEN size = %d", m_OPEN.size());
 	return 0;
 }
 
