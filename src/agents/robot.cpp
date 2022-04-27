@@ -1190,7 +1190,7 @@ bool Robot::computePushAction(
 	trajectory_msgs::JointTrajectory& action)
 {
 	// Constants
-	double xy_thresh = 0.02;
+	double xy_thresh = 0.01;
 
 	// Variables
 	Eigen::Affine3d x_;
@@ -1263,12 +1263,18 @@ bool Robot::computePushAction(
 		if (dx <= xy_thresh && dy <= xy_thresh && dz <= xy_thresh)
 		{
 			// if so, we are done
+			// SMPL_INFO("SUCCESS - reached end point");
 			return true;
 		}
 
 		// Move arm joints
 		for(size_t i = 0; i < q_.size(); ++i) {
-			q_[i] += (q_dot[i] * m_dt);
+			// q_[i] += (q_dot[i] * m_dt);
+			double limit = m_rm->velLimit(i);
+			q_[i] += std::min(std::max(-limit, q_dot[i]), limit) * m_dt;
+			if (m_rm->isContinuous(i)) {
+				q_[i] = smpl::angles::normalize_angle(q_[i]);
+			}
 		}
 
 		// TODO: check velocity limit
