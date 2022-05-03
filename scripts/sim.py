@@ -253,6 +253,14 @@ class BulletSim:
 			for gjidx in gripper_joints:
 				sim.resetJointState(robot_id, gjidx, 0.0, targetVelocity=0.0)
 
+			sim.setJointMotorControlArray(
+					robot_id, joint_idxs,
+					controlMode=sim.VELOCITY_CONTROL,
+					targetVelocities=[0.0] * len(joint_idxs))
+			sim.setJointMotorControlArray(
+				robot_id, gripper_joints,
+				controlMode=sim.VELOCITY_CONTROL,
+				targetVelocities=[0.0] * len(gripper_joints))
 			sim.stepSimulation()
 
 			self.enableCollisionsWithObjects(sim_id)
@@ -278,6 +286,10 @@ class BulletSim:
 
 			for jidx, jval in zip(joint_idxs, joint_config):
 				sim.resetJointState(robot_id, jidx, jval, targetVelocity=0.0)
+			sim.setJointMotorControlArray(
+					robot_id, joint_idxs,
+					controlMode=sim.VELOCITY_CONTROL,
+					targetVelocities=[0.0] * len(joint_idxs))
 			sim.stepSimulation()
 
 			self.enableCollisionsWithObjects(sim_id)
@@ -411,7 +423,6 @@ class BulletSim:
 
 		self.disableCollisionsWithObjects(sim_id)
 
-		self.ResetScene(ResetSceneRequest(-1, True), sim_id)
 		if (len(req.objects.poses) != 0):
 			self.resetObjects(sim_id, req.objects.poses)
 
