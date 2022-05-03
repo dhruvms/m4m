@@ -264,8 +264,8 @@ void CBS::findConflictsRobot(HighLevelNode& curr, size_t oid)
 		}
 	}
 
-	if (r_traj->size() != a_traj->size()
-)	{
+	if (r_traj->size() != a_traj->size())
+	{
 		bool robot_shorter = r_traj->size() < a_traj->size();
 		auto* shorter = robot_shorter ? r_traj : a_traj;
 		auto* longer = robot_shorter ? a_traj : r_traj;
@@ -340,8 +340,12 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 	}
 
 	int tmin = std::min(a1_traj->size(), a2_traj->size());
-	for (int t = 0; t < tmin; ++t)
+	for (int t = 1; t < tmin; ++t)
 	{
+		if (a1_traj->at(t).coord == a1_traj->at(0).coord && a2_traj->at(t).coord == a2_traj->at(0).coord) {
+			continue;
+		}
+
 		m_objs[o1]->UpdatePose(a1_traj->at(t));
 		m_objs[o2]->UpdatePose(a2_traj->at(t));
 		if (m_cc->ObjectObjectCollision(m_objs[o1]->GetFCLObject(), m_objs[o2]->GetFCLObject()))
@@ -365,6 +369,10 @@ void CBS::findConflictsObjects(HighLevelNode& curr, size_t o1, size_t o2)
 		shorter->UpdatePose(shorter_traj->back());
 		for (int t = tmin; t < longer_traj->size(); ++t)
 		{
+			if (shorter_traj->back().coord == shorter_traj->at(0).coord && longer_traj->at(t).coord == longer_traj->at(0).coord) {
+				continue;
+			}
+
 			longer->UpdatePose(longer_traj->at(t));
 			if (m_cc->ObjectObjectCollision(shorter->GetFCLObject(), longer->GetFCLObject()))
 			{
