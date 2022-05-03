@@ -63,6 +63,7 @@ struct Object
 	auto VoxelsState() -> smpl::collision::CollisionVoxelsState* { return voxels_state; }
 
 	void UpdatePose(const LatticeState& s);
+	fcl::AABB ComputeAABBTight();
 
 	void GetMoveitObj(moveit_msgs::CollisionObject& msg) const {
 		msg = *moveit_obj;

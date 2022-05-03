@@ -403,6 +403,40 @@ void Object::UpdatePose(const LatticeState& s)
 	fcl_obj->computeAABB();
 }
 
+fcl::AABB Object::ComputeAABBTight()
+{
+	auto aabb = fcl_obj->getAABB();
+	auto cgeom = fcl_obj->collisionGeometry();
+	auto t = fcl_obj->getTransform();
+	if (t.getQuatRotation().isIdentity()) {
+		aabb = fcl::translate(cgeom->aabb_local, t.getTranslation());
+	}
+	else
+	{
+		fcl::Vec3f trans = t.getTranslation();
+		fcl::Matrix3f rot = t.getRotation();
+
+		// For all three axes
+		for (int i = 0; i < 3; i++)
+		{
+			// Start by adding in translation
+			aabb.min_[i] = aabb.max_[i] = trans[i];
+
+			// Form extent by summing smaller and larger terms respectively
+			for (int j = 0; j < 3; j++)
+			{
+				fcl::FCL_REAL e = rot(i, j) * cgeom->aabb_local.min_[j];
+				fcl::FCL_REAL f = rot(i, j) * cgeom->aabb_local.max_[j];
+
+				aabb.min_[i] += (e < f) ? e : f;
+				aabb.max_[i] += (e < f) ? f : e;
+			}
+		}
+	}
+
+	return aabb;
+}
+
 void Object::updateSphereState(const smpl::collision::SphereIndex& sidx)
 {
 	smpl::collision::CollisionSphereState& sphere_state = spheres_state->spheres[sidx.s];

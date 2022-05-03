@@ -244,7 +244,7 @@ void Agent::VisualiseState(const LatticeState& s, const std::string& ns, int hue
 bool Agent::GetSE2Push(std::vector<double>& push)
 {
 	push.clear();
-	push.resize(3, 0.0);
+	push.resize(4, 0.0);
 	double move_dir = std::atan2(
 					m_solve.back().state.at(1) - m_solve.front().state.at(1),
 					m_solve.back().state.at(0) - m_solve.front().state.at(0));
@@ -259,7 +259,7 @@ bool Agent::GetSE2Push(std::vector<double>& push)
 
 	// AABB bounds
 	m_obj.UpdatePose(m_init);
-	auto aabb = m_obj.GetFCLObject()->getAABB();
+	auto aabb = m_obj.ComputeAABBTight();
 	std::vector<fcl::Vec3f> bounds = {aabb.min_, aabb.max_};
 
 	// Push direction and inverse direction
@@ -321,6 +321,7 @@ bool Agent::GetSE2Push(std::vector<double>& push)
 
 	push[0] = m_obj_desc.o_x + push_dir[0] * t;
 	push[1] = m_obj_desc.o_y + push_dir[1] * t;
+	push[3] = t;
 
 	return true;
 }
