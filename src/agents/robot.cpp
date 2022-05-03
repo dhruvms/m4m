@@ -748,7 +748,7 @@ bool Robot::planRetract(
 void Robot::voxeliseTrajectory()
 {
 	m_traj_voxels.clear();
-	double start_time = GetTime();
+	// double start_time = GetTime();
 
 	int sphere_count = 0;
 	for (const auto& wp: m_traj.points)
@@ -799,7 +799,7 @@ void Robot::voxeliseTrajectory()
 		}
 	}
 
-	ROS_INFO("Robot trajectory voxelisation took %f seconds", GetTime() - start_time);
+	// ROS_INFO("Robot trajectory voxelisation took %f seconds", GetTime() - start_time);
 
 	// TODO: make this faster by looping over cells in a sphere octant
 	// and computing the rest via symmetry
@@ -852,7 +852,6 @@ bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool fi
 	if (!planApproach(dummy, res_a, movable_obstacles, finalise)) {
 		return false;
 	}
-	SMPL_INFO("Approach plan found!");
 
 	m_traj = res_a.trajectory.joint_trajectory;
 
@@ -883,7 +882,6 @@ bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool fi
 	if (!planRetract(dummy, res_r, movable_obstacles, finalise)) {
 		return false;
 	}
-	SMPL_INFO("Retract plan found!");
 
 	auto extract_start_time = m_traj.points.back().time_from_start;
 	for (size_t i = 0; i < res_r.trajectory.joint_trajectory.points.size(); ++i)
@@ -1018,8 +1016,6 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 bool Robot::ComputeGrasps(
 	const std::vector<double>& pregrasp_goal)
 {
-	double start_time = GetTime();
-
 	m_pregrasp_state.clear();
 	m_grasp_state.clear();
 	m_postgrasp_state.clear();
@@ -1055,7 +1051,7 @@ bool Robot::ComputeGrasps(
 	// }
 	// SV_SHOW_INFO_NAMED(vis_name, markers);
 
-	SMPL_INFO("Found grasp state!!");
+	// SMPL_INFO("Found grasp state!!");
 
 	// compute pregrasp state
 	ee_pose = m_rm->computeFK(m_grasp_state);
@@ -1075,7 +1071,7 @@ bool Robot::ComputeGrasps(
 		// }
 		// SV_SHOW_INFO_NAMED(vis_name, markers);
 
-		SMPL_INFO("Found pregrasp state!");
+		// SMPL_INFO("Found pregrasp state!");
 		ee_pose = m_rm->computeFK(m_grasp_state);
 		ee_pose.translation().z() += m_grasp_lift;
 
@@ -1093,7 +1089,7 @@ bool Robot::ComputeGrasps(
 			// }
 			// SV_SHOW_INFO_NAMED(vis_name, markers);
 
-			SMPL_INFO("Found postgrasp state!!!");
+			// SMPL_INFO("Found postgrasp state!!!");
 
 			if (!attachAndCheckObject(m_ooi, m_postgrasp_state)) {
 				detachObject();
@@ -1174,14 +1170,12 @@ bool Robot::planToPoseGoal(
 	// solve for path to push start pose
 	if (!m_planner->init_planner(planning_scene, req, res))
 	{
-		ROS_ERROR("Failed to init planner!");
-
+		// ROS_ERROR("Failed to init planner!");
 		return false;
 	}
 	if (!m_planner->solve(req, res))
 	{
-		ROS_ERROR("Failed to plan.");
-
+		// ROS_ERROR("Failed to plan.");
 		return false;
 	}
 
@@ -1274,6 +1268,31 @@ bool Robot::computePushAction(
 		{
 			// if so, we are done
 			// SMPL_INFO("SUCCESS - reached end point");
+			// std::vector<smpl::visual::Marker> ma;
+
+			// auto cinc = 1.0f / float(action.points.size());
+			// for (size_t i = 0; i < action.points.size(); ++i) {
+			// 	auto markers = m_cc_i->getCollisionModelVisualization(action.points[i].positions);
+
+			// 	for (auto& marker : markers) {
+			// 		auto r = 0.1f;
+			// 		auto g = cinc * (float)(action.points.size() - (i + 1));
+			// 		auto b = cinc * (float)i;
+			// 		marker.color = smpl::visual::Color{ r, g, b, 1.0f };
+			// 	}
+
+			// 	for (auto& m : markers) {
+			// 		ma.push_back(std::move(m));
+			// 	}
+			// }
+
+			// for (size_t i = 0; i < ma.size(); ++i) {
+			// 	auto& marker = ma[i];
+			// 	marker.ns = "push_action";
+			// 	marker.id = i;
+			// }
+			// SV_SHOW_INFO_NAMED("push_action", ma);
+
 			return true;
 		}
 
