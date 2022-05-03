@@ -95,6 +95,20 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_robot->SetOOI(m_ooi->GetObject());
 	// m_robot->SetMovables(m_agents);
 
+	if (!recomputeGrasps()) {
+		return false;
+	}
+	m_robot->VizCC();
+
+	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
+	m_violation = 0x00000008;
+
+	return true;
+}
+
+bool Planner::recomputeGrasps()
+{
+	m_timer = GetTime();
 	int t = 0, grasp_tries;
 	m_ph.getParam("robot/grasping/tries", grasp_tries);
 	for (; t < grasp_tries; ++t)
