@@ -282,7 +282,11 @@ unsigned int AgentLattice::cost(
 {
 	double dist = EuclideanDist(s1->coord, s2->coord);
 	dist = dist == 0.0 ? 1.0 : dist;
-	return (dist * COST_MULT);
+
+	double obs_cost = m_agent->ObsDist(s2->state[0], s2->state[1], s2->state[2]);
+	obs_cost = 2 * std::pow(2, -obs_cost/0.1);
+	double cost = (dist + obs_cost) * COST_MULT;
+	return cost;
 }
 
 int AgentLattice::conflictHeuristic(const LatticeState& state)
