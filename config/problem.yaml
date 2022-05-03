@@ -19,7 +19,7 @@ goal:
   yaw: 0.0
   plan_budget: 300.0
   sim_budget: 900.0
-  total_budget: 180.0
+  total_budget: 120.0
   save: true
   cc_2d: true
   cc_3d: false
@@ -34,9 +34,8 @@ robot:
     qz: 0.0
     qw: 1.0
   pushing:
-    num: 2
-    splits: 3
-    plan_time: 3.0
+    num: 1
+    plan_time: 2.0
     control:
       dt: 0.01
       Kp: 0.5
@@ -44,7 +43,7 @@ robot:
       Kd: 0.01
       iters: 1000
   grasping:
-    tries: 10
+    tries: 20
     lift: 0.075
   semi_minor: 0.05
   speed: 1.0
