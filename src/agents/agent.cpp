@@ -22,6 +22,14 @@
 namespace clutter
 {
 
+bool Agent::ResetObject()
+{
+	LatticeState s;
+	s.state = { 	m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z,
+						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };
+	UpdatePose(s);
+}
+
 bool Agent::SetObjectPose(
 	const std::vector<double>& xyz,
 	const std::vector<double>& rpy)
@@ -36,10 +44,7 @@ bool Agent::SetObjectPose(
 
 	m_obj.desc = m_obj_desc;
 
-	LatticeState s;
-	s.state = { 	m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z,
-						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };
-	UpdatePose(s);
+	ResetObject();
 }
 
 bool Agent::Init(bool backwards)

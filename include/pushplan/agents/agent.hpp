@@ -42,6 +42,7 @@ public:
 		m_obj_desc = o.desc;
 	}
 
+	bool ResetObject();
 	bool SetObjectPose(
 		const std::vector<double>& xyz,
 		const std::vector<double>& rpy);
