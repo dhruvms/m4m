@@ -860,4 +860,32 @@ void CBS::SaveStats()
 	STATS.close();
 }
 
+bool CBS::UpdateStats(std::map<std::string, double>& stats)
+{
+	if (stats.empty())
+	{
+		stats["calls"] = 1;
+		stats["solved"] = (int)m_solved;
+		stats["search_time"] = m_search_time;
+		stats["ct_nodes"] = m_ct_generated;
+		stats["ct_deadends"] = m_ct_deadends;
+		stats["ct_expanded"] = m_ct_expanded;
+		stats["ll_time"] = m_ll_time;
+		stats["conflict_time"] = m_conflict_time;
+
+		return true;
+	}
+
+	stats["calls"] += 1;
+	stats["solved"] += (int)m_solved;
+	stats["search_time"] += m_search_time;
+	stats["ct_nodes"] += m_ct_generated;
+	stats["ct_deadends"] += m_ct_deadends;
+	stats["ct_expanded"] += m_ct_expanded;
+	stats["ll_time"] += m_ll_time;
+	stats["conflict_time"] += m_conflict_time;
+
+	return true;
+}
+
 } // namespace clutter

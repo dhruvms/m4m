@@ -42,11 +42,10 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_robot = std::make_shared<Robot>();
 	m_robot->SetID(0);
 
-	m_stats["whca_attempts"] = 0;
-	m_stats["robot_plan_time"] = 0.0;
+	m_stats["robot_planner_time"] = 0.0;
+	m_stats["push_planner_time"] = 0.0;
 	m_stats["mapf_time"] = 0.0;
-	m_stats["first_order_interactions"] = 0;
-	m_plan_time = 0.0;
+	m_stats["sim_time"] = 0.0;
 
 	m_ph.getParam("goal/plan_budget", m_plan_budget);
 	m_ph.getParam("goal/sim_budget", m_sim_budget);
@@ -107,54 +106,59 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	if (t == grasp_tries)
 	{
 		SMPL_ERROR("Robot failed to compute grasp states!");
+		m_stats["robot_planner_time"] += GetTime() - m_timer;
 		return false;
 	}
-	m_robot->VizCC();
-
-	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
+	m_stats["robot_planner_time"] += GetTime() - m_timer;
 
 	return true;
 }
 
 bool Planner::Alive()
 {
-	// double plan_time = m_plan_time + m_robot->PlannerTime();
+	// double plan_time = m_stats["robot_planner_time"] + m_stats["push_planner_time"] + m_stats["mapf_time"];
 	// if (plan_time > m_plan_budget) {
 	// 	return false;
 	// }
 
-	// if (m_robot->SimTime() > m_sim_budget) {
+	// if (m_stats["sim_time"] + m_robot->SimTime() > m_sim_budget) {
 	// 	return false;
 	// }
 
-	double total_time = m_plan_time + m_robot->PlannerTime() + m_robot->SimTime();
+	// total_time includes:
+	// 	1. time taken to compute grasps
+	// 	2. time taken to plan robot path and setup ngr
+	// 	3. time taken to sample, plan, simulate pushes
+	// 	4. time taken to solve mapf problem
+	double total_time = m_stats["robot_planner_time"] + m_stats["push_planner_time"] + m_stats["mapf_time"];
 	if (total_time > m_total_budget) {
 		return false;
 	}
-
-	// if (m_robot->BadAttach()) {
-	// 	return false;
-	// }
 
 	return true;
 }
 
 bool Planner::SetupNGR()
 {
+	m_timer = GetTime();
+
 	std::vector<Object*> movable_obstacles;
-	for (const auto& a: m_agents) {
-		movable_obstacles.push_back(a->GetObject());
-	}
+	// for (const auto& a: m_agents) {
+	// 	movable_obstacles.push_back(a->GetObject());
+	// }
 
 	m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
 	// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
-	if (!m_robot->PlanRetrieval(movable_obstacles)) {
+	if (!m_robot->PlanRetrieval(movable_obstacles))
+	{
+		m_stats["robot_planner_time"] += GetTime() - m_timer;
 		return false;
 	}
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
 	m_robot->UpdateNGR();
 	m_exec = m_robot->GetLastPlan();
-	SMPL_WARN("[SET] m_exec.points.size() = %d", m_exec.points.size());
+
+	m_stats["robot_planner_time"] += GetTime() - m_timer;
 
 	double ox, oy, oz, sx, sy, sz;
 	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
@@ -178,6 +182,8 @@ bool Planner::SetupNGR()
 
 bool Planner::FinalisePlan()
 {
+	m_timer = GetTime();
+
 	std::vector<Object*> movable_obstacles;
 	for (const auto& a: m_agents) {
 		movable_obstacles.push_back(a->GetObject());
@@ -186,13 +192,15 @@ bool Planner::FinalisePlan()
 	m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
 	// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
 	SMPL_INFO("FinalisePlan!");
-	if (!m_robot->PlanRetrieval(movable_obstacles, true)) {
+	if (!m_robot->PlanRetrieval(movable_obstacles, true))
+	{
+		m_stats["robot_planner_time"] += GetTime() - m_timer;
 		return false;
 	}
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
 	m_exec = m_robot->GetLastPlan();
-	SMPL_WARN("[SET] m_exec.points.size() = %d", m_exec.points.size());
 
+	m_stats["robot_planner_time"] += GetTime() - m_timer;
 	return true;
 }
 
@@ -233,64 +241,69 @@ bool Planner::Plan()
 		return true;
 	}
 
-	double start_time = GetTime();
 	if (!SetupNGR())
 	{
-		m_plan_time += GetTime() - start_time;
+		recomputeGrasps();
 		return false;
 	}
-	SMPL_INFO("Agent NGRs set!");
 
 	bool backwards = true; // ALGO == MAPFAlgo::OURS;
-	if (!setupProblem(backwards))
-	{
-		m_plan_time += GetTime() - start_time;
+	if (!setupProblem(backwards)) {
 		return false;
 	}
-	SMPL_INFO("Agents init-ed!");
 
+	m_timer = GetTime();
 	if (!createCBS())
 	{
-		m_plan_time += GetTime() - start_time;
+		m_stats["mapf_time"] += GetTime() - m_timer;
 		return false;
 	}
 
-	SMPL_INFO("Run CBS!");
+	SMPL_INFO("Replan MAPF");
 	bool result = m_cbs->Solve(backwards);
-	m_cbs->SaveStats();
+	m_cbs->UpdateStats(m_cbs_stats);
+	m_stats["mapf_time"] += GetTime() - m_timer;
 
-	m_plan_time += GetTime() - start_time;
-
+	m_replan = !result;
 	return result;
 }
 
 bool Planner::Rearrange()
 {
-	if (!rearrange()) {
-		SMPL_WARN("There were no conflicts to rearrange!");
+	m_timer = GetTime();
+	if (!rearrange())
+	{
+		SMPL_INFO("There were no conflicts to rearrange! WE ARE DONE!");
+		m_stats["push_planner_time"] += GetTime() - m_timer;
 		return false;
 	}
+
+	m_stats["push_planner_time"] += GetTime() - m_timer;
 	return true;
 }
 
 std::uint32_t Planner::RunSim()
 {
+	m_timer = GetTime();
 	if (!runSim()) {
 		SMPL_ERROR("Simulation failed!");
 	}
+	m_stats["sim_time"] += GetTime() - m_timer;
 	return m_violation;
 }
 
 bool Planner::TryExtract()
 {
-	if (!setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID())) {
+	m_timer = GetTime();
+
+	if (!setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID()))
+	{
+		m_stats["sim_time"] += GetTime() - m_timer;
 		return false;
 	}
 
 	comms::ObjectsPoses rearranged = m_rearranged;
 	bool success = true;
-	double start_time = GetTime();
-	SMPL_WARN("[EXEC] m_exec.points.size() = %d", m_exec.points.size());
 	if (!m_sim->ExecTraj(m_exec, rearranged, m_robot->GraspAt(), m_ooi->GetID()))
 	{
 		SMPL_ERROR("Failed to exec traj!");
@@ -299,6 +312,7 @@ bool Planner::TryExtract()
 
 	m_sim->RemoveConstraint();
 
+	m_stats["sim_time"] += GetTime() - m_timer;
 	return success;
 }
 
@@ -316,6 +330,11 @@ void Planner::AnimateSolution()
 
 bool Planner::rearrange()
 {
+	SMPL_INFO("Rearrange?");
+	for (auto& a: m_agents) {
+		a->ResetObject();
+	}
+
 	comms::ObjectsPoses rearranged = m_rearranged;
 
 	bool push_found = false, movement = false;
@@ -356,9 +375,7 @@ bool Planner::rearrange()
 			// update positions of moved objects
 			updateAgentPositions(result, rearranged);
 			push_found = true;
-		}
-		if (SAVE) {
-			m_robot->SavePushData(m_scene_id);
+			SMPL_INFO("Push found!");
 		}
 		if (push_found) {
 			break;
@@ -366,6 +383,10 @@ bool Planner::rearrange()
 	}
 	m_rearranged = rearranged;
 	m_replan = push_found;
+
+	if (!movement) {
+		m_plan_success = true;
+	}
 
 	return movement;
 }
@@ -407,8 +428,9 @@ bool Planner::runSim()
 	// if all executions succeeded, m_violation == 0
 
 	m_sim->RemoveConstraint();
+	m_sim_success = m_violation == 0;
 
-	return m_violation == 0;
+	return m_sim_success;
 }
 
 void Planner::updateAgentPositions(
@@ -450,10 +472,10 @@ bool Planner::setupProblem(bool backwards)
 {
 	// CBS TODO: assign starts and goals to agents
 
-	int result = cleanupLogs();
-	if (result == -1) {
-		SMPL_ERROR("system command errored!");
-	}
+	// int result = cleanupLogs();
+	// if (result == -1) {
+	// 	SMPL_ERROR("system command errored!");
+	// }
 
 	// Set agent current positions and time
 	// m_robot->Init();
@@ -753,8 +775,10 @@ int Planner::armId()
 	return arm;
 }
 
-bool Planner::savePlanData()
+bool Planner::SaveData()
 {
+	auto robot_stats = m_robot->GetStats();
+
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
 	filename = filename.substr(0, found + 1) + "../../dat/PLANNER.csv";
@@ -765,19 +789,27 @@ bool Planner::savePlanData()
 	if (!exists)
 	{
 		STATS << "UID,"
-				<< "WHCACalls,RobotPlanTime,"
-				<< "MAPFSolveTime,FirstOrderInteractions\n";
+				<< "PlanSuccess,SimSuccess,SimResult,SimTime,"
+				<< "RobotPlanTime,MAPFTime,PlanPushTime,"
+				<< "PlanPushCalls,PushSamplesFound,PushActionsFound,"
+				<< "PushPlanningTime,PushSimTime,PushSimSuccesses,"
+				<< "CBSCalls,CBSSuccesses,CBSTime,"
+				<< "CTNodes,CTDeadends,CTExpansions,LLTime,ConflictDetectionTime\n";
 	}
 
 	STATS << m_scene_id << ','
-			<< m_stats["whca_attempts"] << ',' << m_stats["robot_plan_time"] << ','
-			<< m_stats["mapf_time"] << ',' << m_stats["first_order_interactions"] << '\n';
+			<< m_plan_success << ',' << m_sim_success << ','
+			<< m_violation << ',' << m_stats["sim_time"] << ','
+			<< m_stats["robot_planner_time"] << ',' << m_stats["mapf_time"] << ','
+			<< m_stats["push_planner_time"] << ',' << robot_stats["plan_push_calls"] << ','
+			<< robot_stats["push_samples_found"] << ',' << robot_stats["push_actions_found"] << ','
+			<< robot_stats["push_plan_time"] << ',' << robot_stats["push_sim_time"] << ','
+			<< robot_stats["push_sim_successes"] << ','
+			<< m_cbs_stats["calls"] << ',' << m_cbs_stats["solved"] << ','
+			<< m_cbs_stats["search_time"] << ',' << m_cbs_stats["ct_nodes"] << ','
+			<< m_cbs_stats["ct_deadends"] << ',' << m_cbs_stats["ct_expanded"] << ','
+			<< m_cbs_stats["ll_time"] << ',' << m_cbs_stats["conflict_time"] << '\n';
 	STATS.close();
-
-	m_stats["whca_attempts"] = 0;
-	m_stats["robot_plan_time"] = 0.0;
-	m_stats["mapf_time"] = 0.0;
-	m_stats["first_order_interactions"] = 0;
 }
 
 } // namespace clutter

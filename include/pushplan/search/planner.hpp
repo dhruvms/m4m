@@ -24,7 +24,8 @@ class Planner
 {
 public:
 	Planner() : m_num_objs(-1), m_scene_id(-1),
-				m_ph("~"), m_replan(true) {};
+				m_ph("~"), m_replan(true),
+				m_plan_success(false), m_sim_success(false) {};
 	bool Init(const std::string& scene_file, int scene_id, bool ycb);
 	bool Alive();
 	bool SetupNGR();
@@ -72,7 +73,7 @@ private:
 	std::shared_ptr<Robot> m_robot;
 	std::shared_ptr<BulletSim> m_sim;
 	std::shared_ptr<CBS> m_cbs;
-	bool m_replan;
+	bool m_replan, m_plan_success, m_sim_success;
 
 	int m_num_objs, m_scene_id;
 	std::vector<std::shared_ptr<Agent> > m_agents;
@@ -91,8 +92,8 @@ private:
 	ros::NodeHandle m_ph, m_nh;
 	std::uint32_t m_violation;
 
-	std::map<std::string, double> m_stats;
-	double m_plan_time, m_plan_budget, m_sim_budget, m_total_budget;
+	std::map<std::string, double> m_stats, m_cbs_stats;
+	double m_plan_budget, m_sim_budget, m_total_budget, m_timer;
 
 	bool createCBS();
 

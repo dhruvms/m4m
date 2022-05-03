@@ -12,35 +12,6 @@
 
 using namespace clutter;
 
-void SaveData(
-	int scene_id,
-	int mapf_calls, int mapf_sucesses, bool lucky, bool rearranged,
-	bool dead, bool rearrange, std::uint32_t violation)
-{
-	std::string filename(__FILE__);
-	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../dat/MAIN.csv";
-
-	bool exists = FileExists(filename);
-	std::ofstream STATS;
-	STATS.open(filename, std::ofstream::out | std::ofstream::app);
-	if (!exists)
-	{
-		STATS << "UID,"
-				<< "MAPFCalls,MAPFSuccesses,"
-				<< "Lucky?,RearrangedLucky?,"
-				<< "Timeout?,NotRearranged?\n";
-	}
-
-	STATS << scene_id << ','
-			<< mapf_calls << ',' << mapf_sucesses << ','
-			<< lucky << ',' << rearranged << ','
-			<< dead << ',' << rearrange << ','
-			// << violation
-			<< '\n';
-	STATS.close();
-}
-
 int main(int argc, char** argv)
 {
 	std::srand(std::time(0));
@@ -106,68 +77,45 @@ int main(int argc, char** argv)
 			}
 			ROS_INFO("Planner and simulator init-ed!");
 
-			int mapf_calls = 0, mapf_sucesses = 0;
-			bool dead = false, rearrange = true, lucky = false, rearranged = false;
-			std::uint32_t violation = 0x00000000;
+			bool rearrange = true, lucky = false, rearranged = false;
 			do
 			{
-				++mapf_calls;
 				if (p.Plan())
 				{
-					++mapf_sucesses;
+					// ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
+					// if (p.Alive() && p.TryExtract())
+					// {
+					// 	lucky = true;
+					// 	break;
+					// }
 
-					ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
-					if (p.Alive() && p.TryExtract())
-					{
-						lucky = true;
-						break;
-					}
-
-					if (p.Alive())
-					{
-						ROS_WARN("Try rearrangement!");
+					if (p.Alive()) {
 						rearrange = p.Rearrange();
 					}
 
-					ROS_WARN("Try extraction after rearrangement! Did we successfully rearrange?");
-					if (p.Alive() && p.TryExtract())
-					{
-						rearranged = true;
-						break;
-					}
+					// ROS_WARN("Try extraction after rearrangement! Did we successfully rearrange?");
+					// if (p.Alive() && p.TryExtract())
+					// {
+					// 	rearranged = true;
+					// 	break;
+					// }
 
-					ROS_WARN("Try planning with all objects as obstacles! Are we done?");
-					if (p.Alive() && p.FinalisePlan())
-					{
-						ROS_WARN("MAMO Solved!");
-						break;
-					}
+					// ROS_WARN("Try planning with all objects as obstacles! Are we done?");
+					// if (p.Alive() && p.FinalisePlan())
+					// {
+					// 	ROS_WARN("MAMO Solved!");
+					// 	break;
+					// }
 				}
 			}
 			while (rearrange && p.Alive());
-			dead = !p.Alive();
 
-			// if (p.Alive()) {
-			// 	violation = p.RunSim();
+			if (p.Alive()) {
+				p.RunSim();
+			}
 
-			// 	if (violation == 0) {
-			// 		ROS_WARN("SUCCESS!!!");
-			// 	}
-			// 	else {
-			// 		ROS_ERROR("FAILURE!!!");
-			// 	}
-			// }
-			// else {
-			// 	violation |= 0x00000008;
-			// 	ROS_ERROR("Planner terminated!!!");
-			// }
-
-			if (SAVE)
-			{
-				SaveData(
-					scene_id,
-					mapf_calls, mapf_sucesses, lucky, rearranged,
-					dead, rearrange, violation);
+			if (SAVE) {
+				p.SaveData();
 			}
 		}
 	}

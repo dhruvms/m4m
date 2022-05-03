@@ -31,6 +31,7 @@ public:
 
 	virtual bool Solve(bool backwards);
 	void SaveStats();
+	bool UpdateStats(std::map<std::string, double>& stats);
 	HighLevelNode* GetSolution() const { return m_goal; };
 
 protected:
