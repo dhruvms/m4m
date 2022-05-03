@@ -76,7 +76,6 @@ private:
 	// Search params
 	int m_call_number;
 	double m_time_limit, m_w;
-	SearchState *m_goal, *m_start;
 
 	std::vector<SearchState*> m_states;
 

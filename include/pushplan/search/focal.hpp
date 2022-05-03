@@ -46,7 +46,6 @@ private:
 	// Search params
 	int m_call_number;
 	double m_time_limit, m_wo, m_wf;
-	LowLevelNode *m_goal, *m_start;
 
 	bool m_b;
 
