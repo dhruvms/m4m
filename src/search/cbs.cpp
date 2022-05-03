@@ -7,6 +7,8 @@
 
 #include <smpl/console/console.h>
 
+#include <ctime>
+
 namespace clutter
 {
 
@@ -76,7 +78,6 @@ bool CBS::Solve(bool backwards)
 		selectConflict(next);
 		if (done(next)) {
 			m_search_time += GetTime() - start_time;
-			SMPL_WARN("YAYAYAY! We did it!");
 			// writeSolution(next);
 			return m_solved;
 		}
@@ -171,6 +172,7 @@ bool CBS::initialiseRoot()
 	root->updateDistanceToGo();
 
 	pushNode(root);
+	writeSolution(root);
 	return true;
 }
 
@@ -570,7 +572,7 @@ bool CBS::done(HighLevelNode* node)
 void CBS::writeSolution(HighLevelNode* node)
 {
 	int makespan = node->m_makespan;
-	for (int tidx = 0; tidx < makespan; tidx += 1)
+	for (int tidx = 0; tidx < 1; tidx += 1)
 	{
 		std::string filename(__FILE__);
 		auto found = filename.find_last_of("/\\");
@@ -587,6 +589,12 @@ void CBS::writeSolution(HighLevelNode* node)
 		ss << "_";
 		ss << std::setw(4) << std::setfill('0') << tidx;
 		// ss << std::setw(4) << std::setfill('0') << node->m_depth;
+
+		ss << "_";
+		auto t = std::time(nullptr);
+		auto tm = *std::localtime(&t);
+		ss << std::put_time(&tm, "%d-%m-%Y-%H-%M-%S");
+
 		std::string s = ss.str();
 
 		filename += s;
@@ -723,8 +731,8 @@ void CBS::writeSolution(HighLevelNode* node)
 		{
 			auto agent_obs = m_objs[oidx]->GetObject();
 			DATA << agent_obs->desc.id << '\n';
-			DATA << tidx + 1 << '\n';
-			for (int t = 0; t <= tidx; ++t)
+			DATA << makespan + 1 << '\n';
+			for (int t = 0; t <= makespan; ++t)
 			{
 				if (node->m_solution[oidx].second.size() <= t) {
 					DATA << node->m_solution[oidx].second.back().state.at(0) << ',' << node->m_solution[oidx].second.back().state.at(1) << '\n';
