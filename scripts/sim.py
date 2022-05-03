@@ -624,6 +624,7 @@ class BulletSim:
 			violation_flag = False
 			cause = 0
 			robot_contacts = []
+			oid_start_xyz, _ = self.sims[sim_id].getBasePositionAndOrientation(req.oid)
 			for point in push_traj.points[1:]:
 				sim.setJointMotorControlArray(
 						robot_id, gripper_joints,
@@ -702,11 +703,14 @@ class BulletSim:
 					# print(cause)
 					break
 
-			if (violation_flag):
+			if (violation_flag or req.oid not in robot_contacts):
 				continue # to next push
 			else:
+				oid_xyz, _ = self.sims[sim_id].getBasePositionAndOrientation(req.oid)
+				if (np.linalg.norm(np.asarray(oid_start_xyz) - np.asarray(oid_xyz)) <= 0.01):
+					continue
+
 				successes += 1
-				oid_xyz, oid_rpy = self.sims[sim_id].getBasePositionAndOrientation(req.oid)
 				dist = np.linalg.norm(goal_pos - np.asarray(oid_xyz[:2]))
 				if (dist < best_dist):
 					best_dist = dist
