@@ -191,6 +191,9 @@ def main():
 			# 	continue
 
 			filepath = os.path.join(dirpath, filename)
+			imgfile = filepath.replace('txt', 'png')
+			if os.path.isfile(imgfile):
+				continue
 			objs, trajs, ngr, goals = ParseFile(filepath)
 			DrawScene(filepath, objs, trajs, ngr, goals)
 
