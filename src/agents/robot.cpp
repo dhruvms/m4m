@@ -1303,12 +1303,13 @@ bool Robot::PlanPush(
 	Agent* object, const std::vector<double>& push, const std::vector<Object*>& other_movables,
 	const comms::ObjectsPoses& rearranged, comms::ObjectsPoses& result)
 {
+	++m_stats["plan_push_calls"];
 	m_push_trajs.clear();
 	m_push_actions.clear();
 
-	if (m_pushes_per_object == -1) {
+	if (m_pushes_per_object == -1)
+	{
 		m_ph.getParam("robot/pushing/num", m_pushes_per_object);
-		m_ph.getParam("robot/pushing/splits", m_push_splits);
 		m_ph.getParam("robot/pushing/plan_time", m_plan_push_time);
 
 		m_ph.param<double>("robot/pushing/control/Kp", m_Kp, 1.0);
@@ -1323,7 +1324,7 @@ bool Robot::PlanPush(
 	std::vector<Object*> pushed_obj = { object->GetObject() };
 
 	int i = 0;
-	double start_time = GetTime(), time_spent;
+	double start_time = GetTime();
 	bool added = false;
 	while((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time))
 	{
@@ -1344,19 +1345,15 @@ bool Robot::PlanPush(
 			push_start_pose.translation().y(),
 			push_start_pose.translation().z()) <= m_grid_i->resolution())
 		{
-			++m_stats["push_sample_fails"];
 			continue;
 		}
 
+		// plan path to push start pose with all other objects as obstacles
 		trajectory_msgs::JointTrajectory push_traj;
-		if (!planToPoseGoal(push_start_pose, push_traj))
-		{
-			++m_stats["push_sample_fails"];
+		if (!planToPoseGoal(push_start_pose, push_traj)) {
 			continue;
 		}
-		auto planner_stats = m_planner->getPlannerStats();
-		m_stats["push_traj_plan_time"] += planner_stats["initial solution planning time"];
-		m_planner_time += planner_stats["initial solution planning time"];
+		++m_stats["push_samples_found"];
 
 		if (added)
 		{
@@ -1366,88 +1363,95 @@ bool Robot::PlanPush(
 			added = false;
 		}
 
-		bool split_found = false;
-		for (int s = 0; s < m_push_splits; ++s)
+		// push action parameters
+		double push_frac = 0.75;
+		double push_dist = EuclideanDist(obj_traj->front().state, obj_traj->back().state);
+		double push_at_angle = std::atan2(
+				obj_traj->back().state.at(1) - push_end_pose.translation().y(),
+				obj_traj->back().state.at(0) - push_end_pose.translation().x());
+
+		// compute push action end pose
+		push_end_pose = m_rm->computeFK(push_traj.points.back().positions);
+		push_end_pose.translation().x() += std::cos(push_at_angle) * (push_dist * push_frac + push[3]);
+		push_end_pose.translation().y() += std::sin(push_at_angle) * (push_dist * push_frac + push[3]);
+		// SV_SHOW_INFO_NAMED("push_end_pose", smpl::visual::MakePoseMarkers(
+		// 	push_end_pose, m_grid_i->getReferenceFrame(), "push_end_pose"));
+
+		// get push action trajectory via inverse velocity
+		trajectory_msgs::JointTrajectory push_action;
+		smpl::RobotState joint_vel(m_rm->jointVariableCount(), 0.0);
+		if (computePushAction(
+				push_traj.points.back().time_from_start.toSec(),
+				push_traj.points.back().positions,
+				joint_vel,
+				push_end_pose,
+				push_action))
 		{
-			trajectory_msgs::JointTrajectory push_action, split_traj = push_traj;
-
-			// sample push dist fraction
-			double push_frac = 0.25 + (s/double(m_push_splits - 1)) * 0.75;
-			// compute push action end pose
-			push_end_pose = m_rm->computeFK(split_traj.points.back().positions);
-			push_end_pose.translation().x() = obj_traj->front().state.at(0) * (1 - push_frac)
-												 + obj_traj->back().state.at(0) * push_frac;
-			push_end_pose.translation().y() = obj_traj->front().state.at(1) * (1 - push_frac)
-												 + obj_traj->back().state.at(1) * push_frac;
-
-			// get push action trajectory via inverse velocity
-			smpl::RobotState joint_vel(m_rm->jointVariableCount(), 0.0);
-			double inv_vel_time = GetTime();
-			if (computePushAction(
-					split_traj.points.back().time_from_start.toSec(),
-					split_traj.points.back().positions,
-					joint_vel,
-					push_end_pose,
-					push_action))
+			// collision check push action against immovable obstacles
+			if (push_action.points.size() <= 1
+				|| !m_cc_i->isStateValid(push_action.points[0].positions)
+				|| !m_cc_i->isStateValid(push_action.points.back().positions)
+				|| !m_cc_i->isStateToStateValid(push_action.points[0].positions, push_action.points[1].positions))
 			{
-				m_stats["push_traj_plan_time"] += GetTime() - inv_vel_time;
-				m_planner_time += GetTime() - inv_vel_time;
-				if (!split_found) {
-					split_found = true;
-				}
+				continue;
+			}
 
-				// // collision check push action against immovable obstacles
-				// if (push_action.points.size() <= 1
-				// 	||!m_cc_i->isStateValid(push_action.points[0].positions)
-				// 	|| !m_cc_i->isStateValid(push_action.points.back().positions)
-				// 	|| m_cc_i->isStateToStateValid(push_action.points[0].positions, push_action.points[1].positions))
-				// {
-				// 	++m_stats["push_sample_fails"];
-				// 	continue;
-				// }
-
-				// bool collides = false;
-				// for (size_t wp = 1; wp < push_action.points.size(); ++wp)
-				// {
-				// 	auto& prev_istate = push_action.points[wp - 1].positions;
-				// 	auto& curr_istate = push_action.points[wp].positions;
-				// 	if (!m_cc_i->isStateToStateValid(prev_istate, curr_istate))
-				// 	{
-				// 		collides = true;
-				// 		break;
-				// 	}
-				// }
-				// if (collides)
-				// {
-				// 	++m_stats["push_sample_fails"];
-				// 	continue;
-				// }
-
-				auto push_action_copy = push_action;
-				auto t_reverse = push_action_copy.points.rbegin()->time_from_start;
-				for (auto itr = push_action_copy.points.rbegin() + 1; itr != push_action_copy.points.rend(); ++itr)
+			bool collides = false;
+			for (size_t wp = 1; wp < push_action.points.size(); ++wp)
+			{
+				auto& prev_istate = push_action.points[wp - 1].positions;
+				auto& curr_istate = push_action.points[wp].positions;
+				if (!m_cc_i->isStateToStateValid(prev_istate, curr_istate))
 				{
-					itr->time_from_start = t_reverse + ros::Duration(0.01);
-					push_action.points.push_back(*itr);
-					t_reverse = itr->time_from_start;
+					collides = true;
+					break;
 				}
-
-				for (auto itr = push_action.points.begin() + 1; itr != push_action.points.end(); ++itr) {
-					split_traj.points.push_back(*itr);
-				}
-
-				m_push_actions.push_back(std::move(push_action));
-				m_push_trajs.push_back(std::move(split_traj));
 			}
-			else
+			if (collides)
 			{
-				m_stats["push_traj_plan_time"] += GetTime() - inv_vel_time;
-				m_planner_time += GetTime() - inv_vel_time;
-				++m_stats["push_sample_fails"];
-				break;
+				continue;
 			}
+
+			// collision check push action against pushed object
+			// ensure that it collides
+			collides = false;
+			ProcessObstacles(pushed_obj);
+			for (size_t wp = 1; wp < push_action.points.size(); ++wp)
+			{
+				auto& prev_istate = push_action.points[wp - 1].positions;
+				auto& curr_istate = push_action.points[wp].positions;
+				if (!m_cc_i->isStateToStateValid(prev_istate, curr_istate))
+				{
+					collides = true;
+					break;
+				}
+			}
+			if (!collides)
+			{
+				ProcessObstacles(pushed_obj, true);
+				continue;
+			}
+			ProcessObstacles(pushed_obj, true);
+			++m_stats["push_actions_found"];
+
+			// append waypoints to retract to push start pose
+			auto push_action_copy = push_action;
+			auto t_reverse = push_action_copy.points.rbegin()->time_from_start;
+			for (auto itr = push_action_copy.points.rbegin() + 1; itr != push_action_copy.points.rend(); ++itr)
+			{
+				itr->time_from_start = t_reverse + ros::Duration(0.01);
+				push_action.points.push_back(*itr);
+				t_reverse = itr->time_from_start;
+			}
+
+			for (auto itr = push_action.points.begin() + 1; itr != push_action.points.end(); ++itr) {
+				push_traj.points.push_back(*itr);
+			}
+
+			m_push_actions.push_back(std::move(push_action));
+			m_push_trajs.push_back(std::move(push_traj));
 		}
-		i += (int)split_found;
+		++i;
 	}
 
 	if (added)
@@ -1461,34 +1465,27 @@ bool Robot::PlanPush(
 	// reset robot model back to chain tip link
 	UpdateKDLRobot(0);
 
-	time_spent = GetTime() - start_time;
-	SMPL_INFO("Simulate %d pushes! Sampling took %f seconds total. Planning took %f seconds.", i, time_spent, m_stats["push_traj_plan_time"]);
-	m_stats["pushes_sampled"] = i;
-	m_stats["push_sample_time"] = time_spent;
-
 	if (i == 0)
 	{
-		SMPL_INFO("No pushes found! Do nothing!");
+		// SMPL_INFO("No pushes found! Do nothing!");
 		return false;
 	}
+	m_stats["push_plan_time"] += GetTime() - start_time;
 
 	int pidx, successes;
 	start_time = GetTime();
 	m_sim->SimPushes(m_push_actions, object->GetID(), obj_traj->back().state.at(0), obj_traj->back().state.at(1), pidx, successes, rearranged, result);
-	time_spent = GetTime() - start_time;
-
-	m_stats["push_sim_time"] = time_spent;
-	m_sim_time += time_spent;
-	m_stats["push_successes"] = successes;
+	m_stats["push_sim_time"] += GetTime() - start_time;
 
 	if (pidx == -1)
 	{
-		SMPL_WARN("Failed to find a good push for the object! Simulating took %f seconds.", time_spent);
+		// SMPL_WARN("Failed to find a good push for the object! Simulating took %f seconds.", time_spent);
 		return false;
 	}
 
+	++m_stats["push_sim_successes"];
 	m_traj = m_push_trajs.at(pidx);
-	SMPL_INFO("Found good push traj of length %d!", m_traj.points.size());
+	// SMPL_INFO("Found good push traj of length %d!", m_traj.points.size());
 	return true;
 }
 
@@ -1534,22 +1531,16 @@ void Robot::getPushStartPose(
 	int link = 1; // std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
 	UpdateKDLRobot(link);
 
-	// yaw is push direction + {-1, 0, 1}*M_PI_2 + noise
-	double yaw = push[2] + std::floor(m_distD(m_rng) * 3 - 1) * M_PI_2 + (m_distG(m_rng) * DEG5);
-
-	// pitch is noise (from 0 to 30 degrees)
-	double pitch = (m_distD(m_rng) * 6 * DEG5);
-
 	// z is between 2 to 5cm above table height
 	double z = m_table_z + (m_distD(m_rng) * 0.03) + 0.02;
 
 	// (x, y) is randomly sampled near push start location
-	double x = push[0] + std::cos(push[2] + M_PI) * (m_distG(m_rng) * 0.05);
-	double y = push[1] + std::sin(push[2] + M_PI) * (m_distG(m_rng) * 0.05);
+	double x = push[0] + std::cos(push[2] + M_PI) * 0.025 + (m_distG(m_rng) * 0.025);
+	double y = push[1] + std::sin(push[2] + M_PI) * 0.025 + (m_distG(m_rng) * 0.025);
 
 	push_pose = Eigen::Translation3d(x, y, z) *
-				Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
-				Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
+				Eigen::AngleAxisd(push[2], Eigen::Vector3d::UnitZ()) *
+				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
 				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
 
 	SV_SHOW_INFO_NAMED("sampled_push_pose", smpl::visual::MakePoseMarkers(
