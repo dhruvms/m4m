@@ -40,7 +40,7 @@ public:
 	int GetID() { return m_id; };
 
 	bool Setup();
-	bool SavePushData(int scene_id);
+	bool SavePushData(int scene_id, bool reset=true);
 
 	bool CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t);
 	bool CheckCollision(const LatticeState& robot, int t);
@@ -111,17 +111,8 @@ public:
 		}
 	}
 
-	double TrajPlanTime() {
-		return m_stats["approach_plan_time"] + m_stats["extract_plan_time"];
-	}
-	double PlannerTime() {
-		return m_planner_time;
-	}
-	double SimTime() {
-		return m_sim_time;
-	}
-	bool BadAttach() {
-		return (m_stats["attach_fails"] > 0) || (m_stats["attach_collides"] > 0);
+	auto GetStats() const -> const std::map<std::string, double>& {
+		return m_stats;
 	}
 
 	auto ObsGrid() const -> const std::shared_ptr<smpl::OccupancyGrid>& {

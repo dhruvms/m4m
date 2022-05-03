@@ -32,21 +32,12 @@ bool Robot::Setup()
 	// Stats //
 	///////////
 
-	m_stats["approach_plan_time"] = 0.0;
-	m_stats["extract_plan_time"] = 0.0;
-
-	m_stats["pushes_sampled"] = 0;
-	m_stats["push_sample_fails"] = 0;
-	m_stats["push_sample_time"] = 0.0;
+	m_stats["plan_push_calls"] = 0;
+	m_stats["push_samples_found"] = 0;
+	m_stats["push_actions_found"] = 0;
+	m_stats["push_plan_time"] = 0.0;
 	m_stats["push_sim_time"] = 0.0;
-	m_stats["push_successes"] = 0;
-	m_stats["push_traj_plan_time"] = 0.0;
-
-	m_stats["attach_fails"] = 0;
-	m_stats["attach_collides"] = 0;
-
-	m_planner_time = 0.0;
-	m_sim_time = 0.0;
+	m_stats["push_sim_successes"] = 0;
 
 	/////////////////
 	// Robot Model //
@@ -197,7 +188,7 @@ bool Robot::Setup()
 	return true;
 }
 
-bool Robot::SavePushData(int scene_id)
+bool Robot::SavePushData(int scene_id, bool reset)
 {
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
@@ -209,23 +200,25 @@ bool Robot::SavePushData(int scene_id)
 	if (!exists)
 	{
 		STATS << "UID,"
-				<< "PushesSampled,PushSampleFails,PushSampleTime,"
-				<< "PushSimTime,SuccessfulSims,"
-				<< "PushTrajPlanTime\n";
+				<< "PlanPushCalls,PushSamplesFound,PushActionsFound,"
+				<< "PushPlanTime,PushSimTime,PushSimSuccesses\n";
 	}
 
 	STATS << scene_id << ','
-			<< m_stats["pushes_sampled"] << ',' << m_stats["push_sample_fails"] << ',' << m_stats["push_sample_time"] << ','
-			<< m_stats["push_sim_time"] << ',' << m_stats["push_successes"] << ','
-			<< m_stats["push_traj_plan_time"] << '\n';
+			<< m_stats["plan_push_calls"] << ',' << m_stats["push_samples_found"] << ',' << m_stats["push_actions_found"] << ','
+			<< m_stats["push_plan_time"] << ',' << m_stats["push_sim_time"] << ','
+			<< m_stats["push_sim_successes"] << '\n';
 	STATS.close();
 
-	m_stats["pushes_sampled"] = 0;
-	m_stats["push_sample_fails"] = 0;
-	m_stats["push_sample_time"] = 0.0;
-	m_stats["push_sim_time"] = 0.0;
-	m_stats["push_successes"] = 0;
-	m_stats["push_traj_plan_time"] = 0.0;
+	if (reset)
+	{
+		m_stats["plan_push_calls"] = 0;
+		m_stats["push_samples_found"] = 0;
+		m_stats["push_actions_found"] = 0;
+		m_stats["push_plan_time"] = 0.0;
+		m_stats["push_sim_time"] = 0.0;
+		m_stats["push_sim_successes"] = 0;
+	}
 }
 
 bool Robot::CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t)
@@ -566,7 +559,6 @@ bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& s
 {
 	if (!attachObject(object))
 	{
-		++m_stats["attach_fails"];
 		ROS_ERROR("Failed to attach object.");
 		return false;
 	}
@@ -575,7 +567,6 @@ bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& s
 		// object attached, but are we collision free with it grasped?
 		if (!m_cc_i->isStateValid(state))
 		{
-			++m_stats["attach_collides"];
 			ROS_ERROR("Robot state is in collision with attached object.");
 			return false;
 		}
@@ -1110,7 +1101,6 @@ bool Robot::ComputeGrasps(
 			}
 			detachObject();
 
-			m_planner_time += GetTime() - start_time;
 			success = true;
 		}
 	}
