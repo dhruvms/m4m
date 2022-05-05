@@ -383,6 +383,7 @@ int AgentLattice::conflictHeuristic(const LatticeState& state)
 
 bool AgentLattice::goalConflict(const LatticeState& state)
 {
+	bool at_start = state == m_agent->InitState();
 	m_agent->UpdatePose(state);
 
 	LatticeState other_pose;
@@ -398,6 +399,10 @@ bool AgentLattice::goalConflict(const LatticeState& state)
 		if (other_agent.second.size() <= state.t)
 		{
 			other_pose = other_agent.second.back();
+			if (at_start && other_pose == other_agent.second.front()) {
+				continue;
+			}
+
 			if (m_agent->ObjectObjectCollision(other_agent.first, other_pose)) {
 				return true;
 			}
@@ -410,6 +415,10 @@ bool AgentLattice::goalConflict(const LatticeState& state)
 			for (int t = state.t; t < (int)other_agent.second.size(); ++t)
 			{
 				other_pose = other_agent.second.at(t);
+				if (at_start && other_pose == other_agent.second.front()) {
+					continue;
+				}
+
 				if (m_agent->ObjectObjectCollision(other_agent.first, other_pose)) {
 					return true;
 				}

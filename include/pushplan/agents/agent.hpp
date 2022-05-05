@@ -99,6 +99,8 @@ public:
 		return m_obs_grid->getDistanceFromPoint(x, y, z);
 	}
 
+	auto InitState() const -> const LatticeState& { return m_init; };
+
 private:
 	ros::NodeHandle m_ph;
 	Object m_obj;
