@@ -115,7 +115,6 @@ private:
 	int armId();
 
 	bool savePlanData();
-	bool recomputeGrasps();
 };
 
 } // namespace clutter

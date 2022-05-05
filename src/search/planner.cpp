@@ -95,35 +95,28 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_robot->SetOOI(m_ooi->GetObject());
 	// m_robot->SetMovables(m_agents);
 
-	if (!recomputeGrasps()) {
+	// Compute robot grasping states and plan path through them
+	int t = 0, grasp_tries;
+	m_ph.getParam("robot/grasping/tries", grasp_tries);
+	m_timer = GetTime();
+	for (; t < grasp_tries; ++t)
+	{
+		if (m_robot->ComputeGrasps(m_goal)) {
+			if (SetupNGR()) {
+				break;
+			}
+		}
+	}
+	m_stats["robot_planner_time"] += GetTime() - m_timer;
+	if (t == grasp_tries)
+	{
+		SMPL_ERROR("Robot failed to compute grasp states!");
 		return false;
 	}
 	m_robot->VizCC();
 
 	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
 	m_violation = 0x00000008;
-
-	return true;
-}
-
-bool Planner::recomputeGrasps()
-{
-	m_timer = GetTime();
-	int t = 0, grasp_tries;
-	m_ph.getParam("robot/grasping/tries", grasp_tries);
-	for (; t < grasp_tries; ++t)
-	{
-		if (m_robot->ComputeGrasps(m_goal)) {
-			break;
-		}
-	}
-	if (t == grasp_tries)
-	{
-		SMPL_ERROR("Robot failed to compute grasp states!");
-		m_stats["robot_planner_time"] += GetTime() - m_timer;
-		return false;
-	}
-	m_stats["robot_planner_time"] += GetTime() - m_timer;
 
 	return true;
 }
@@ -154,8 +147,6 @@ bool Planner::Alive()
 
 bool Planner::SetupNGR()
 {
-	m_timer = GetTime();
-
 	std::vector<Object*> movable_obstacles;
 	// for (const auto& a: m_agents) {
 	// 	movable_obstacles.push_back(a->GetObject());
@@ -163,16 +154,12 @@ bool Planner::SetupNGR()
 
 	m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
 	// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
-	if (!m_robot->PlanRetrieval(movable_obstacles))
-	{
-		m_stats["robot_planner_time"] += GetTime() - m_timer;
+	if (!m_robot->PlanRetrieval(movable_obstacles))	{
 		return false;
 	}
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
 	m_robot->UpdateNGR();
 	m_exec = m_robot->GetLastPlan();
-
-	m_stats["robot_planner_time"] += GetTime() - m_timer;
 
 	double ox, oy, oz, sx, sy, sz;
 	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
@@ -253,12 +240,6 @@ bool Planner::Plan()
 {
 	if (!m_replan) {
 		return true;
-	}
-
-	if (!SetupNGR())
-	{
-		recomputeGrasps();
-		return false;
 	}
 
 	bool backwards = true; // ALGO == MAPFAlgo::OURS;
