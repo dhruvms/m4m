@@ -1148,6 +1148,7 @@ bool Robot::InitArmPlanner(bool interp)
 }
 
 bool Robot::planToPoseGoal(
+	const moveit_msgs::RobotState& start_state,
 	const Eigen::Affine3d& pose_goal,
 	trajectory_msgs::JointTrajectory& push_traj)
 {
@@ -1163,10 +1164,10 @@ bool Robot::planToPoseGoal(
 	req.max_velocity_scaling_factor = 1.0;
 	req.num_planning_attempts = 1;
 	req.planner_id = "arastar.manip.bfs";
-	req.start_state = m_start_state;
+	req.start_state = start_state;
 
 	moveit_msgs::PlanningScene planning_scene; // completely unnecessary variable
-	planning_scene.robot_state = m_start_state;
+	planning_scene.robot_state = start_state;
 	// solve for path to push start pose
 	if (!m_planner->init_planner(planning_scene, req, res))
 	{
@@ -1319,8 +1320,10 @@ bool Robot::computePushAction(
 }
 
 bool Robot::PlanPush(
-	Agent* object, const std::vector<double>& push, const std::vector<Object*>& other_movables,
-	const comms::ObjectsPoses& rearranged, comms::ObjectsPoses& result)
+	const std::vector<double>& start_state,
+	Agent* object, const std::vector<double>& push,
+	const std::vector<Object*>& other_movables,	const comms::ObjectsPoses& rearranged,
+	comms::ObjectsPoses& result)
 {
 	++m_stats["plan_push_calls"];
 	m_push_trajs.clear();
@@ -1369,7 +1372,17 @@ bool Robot::PlanPush(
 
 		// plan path to push start pose with all other objects as obstacles
 		trajectory_msgs::JointTrajectory push_traj;
-		if (!planToPoseGoal(push_start_pose, push_traj)) {
+		moveit_msgs::RobotState push_start_state = m_start_state;
+		if (start_state.size() == m_rm->jointVariableCount())
+		{
+			push_start_state.joint_state.position.erase(
+				push_start_state.joint_state.position.begin() + 1,
+				push_start_state.joint_state.position.begin() + 1 + start_state.size());
+			push_start_state.joint_state.position.insert(
+				push_start_state.joint_state.position.begin() + 1,
+				start_state.begin(), start_state.end());
+		}
+		if (!planToPoseGoal(push_start_state, push_start_pose, push_traj)) {
 			continue;
 		}
 		++m_stats["push_samples_found"];
@@ -1383,14 +1396,14 @@ bool Robot::PlanPush(
 		}
 
 		// push action parameters
-		double push_frac = 0.75;
+		double push_frac = 1.0;
 		double push_dist = EuclideanDist(obj_traj->front().state, obj_traj->back().state);
+		push_end_pose = m_rm->computeFK(push_traj.points.back().positions);
 		double push_at_angle = std::atan2(
 				obj_traj->back().state.at(1) - push_end_pose.translation().y(),
 				obj_traj->back().state.at(0) - push_end_pose.translation().x());
 
 		// compute push action end pose
-		push_end_pose = m_rm->computeFK(push_traj.points.back().positions);
 		push_end_pose.translation().x() += std::cos(push_at_angle) * (push_dist * push_frac + push[3]);
 		push_end_pose.translation().y() += std::sin(push_at_angle) * (push_dist * push_frac + push[3]);
 		// SV_SHOW_INFO_NAMED("push_end_pose", smpl::visual::MakePoseMarkers(
@@ -1469,8 +1482,8 @@ bool Robot::PlanPush(
 
 			m_push_actions.push_back(std::move(push_action));
 			m_push_trajs.push_back(std::move(push_traj));
+			++i;
 		}
-		++i;
 	}
 
 	if (added)

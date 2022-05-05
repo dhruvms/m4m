@@ -363,7 +363,12 @@ bool Planner::rearrange()
 		// change KDL chain during the process
 		comms::ObjectsPoses result;
 
-		if (m_robot->PlanPush(m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result))
+		std::vector<double> push_start_state;
+		if (!m_rearrangements.empty()) {
+			push_start_state = m_rearrangements.back().points.back().positions;
+		}
+
+		if (m_robot->PlanPush(push_start_state, m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result))
 		{
 			m_rearrangements.push_back(m_robot->GetLastPlan());
 

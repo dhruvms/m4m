@@ -74,9 +74,11 @@ public:
 	bool UpdateKDLRobot(int mode);
 	bool InitArmPlanner(bool interp=false);
 	bool PlanPush(
+		const std::vector<double>& start_state,
 		Agent* object, const std::vector<double>& push,
 		const std::vector<Object*>& other_movables,
-		const comms::ObjectsPoses& rearranged, comms::ObjectsPoses& result);
+		const comms::ObjectsPoses& rearranged,
+		comms::ObjectsPoses& result);
 	trajectory_msgs::JointTrajectory GetLastPlan() {
 		return m_traj;
 	};
@@ -196,6 +198,7 @@ private:
 		const std::vector<double>& push,
 		Eigen::Affine3d& push_pose);
 	bool planToPoseGoal(
+		const moveit_msgs::RobotState& start_state,
 		const Eigen::Affine3d& pose_goal,
 		trajectory_msgs::JointTrajectory& push_traj);
 	bool computePushAction(
