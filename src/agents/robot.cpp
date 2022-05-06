@@ -890,7 +890,6 @@ bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool fi
 		wp.time_from_start += extract_start_time;
 		m_traj.points.push_back(wp);
 	}
-	m_planner->ProfilePath(m_rm.get(), m_traj);
 
 	return true;
 }
@@ -1367,6 +1366,12 @@ bool Robot::PlanPush(
 			push_start_pose.translation().y(),
 			push_start_pose.translation().z()) <= m_grid_i->resolution())
 		{
+			m_push_debug_data.push_back({
+				push_start_pose.translation().x(),
+				push_start_pose.translation().y(),
+				-99.0,
+				-99.0,
+				-1.0});
 			continue;
 		}
 
@@ -1382,7 +1387,14 @@ bool Robot::PlanPush(
 				push_start_state.joint_state.position.begin() + 1,
 				start_state.begin(), start_state.end());
 		}
-		if (!planToPoseGoal(push_start_state, push_start_pose, push_traj)) {
+		if (!planToPoseGoal(push_start_state, push_start_pose, push_traj))
+		{
+			m_push_debug_data.push_back({
+				push_start_pose.translation().x(),
+				push_start_pose.translation().y(),
+				-99.0,
+				-99.0,
+				0.0});
 			continue;
 		}
 		++m_stats["push_samples_found"];
@@ -1425,6 +1437,12 @@ bool Robot::PlanPush(
 				|| !m_cc_i->isStateValid(push_action.points.back().positions)
 				|| !m_cc_i->isStateToStateValid(push_action.points[0].positions, push_action.points[1].positions))
 			{
+				m_push_debug_data.push_back({
+					push_start_pose.translation().x(),
+					push_start_pose.translation().y(),
+					push_end_pose.translation().x(),
+					push_end_pose.translation().y(),
+					2.0});
 				continue;
 			}
 
@@ -1441,6 +1459,12 @@ bool Robot::PlanPush(
 			}
 			if (collides)
 			{
+				m_push_debug_data.push_back({
+					push_start_pose.translation().x(),
+					push_start_pose.translation().y(),
+					push_end_pose.translation().x(),
+					push_end_pose.translation().y(),
+					2.0});
 				continue;
 			}
 
@@ -1461,10 +1485,22 @@ bool Robot::PlanPush(
 			if (!collides)
 			{
 				ProcessObstacles(pushed_obj, true);
+				m_push_debug_data.push_back({
+					push_start_pose.translation().x(),
+					push_start_pose.translation().y(),
+					push_end_pose.translation().x(),
+					push_end_pose.translation().y(),
+					2.0});
 				continue;
 			}
 			ProcessObstacles(pushed_obj, true);
 			++m_stats["push_actions_found"];
+			m_push_debug_data.push_back({
+				push_start_pose.translation().x(),
+				push_start_pose.translation().y(),
+				push_end_pose.translation().x(),
+				push_end_pose.translation().y(),
+				3.0});
 
 			// append waypoints to retract to push start pose
 			auto push_action_copy = push_action;
@@ -1483,6 +1519,15 @@ bool Robot::PlanPush(
 			m_push_actions.push_back(std::move(push_action));
 			m_push_trajs.push_back(std::move(push_traj));
 			++i;
+		}
+		else
+		{
+			m_push_debug_data.push_back({
+				push_start_pose.translation().x(),
+				push_start_pose.translation().y(),
+				push_end_pose.translation().x(),
+				push_end_pose.translation().y(),
+				1.0});
 		}
 	}
 
@@ -1517,6 +1562,14 @@ bool Robot::PlanPush(
 
 	++m_stats["push_sim_successes"];
 	m_traj = m_push_trajs.at(pidx);
+
+	Eigen::Affine3d pose = m_rm->computeFK(m_traj.points.back().positions);
+	m_push_debug_data.push_back({
+		pose.translation().x(),
+		pose.translation().y(),
+		-99.0,
+		-99.0,
+		4.0});
 	// SMPL_INFO("Found good push traj of length %d!", m_traj.points.size());
 	return true;
 }

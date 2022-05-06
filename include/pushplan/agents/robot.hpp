@@ -79,7 +79,9 @@ public:
 		const std::vector<Object*>& other_movables,
 		const comms::ObjectsPoses& rearranged,
 		comms::ObjectsPoses& result);
-	trajectory_msgs::JointTrajectory GetLastPlan() {
+	trajectory_msgs::JointTrajectory GetLastPlan()
+	{
+		m_planner->ProfilePath(m_rm.get(), m_traj);
 		return m_traj;
 	};
 	void SetSim(const std::shared_ptr<BulletSim>& sim) {
@@ -130,6 +132,13 @@ public:
 
 	auto TrajVoxels() const -> const std::vector<std::vector<Eigen::Vector3d>>* {
 		return &m_traj_voxels;
+	}
+
+	auto PushDebugData() const -> const std::vector<std::vector<double> >& {
+		return m_push_debug_data;
+	}
+	void ClearPushDebugData() {
+		m_push_debug_data.clear();
 	}
 
 private:
@@ -289,6 +298,8 @@ private:
 		const std::vector<Object*>& movable_obstacles,
 		bool finalise=false);
 	void voxeliseTrajectory();
+
+	std::vector<std::vector<double> > m_push_debug_data;
 };
 
 } // namespace clutter

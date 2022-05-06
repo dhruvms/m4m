@@ -139,6 +139,10 @@ bool Planner::Alive()
 	// 	4. time taken to solve mapf problem
 	double total_time = m_stats["robot_planner_time"] + m_stats["push_planner_time"] + m_stats["mapf_time"];
 	if (total_time > m_total_budget) {
+		if (m_cbs) {
+			m_cbs->WriteRoot();
+			m_cbs.reset();
+		}
 		return false;
 	}
 
@@ -247,6 +251,9 @@ bool Planner::Plan()
 		return false;
 	}
 
+	if (m_cbs) {
+		m_cbs->WriteRoot();
+	}
 	m_timer = GetTime();
 	if (!createCBS())
 	{
@@ -384,8 +391,12 @@ bool Planner::rearrange()
 	m_rearranged = rearranged;
 	m_replan = push_found;
 
-	if (!movement) {
+	if (!movement)
+	{
 		m_plan_success = true;
+		if (m_cbs) {
+			m_cbs->WriteRoot();
+		}
 	}
 
 	return movement;

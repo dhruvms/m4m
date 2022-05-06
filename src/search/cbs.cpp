@@ -172,7 +172,7 @@ bool CBS::initialiseRoot()
 	root->updateDistanceToGo();
 
 	pushNode(root);
-	writeSolution(root);
+	m_root = root;
 	return true;
 }
 
@@ -802,7 +802,19 @@ void CBS::writeSolution(HighLevelNode* node)
 					<< p.at(1) << '\n';
 		}
 
+		auto push_debug_data = m_robot->PushDebugData();
+		DATA << "PUSHES" << '\n';
+		DATA << push_debug_data.size() << '\n';
+		for (const auto& push: push_debug_data) {
+			DATA 	<< push.at(0) << ','
+					<< push.at(1) << ','
+					<< push.at(2) << ','
+					<< push.at(3) << ','
+					<< push.at(4) << '\n';
+		}
+
 		DATA.close();
+		m_robot->ClearPushDebugData();
 	}
 }
 

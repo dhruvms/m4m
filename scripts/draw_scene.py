@@ -15,6 +15,7 @@ def ParseFile(filepath):
 	trajs = {}
 	ngr = []
 	goals = []
+	pushes = []
 	with open(filepath, 'r') as f:
 		done = False
 		while not done:
@@ -69,9 +70,17 @@ def ParseFile(filepath):
 					pt = [float(val) for val in line.split(',')]
 					ngr.append(pt)
 
-	return objs, trajs, ngr, goals
+			if line == 'PUSHES':
+				line = f.readline()[:-1]
+				num_pushes = int(line)
+				for i in range(num_pushes):
+					line = f.readline()[:-1]
+					push = [float(val) for val in line.split(',')]
+					pushes.append(push)
 
-def DrawScene(filepath, objs, trajs, ngr, goals, alpha=1.0):
+	return objs, trajs, ngr, goals, pushes
+
+def DrawScene(filepath, objs, trajs, ngr, goals, pushes, alpha=1.0):
 	codes = [
 		Path.MOVETO,
 		Path.LINETO,
@@ -161,17 +170,30 @@ def DrawScene(filepath, objs, trajs, ngr, goals, alpha=1.0):
 				lc = 'cyan'
 
 			traj = np.asarray(trajs[key])
-			AX.plot(traj[:, 0], traj[:, 1], c=lc, alpha=0.75, zorder=10)
+			AX.plot(traj[:, 0], traj[:, 1], c=lc, alpha=1.0, zorder=25)
 
 	if (ngr):
 		NGR = np.asarray(ngr)*RES
-		AX.scatter(NGR[:, 0], NGR[:, 1], c='gray', alpha=0.25, zorder=2)
+		AX.scatter(NGR[:, 0], NGR[:, 1], c='gray', alpha=0.05, zorder=2)
 
 	if (goals):
 		GOALS = np.asarray(goals)
 		AX.scatter(GOALS[:, 1], GOALS[:, 2], c='violet', zorder=11, marker='*')
 		for i, oid in enumerate(GOALS[:, 0]):
 			AX.text(GOALS[i, 1], GOALS[i, 2], str(int(oid)), color='violet', zorder=3)
+
+	if (pushes):
+		colours = {4: 'black', 3: 'green', 2: 'gold', 1: 'deepskyblue', 0: 'deeppink', -1: 'firebrick'}
+		for p in pushes:
+			if (p[2] == -99 and p[3] == -99):
+				if (int(p[4]) == 4):
+					AX.scatter(p[0], p[1], c=colours[int(p[4])], zorder=24, marker='*', alpha=0.5)
+				else:
+					AX.scatter(p[0], p[1], c=colours[int(p[4])], zorder=21, marker='p', alpha=0.5)
+			else:
+				AX.plot([p[0], p[2]], [p[1], p[3]], c=colours[int(p[4])], ls='-.', zorder=22, alpha=0.35)
+				AX.scatter(p[0], p[1], c=colours[int(p[4])], zorder=23, marker='P', alpha=0.35)
+				AX.scatter(p[2], p[3], c=colours[int(p[4])], zorder=23, marker='X', alpha=0.35)
 
 	AX.axis('equal')
 	AX.set_xlim([0.0, 1.2])
@@ -194,8 +216,8 @@ def main():
 			imgfile = filepath.replace('txt', 'png')
 			if os.path.isfile(imgfile):
 				continue
-			objs, trajs, ngr, goals = ParseFile(filepath)
-			DrawScene(filepath, objs, trajs, ngr, goals)
+			objs, trajs, ngr, goals, pushes = ParseFile(filepath)
+			DrawScene(filepath, objs, trajs, ngr, goals, pushes)
 
 if __name__ == '__main__':
 	main()

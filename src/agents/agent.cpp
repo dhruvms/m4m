@@ -57,12 +57,12 @@ bool Agent::Init(bool backwards)
 	ContToDisc(m_init.state, m_init.coord);
 	// VisualiseState(m_init, "start_state", 90);
 
-	if (m_solve.empty()) {
+	// if (m_solve.empty()) {
 		computeGoal(backwards);
-	}
-	else {
-		m_goal = m_solve.back().coord;
-	}
+	// }
+	// else {
+	// 	m_goal = m_solve.back().coord;
+	// }
 	// createLatticeAndSearch(backwards);
 	createLatticeAndSearch(false);
 

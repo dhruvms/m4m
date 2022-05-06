@@ -33,6 +33,11 @@ public:
 	void SaveStats();
 	bool UpdateStats(std::map<std::string, double>& stats);
 	HighLevelNode* GetSolution() const { return m_goal; };
+	void WriteRoot() {
+		if (m_root != nullptr) {
+			writeSolution(m_root);
+		}
+	};
 
 protected:
 	std::shared_ptr<CollisionChecker> m_cc;
@@ -48,6 +53,7 @@ protected:
 	double m_search_time, m_time_limit, m_ll_time, m_conflict_time;
 	bool m_solved, m_backwards;
 	HighLevelNode* m_goal;
+	HighLevelNode* m_root = nullptr;
 
 	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::OPENCompare> > m_OPEN;
 	boost::heap::fibonacci_heap<HighLevelNode*, boost::heap::compare<HighLevelNode::FOCALCompare> > m_FOCAL;
