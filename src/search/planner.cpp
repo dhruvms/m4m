@@ -152,9 +152,9 @@ bool Planner::Alive()
 bool Planner::SetupNGR()
 {
 	std::vector<Object*> movable_obstacles;
-	// for (const auto& a: m_agents) {
-	// 	movable_obstacles.push_back(a->GetObject());
-	// }
+	for (const auto& a: m_agents) {
+		movable_obstacles.push_back(a->GetObject());
+	}
 
 	m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
 	// if (!m_robot->PlanApproachOnly(movable_obstacles)) {

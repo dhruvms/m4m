@@ -45,8 +45,8 @@ public:
 	bool CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t);
 	bool CheckCollision(const LatticeState& robot, int t);
 
-	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false);
-	bool ProcessObstacles(const std::vector<Object*>& obstacles, bool remove=false);
+	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false, bool movable=false);
+	bool ProcessObstacles(const std::vector<Object*>& obstacles, bool remove=false, bool movable=false);
 
 	bool Init();
 	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
@@ -175,8 +175,6 @@ private:
 	std::shared_ptr<smpl::DistanceMapInterface> m_df_i, m_df_m, m_df_ngr;
 	std::shared_ptr<smpl::OccupancyGrid> m_grid_i, m_grid_m, m_grid_ngr;
 	std::unique_ptr<smpl::collision::CollisionSpace> m_cc_i, m_cc_m;
-	std::vector<std::unique_ptr<smpl::collision::CollisionShape>> m_collision_shapes;
-	std::vector<std::unique_ptr<smpl::collision::CollisionObject>> m_collision_objects;
 
 	PlannerConfig m_planning_config;
 	smpl::PlanningParams m_planning_params;
@@ -245,17 +243,17 @@ private:
 		moveit_msgs::CollisionObject& obj_msg,
 		bool remove);
 	bool processCollisionObjectMsg(
-		const moveit_msgs::CollisionObject& object);
+		const moveit_msgs::CollisionObject& object, bool movable);
 	bool processSTLMesh(
-		const Object& object, bool remove);
+		const Object& object, bool remove, bool movable);
 
 	bool addCollisionObjectMsg(
-		const moveit_msgs::CollisionObject& object);
+		const moveit_msgs::CollisionObject& object, bool movable);
 	bool removeCollisionObjectMsg(
-		const moveit_msgs::CollisionObject& object);
+		const moveit_msgs::CollisionObject& object, bool movable);
 	bool checkCollisionObjectSanity(
 		const moveit_msgs::CollisionObject& object) const;
-	auto findCollisionObject(const std::string& id) const
+	auto findCollisionObject(const std::string& id, bool movable) const
 		-> smpl::collision::CollisionObject*;
 	bool setCollisionRobotState();
 

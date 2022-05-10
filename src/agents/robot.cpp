@@ -92,6 +92,7 @@ bool Robot::Setup()
 		return false;
 	}
 	m_cc_i->setWorldToModelTransform(Eigen::Affine3d::Identity());
+	m_cc_m->setWorldToModelTransform(Eigen::Affine3d::Identity());
 
 	// Read in start state from file and update the scene...
 	// Start state is also required by the planner...
@@ -228,14 +229,14 @@ bool Robot::CheckCollisionWithObject(const LatticeState& robot, Agent* a, int t)
 	// }
 	std::vector<Object*> o;
 	o.push_back(a->GetObject());
-	ProcessObstacles(o);
+	ProcessObstacles(o, false, true);
 
-	bool collision = !m_cc_i->isStateValid(robot.state);
+	bool collision = !m_cc_m->isStateValid(robot.state);
 
 	// if (t > m_grasp_at + 1) {
 	// 	detachObject();
 	// }
-	ProcessObstacles(o, true);
+	ProcessObstacles(o, true, true);
 
 	return collision;
 }
@@ -246,10 +247,10 @@ bool Robot::CheckCollision(const LatticeState& robot, int t)
 	// 	attachObject(m_ooi);
 	// }
 
-	bool collision = !m_cc_i->isStateValid(robot.state);
+	bool collision = !m_cc_m->isStateValid(robot.state);
 	// if (collision) {
 	// 	auto* vis_name = "conflict";
-	// 	auto markers = m_cc_i->getCollisionModelVisualization(robot.state);
+	// 	auto markers = m_cc_m->getCollisionModelVisualization(robot.state);
 	// 	for (auto& marker : markers) {
 	// 		marker.ns = vis_name;
 	// 	}
@@ -273,7 +274,8 @@ void Robot::SetMovables(const std::vector<std::shared_ptr<Agent> >& agents)
 	}
 }
 
-bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
+bool Robot::ProcessObstacles(const std::vector<Object>& obstacles,
+	bool remove, bool movable)
 {
 	for (const auto& obs: obstacles)
 	{
@@ -283,23 +285,24 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles, bool remove)
 			if (!getCollisionObjectMsg(obs, obj_msg, remove)) {
 				return false;
 			}
-			if (!processCollisionObjectMsg(obj_msg)) {
+			if (!processCollisionObjectMsg(obj_msg, movable)) {
 				return false;
 			}
 		}
 		else
 		{
-			if (!processSTLMesh(obs, remove)) {
+			if (!processSTLMesh(obs, remove, movable)) {
 				return false;
 			}
 		}
 	}
 
-	SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	// SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
 	return true;
 }
 
-bool Robot::ProcessObstacles(const std::vector<Object*>& obstacles, bool remove)
+bool Robot::ProcessObstacles(const std::vector<Object*>& obstacles,
+	bool remove, bool movable)
 {
 	for (const auto& obs: obstacles)
 	{
@@ -309,19 +312,19 @@ bool Robot::ProcessObstacles(const std::vector<Object*>& obstacles, bool remove)
 			if (!getCollisionObjectMsg(*obs, obj_msg, remove)) {
 				return false;
 			}
-			if (!processCollisionObjectMsg(obj_msg)) {
+			if (!processCollisionObjectMsg(obj_msg, movable)) {
 				return false;
 			}
 		}
 		else
 		{
-			if (!processSTLMesh(*obs, remove)) {
+			if (!processSTLMesh(*obs, remove, movable)) {
 				return false;
 			}
 		}
 	}
 
-	SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	// SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
 	return true;
 }
 
@@ -472,12 +475,9 @@ void Robot::ProfileTraj(Trajectory& traj)
 bool Robot::detachObject()
 {
 	const std::string attached_body_id = "att_obj";
-	if (!m_cc_i->detachObject(attached_body_id))
-	{
-		// ROS_ERROR("Failed to detach body '%s'", attached_body_id.c_str());
-		return false;
-	}
-	return true;
+	bool detach_result = m_cc_i->detachObject(attached_body_id)
+							|| m_cc_m->detachObject(attached_body_id);
+	return detach_result;
 }
 
 bool Robot::attachObject(const Object& obj)
@@ -542,17 +542,16 @@ bool Robot::attachObject(const Object& obj)
 
 	const std::string attach_link = "r_gripper_palm_link";
 	const std::string attached_body_id = "att_obj";
-	if (!m_cc_i->attachObject(
-				attached_body_id, shapes, transforms, attach_link))
-	{
+	bool attach_result = m_cc_i->attachObject(attached_body_id, shapes, transforms, attach_link)
+							|| m_cc_m->attachObject(attached_body_id, shapes, transforms, attach_link);
+	if (!attach_result)	{
 		ROS_ERROR("Failed to attach body to '%s'", attach_link.c_str());
-		return false;
 	}
 
 	// auto markers = m_cc_i->getCollisionRobotVisualization(m_postgrasp_state);
 	// SV_SHOW_INFO(markers);
 
-	return true;
+	return attach_result;
 }
 
 bool Robot::attachAndCheckObject(const Object& object, const smpl::RobotState& state)
@@ -615,37 +614,37 @@ bool Robot::planApproach(
 	moveit_msgs::PlanningScene planning_scene;
 	planning_scene.robot_state = m_start_state;
 
-	if (have_obs) {
-		ProcessObstacles(movable_obstacles);
-	}
-
 	// SMPL_INFO("Planning to pregrasp state.");
 	if (!m_planner->init_planner(planning_scene, req, res))
 	{
 		// ROS_ERROR("Failed to init planner!");
-
-		if (have_obs) {
-			ProcessObstacles(movable_obstacles, true);
-		}
 		return false;
 	}
 
-	if (have_obs && !finalise) {
-		ProcessObstacles(movable_obstacles, true);
+	if (have_obs) {
+		// add to immovable collision checker for final plan, and
+		// movable collision checker otherwise
+		ProcessObstacles(movable_obstacles, false, !finalise);
+		if (finalise) {
+			// remove from movable collision checker if they were added before
+			ProcessObstacles(movable_obstacles, true, true);
+		}
 	}
 
 	if (!m_planner->solve_with_constraints(req, res, m_movables, approach_cvecs))
 	{
 		// ROS_ERROR("Failed to plan to pregrasp state.");
 		if (have_obs && finalise) {
-			ProcessObstacles(movable_obstacles, true);
+			// remove from immovable collision checker
+			ProcessObstacles(movable_obstacles, true, false);
 		}
 		return false;
 	}
 	// SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
 
 	if (have_obs && finalise) {
-		ProcessObstacles(movable_obstacles, true);
+		// remove from immovable collision checker
+		ProcessObstacles(movable_obstacles, true, false);
 	}
 
 	return true;
@@ -702,25 +701,22 @@ bool Robot::planRetract(
 	// completely unnecessary variable
 	moveit_msgs::PlanningScene planning_scene;
 	planning_scene.robot_state = m_start_state;
-
-	if (have_obs) {
-		ProcessObstacles(movable_obstacles);
-	}
-
 	// SMPL_INFO("Planning to home state with attached body.");
 	if (!m_planner->init_planner(planning_scene, req, res))
 	{
 		// ROS_ERROR("Failed to init planner!");
 		m_start_state = orig_start;
-
-		if (have_obs) {
-			ProcessObstacles(movable_obstacles, true);
-		}
 		return false;
 	}
 
-	if (have_obs && !finalise) {
-		ProcessObstacles(movable_obstacles, true);
+	if (have_obs) {
+		// add to immovable collision checker for final plan, and
+		// movable collision checker otherwise
+		ProcessObstacles(movable_obstacles, false, !finalise);
+		if (finalise) {
+			// remove from movable collision checker if they were added before
+			ProcessObstacles(movable_obstacles, true, true);
+		}
 	}
 
 	if (!m_planner->solve_with_constraints(req, res, m_movables, retract_cvecs))
@@ -730,13 +726,15 @@ bool Robot::planRetract(
 		m_start_state = orig_start;
 
 		if (have_obs && finalise) {
-			ProcessObstacles(movable_obstacles, true);
+			// remove from immovable collision checker
+			ProcessObstacles(movable_obstacles, true, false);
 		}
 		return false;
 	}
 	// SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
 	if (have_obs && finalise) {
-		ProcessObstacles(movable_obstacles, true);
+		// remove from immovable collision checker
+		ProcessObstacles(movable_obstacles, true, false);
 	}
 
 	detachObject();
@@ -1328,6 +1326,14 @@ bool Robot::PlanPush(
 	m_push_trajs.clear();
 	m_push_actions.clear();
 
+	// required info about object being pushed
+	const Trajectory* obj_traj = object->SolveTraj();
+	std::vector<Object*> pushed_obj = { object->GetObject() };
+
+	// remove objects from movable collision checker if they exist
+	ProcessObstacles(pushed_obj, true, true);
+	ProcessObstacles(other_movables, true, true);
+
 	if (m_pushes_per_object == -1)
 	{
 		m_ph.getParam("robot/pushing/num", m_pushes_per_object);
@@ -1340,21 +1346,17 @@ bool Robot::PlanPush(
 		m_ph.param<int>("robot/pushing/control/iters", m_invvel_iters, 1000);
 	}
 
-	// required info about object being pushed
-	const Trajectory* obj_traj = object->SolveTraj();
-	std::vector<Object*> pushed_obj = { object->GetObject() };
-
 	int i = 0;
 	double start_time = GetTime();
 	bool added = false;
 	while((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time))
 	{
-		// add all movable objects as obstacles
+		// add all movable objects as obstacles into immovable collision checker
 		// they should be at their latest positions
 		if (!added)
 		{
-			ProcessObstacles(pushed_obj);
-			ProcessObstacles(other_movables);
+			ProcessObstacles(pushed_obj, false, false);
+			ProcessObstacles(other_movables, false, false);
 			added = true;
 		}
 
@@ -1401,9 +1403,9 @@ bool Robot::PlanPush(
 
 		if (added)
 		{
-			// remove all movable objects from collision space
-			ProcessObstacles(pushed_obj, true);
-			ProcessObstacles(other_movables, true);
+			// remove all movable objects from immovable collision space
+			ProcessObstacles(pushed_obj, true, false);
+			ProcessObstacles(other_movables, true, false);
 			added = false;
 		}
 
@@ -1471,7 +1473,7 @@ bool Robot::PlanPush(
 			// collision check push action against pushed object
 			// ensure that it collides
 			collides = false;
-			ProcessObstacles(pushed_obj);
+			ProcessObstacles(pushed_obj, false, false);
 			for (size_t wp = 1; wp < push_action.points.size(); ++wp)
 			{
 				auto& prev_istate = push_action.points[wp - 1].positions;
@@ -1484,7 +1486,7 @@ bool Robot::PlanPush(
 			}
 			if (!collides)
 			{
-				ProcessObstacles(pushed_obj, true);
+				ProcessObstacles(pushed_obj, true, false);
 				m_push_debug_data.push_back({
 					push_start_pose.translation().x(),
 					push_start_pose.translation().y(),
@@ -1493,7 +1495,7 @@ bool Robot::PlanPush(
 					2.0});
 				continue;
 			}
-			ProcessObstacles(pushed_obj, true);
+			ProcessObstacles(pushed_obj, true, false);
 			++m_stats["push_actions_found"];
 			m_push_debug_data.push_back({
 				push_start_pose.translation().x(),
@@ -1533,9 +1535,9 @@ bool Robot::PlanPush(
 
 	if (added)
 	{
-		// remove all movable objects from collision space
-		ProcessObstacles(pushed_obj, true);
-		ProcessObstacles(other_movables, true);
+		// remove all movable objects from immovable collision space
+		ProcessObstacles(pushed_obj, true, false);
+		ProcessObstacles(other_movables, true, false);
 		added = false;
 	}
 
@@ -1949,7 +1951,7 @@ bool Robot::setGripper(bool open)
 
 		// Set state in the collision scene here...
 		auto& joint_name = m_robot_config.gripper_joints[i];
-		if (!m_cc_i->setJointPosition(joint_name, pos)) {
+		if (!m_cc_i->setJointPosition(joint_name, pos) || !m_cc_m->setJointPosition(joint_name, pos)) {
 			ROS_ERROR("Failed to set position of joint '%s' to %f", joint_name.c_str(), pos);
 			return false;
 		}
@@ -2159,7 +2161,7 @@ bool Robot::initCollisionChecker()
 			m_robot_config.group_name,
 			m_robot_config.planning_joints))
 	{
-		ROS_ERROR("Failed to initialize immovable Collision Space");
+		ROS_ERROR("Failed to initialize movable Collision Space");
 		return false;
 	}
 
@@ -2198,13 +2200,14 @@ bool Robot::getCollisionObjectMsg(
 /// \param object The collision object to be processed
 /// \return true if the object was processed successfully; false otherwise
 bool Robot::processCollisionObjectMsg(
-	const moveit_msgs::CollisionObject& object)
+	const moveit_msgs::CollisionObject& object,
+	bool movable)
 {
 	if (object.operation == moveit_msgs::CollisionObject::ADD) {
-		return addCollisionObjectMsg(object);
+		return addCollisionObjectMsg(object, movable);
 	}
 	else if (object.operation == moveit_msgs::CollisionObject::REMOVE) {
-		return removeCollisionObjectMsg(object);
+		return removeCollisionObjectMsg(object, movable);
 	}
 	// else if (object.operation == moveit_msgs::CollisionObject::APPEND) {
 	// 	return AppendCollisionObjectMsg(object);
@@ -2218,18 +2221,19 @@ bool Robot::processCollisionObjectMsg(
 }
 
 bool Robot::processSTLMesh(
-	const Object& object, bool remove)
+	const Object& object, bool remove, bool movable)
 {
+	auto cc = movable ? m_cc_m.get() : m_cc_i.get();
 	if (remove)
 	{
 		// find the collision object with this name
-		auto* _object = findCollisionObject(std::to_string(object.desc.id));
+		auto* _object = findCollisionObject(std::to_string(object.desc.id), movable);
 		if (!_object) {
 			return false;
 		}
 
 		// remove from collision space
-		if (!m_cc_i->removeObject(_object)) {
+		if (!cc->removeObject(_object)) {
 			return false;
 		}
 
@@ -2244,17 +2248,17 @@ bool Robot::processSTLMesh(
 		};
 
 		auto rit = std::remove_if(
-				begin(m_collision_shapes), end(m_collision_shapes),
+				begin(cc->m_collision_shapes), end(cc->m_collision_shapes),
 				belongs_to_object);
-		m_collision_shapes.erase(rit, end(m_collision_shapes));
+		cc->m_collision_shapes.erase(rit, end(cc->m_collision_shapes));
 
 		// remove the object itself
 		auto is_object = [_object](const std::unique_ptr<smpl::collision::CollisionObject>& obj) {
 			return obj.get() == _object;
 		};
 		auto rrit = std::remove_if(
-				begin(m_collision_objects), end(m_collision_objects), is_object);
-		m_collision_objects.erase(rrit, end(m_collision_objects));
+				begin(cc->m_collision_objects), end(cc->m_collision_objects), is_object);
+		cc->m_collision_objects.erase(rrit, end(cc->m_collision_objects));
 
 		return true;
 	}
@@ -2298,19 +2302,56 @@ bool Robot::processSTLMesh(
 	co->shapes = std::move(shapes);
 	co->shape_poses = std::move(shape_poses);
 
-	m_collision_objects.push_back(std::move(co));
-	return m_cc_i->insertObject(m_collision_objects.back().get());
+	cc->m_collision_objects.push_back(std::move(co));
+	return cc->insertObject(cc->m_collision_objects.back().get());
 }
 
 bool Robot::addCollisionObjectMsg(
-	const moveit_msgs::CollisionObject& object)
+	const moveit_msgs::CollisionObject& object,
+	bool movable)
 {
-	if (m_cc_i->worldCollisionModel()->hasObjectWithName(object.id)) {
-		return false;
+	auto cc = movable ? m_cc_m.get() : m_cc_i.get();
+
+	if (cc->worldCollisionModel()->hasObjectWithName(object.id))
+	{
+		// find the collision object with this name
+		auto* cc_object = findCollisionObject(object.id, movable);
+		if (!cc_object) {
+			return false;
+		}
+
+		Eigen::Affine3d pose;
+		if (!object.primitives.empty())
+		{
+			tf::poseMsgToEigen(object.primitive_poses[0], pose);
+			if (cc_object->shape_poses[0].translation() == pose.translation()
+				&& cc_object->shape_poses[0].rotation() == pose.rotation()) {
+				return true;
+			}
+			else
+			{
+				cc_object->shape_poses[0] = pose;
+				return cc->moveShapes(cc_object);
+			}
+		}
+
+		else if (!object.meshes.empty())
+		{
+			tf::poseMsgToEigen(object.mesh_poses[0], pose);
+			if (cc_object->shape_poses[0].translation() == pose.translation()
+				&& cc_object->shape_poses[0].rotation() == pose.rotation()) {
+				return true;
+			}
+			else
+			{
+				cc_object->shape_poses[0] = pose;
+				return cc->moveShapes(cc_object);
+			}
+		}
 	}
 
-	if (object.header.frame_id != m_cc_i->getReferenceFrame()) {
-		ROS_ERROR("Collision object must be specified in the Collision Space's reference frame (%s)", m_cc_i->getReferenceFrame().c_str());
+	if (object.header.frame_id != cc->getReferenceFrame()) {
+		ROS_ERROR("Collision object must be specified in the Collision Space's reference frame (%s)", cc->getReferenceFrame().c_str());
 		return false;
 	}
 
@@ -2350,26 +2391,12 @@ bool Robot::addCollisionObjectMsg(
 			assert(0);
 		}
 
-		m_collision_shapes.push_back(std::move(shape));
-		shapes.push_back(m_collision_shapes.back().get());
+		cc->m_collision_shapes.push_back(std::move(shape));
+		shapes.push_back(cc->m_collision_shapes.back().get());
 
 		auto& prim_pose = object.primitive_poses[i];
 		Eigen::Affine3d transform;
 		tf::poseMsgToEigen(prim_pose, transform);
-		shape_poses.push_back(transform);
-	}
-
-	for (size_t i = 0; i < object.planes.size(); ++i) {
-		auto& plane = object.planes[i];
-
-		auto shape = smpl::make_unique<smpl::collision::PlaneShape>(
-				plane.coef[0], plane.coef[1], plane.coef[2], plane.coef[3]);
-		m_collision_shapes.push_back(std::move(shape));
-		shapes.push_back(m_collision_shapes.back().get());
-
-		auto& plane_pose = object.plane_poses[i];
-		Eigen::Affine3d transform;
-		tf::poseMsgToEigen(plane_pose, transform);
 		shape_poses.push_back(transform);
 	}
 
@@ -2390,21 +2417,24 @@ bool Robot::addCollisionObjectMsg(
 	co->shapes = std::move(shapes);
 	co->shape_poses = std::move(shape_poses);
 
-	m_collision_objects.push_back(std::move(co));
-	return m_cc_i->insertObject(m_collision_objects.back().get());
+	cc->m_collision_objects.push_back(std::move(co));
+	return cc->insertObject(cc->m_collision_objects.back().get());
 }
 
 bool Robot::removeCollisionObjectMsg(
-	const moveit_msgs::CollisionObject& object)
+	const moveit_msgs::CollisionObject& object,
+	bool movable)
 {
+	auto cc = movable ? m_cc_m.get() : m_cc_i.get();
+
 	// find the collision object with this name
-	auto* _object = findCollisionObject(object.id);
+	auto* _object = findCollisionObject(object.id, movable);
 	if (!_object) {
 		return false;
 	}
 
 	// remove from collision space
-	if (!m_cc_i->removeObject(_object)) {
+	if (!cc->removeObject(_object)) {
 		return false;
 	}
 
@@ -2419,17 +2449,17 @@ bool Robot::removeCollisionObjectMsg(
 	};
 
 	auto rit = std::remove_if(
-			begin(m_collision_shapes), end(m_collision_shapes),
+			begin(cc->m_collision_shapes), end(cc->m_collision_shapes),
 			belongs_to_object);
-	m_collision_shapes.erase(rit, end(m_collision_shapes));
+	cc->m_collision_shapes.erase(rit, end(cc->m_collision_shapes));
 
 	// remove the object itself
 	auto is_object = [_object](const std::unique_ptr<smpl::collision::CollisionObject>& object) {
 		return object.get() == _object;
 	};
 	auto rrit = std::remove_if(
-			begin(m_collision_objects), end(m_collision_objects), is_object);
-	m_collision_objects.erase(rrit, end(m_collision_objects));
+			begin(cc->m_collision_objects), end(cc->m_collision_objects), is_object);
+	cc->m_collision_objects.erase(rrit, end(cc->m_collision_objects));
 
 	return true;
 }
@@ -2487,10 +2517,12 @@ bool Robot::checkCollisionObjectSanity(
 	return true;
 }
 
-auto Robot::findCollisionObject(const std::string& id) const
+auto Robot::findCollisionObject(const std::string& id, bool movable) const
 	-> smpl::collision::CollisionObject*
 {
-	for (auto& object : m_collision_objects) {
+	auto cc = movable ? m_cc_m.get() : m_cc_i.get();
+
+	for (auto& object : cc->m_collision_objects) {
 		if (object->id == id) {
 			return object.get();
 		}
@@ -2510,6 +2542,10 @@ bool Robot::setCollisionRobotState()
 		auto& joint_name = m_start_state.joint_state.name[i];
 		double joint_position = m_start_state.joint_state.position[i];
 		if (!m_cc_i->setJointPosition(joint_name, joint_position)) {
+			ROS_ERROR("Failed to set position of joint '%s' to %f", joint_name.c_str(), joint_position);
+			return false;
+		}
+		if (!m_cc_m->setJointPosition(joint_name, joint_position)) {
 			ROS_ERROR("Failed to set position of joint '%s' to %f", joint_name.c_str(), joint_position);
 			return false;
 		}
@@ -2671,7 +2707,7 @@ bool Robot::readPlannerConfig(const ros::NodeHandle &nh)
 bool Robot::createPlanner(bool interp)
 {
 	m_planner = std::make_unique<smpl::PlannerInterface>(
-										m_rm.get(), m_cc_i.get(), m_grid_i.get());
+										m_rm.get(), m_cc_i.get(), m_grid_i.get(), m_cc_m.get());
 	m_planning_params.interpolate_path = interp;
 
 	if (!m_planner->init(m_planning_params)) {
