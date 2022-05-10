@@ -2096,10 +2096,17 @@ void Robot::initOccupancyGrids()
 			sx, sy, sz,
 			DF_RES,
 			max_distance);
+	m_df_m = std::make_shared<smpl::EuclidDistanceMap>(
+			ox, oy, oz,
+			sx, sy, sz,
+			DF_RES,
+			max_distance);
 
 	bool ref_counted = false;
 	m_grid_i = std::make_unique<smpl::OccupancyGrid>(m_df_i, ref_counted);
 	m_grid_i->setReferenceFrame(m_planning_frame);
+	m_grid_m = std::make_unique<smpl::OccupancyGrid>(m_df_m, ref_counted);
+	m_grid_m->setReferenceFrame(m_planning_frame);
 	// SV_SHOW_INFO(m_grid_i->getBoundingBoxVisualization());
 
 	bool propagate_negative_distances = true;
@@ -2121,6 +2128,7 @@ bool Robot::initCollisionChecker()
 		return false;
 	}
 
+	// immovable obstacle collision checker
 	m_cc_i = std::make_unique<smpl::collision::CollisionSpace>();
 	if (!m_cc_i->init(
 			m_grid_i.get(),
@@ -2140,6 +2148,28 @@ bool Robot::initCollisionChecker()
 			acm.setEntry(pair.first, pair.second, true);
 		}
 		m_cc_i->setAllowedCollisionMatrix(acm);
+	}
+
+	// movable objecet collision checker
+	m_cc_m = std::make_unique<smpl::collision::CollisionSpace>();
+	if (!m_cc_m->init(
+			m_grid_m.get(),
+			m_robot_description,
+			cc_conf,
+			m_robot_config.group_name,
+			m_robot_config.planning_joints))
+	{
+		ROS_ERROR("Failed to initialize immovable Collision Space");
+		return false;
+	}
+
+	if (m_cc_m->robotCollisionModel()->name() == "pr2") {
+		// sbpl_collision_checking/types.h
+		smpl::collision::AllowedCollisionMatrix acm;
+		for (auto& pair : PR2AllowedCollisionPairs) {
+			acm.setEntry(pair.first, pair.second, true);
+		}
+		m_cc_m->setAllowedCollisionMatrix(acm);
 	}
 
 	return true;

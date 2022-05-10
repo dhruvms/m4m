@@ -172,9 +172,9 @@ private:
 	std::uniform_real_distribution<double> m_distD;
 	std::normal_distribution<> m_distG;
 
-	std::shared_ptr<smpl::DistanceMapInterface> m_df_i, m_df_ngr;
-	std::shared_ptr<smpl::OccupancyGrid> m_grid_i, m_grid_ngr;
-	std::unique_ptr<smpl::collision::CollisionSpace> m_cc_i;
+	std::shared_ptr<smpl::DistanceMapInterface> m_df_i, m_df_m, m_df_ngr;
+	std::shared_ptr<smpl::OccupancyGrid> m_grid_i, m_grid_m, m_grid_ngr;
+	std::unique_ptr<smpl::collision::CollisionSpace> m_cc_i, m_cc_m;
 	std::vector<std::unique_ptr<smpl::collision::CollisionShape>> m_collision_shapes;
 	std::vector<std::unique_ptr<smpl::collision::CollisionObject>> m_collision_objects;
 
