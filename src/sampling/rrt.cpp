@@ -1,5 +1,6 @@
 #include <pushplan/sampling/rrt.hpp>
 #include <pushplan/utils/constants.hpp>
+#include <comms/ObjectsPoses.h>
 
 #include <smpl/console/console.h>
 
@@ -50,7 +51,8 @@ std::uint32_t RRT::extend(const smpl::RobotState& qrand)
 {
 	Node* xnear = selectVertex(qrand);
 	smpl::RobotState qnew;
-	if (steer(qrand, xnear, qnew))
+	comms::ObjectsPoses qnew_objs;
+	if (steer(qrand, xnear, qnew, qnew_objs))
 	{
 
 	}
@@ -67,9 +69,21 @@ Node* RRT::selectVertex(const smpl::RobotState& qrand)
 bool RRT::steer(
 	const smpl::RobotState& qrand,
 	Node* xnear,
-	smpl::RobotState& qnew)
+	smpl::RobotState& qnew,
+	comms::ObjectsPoses& qnew_obs)
 {
-	m_robot->SetScene(xnear->objects());
+	if (!m_robot->SetScene(xnear->objects())) {
+		return false;
+	}
+
+	if (m_robot->SteerAction(
+			qrand,
+			xnear->robot_state(), xnear->objects(),
+			qnew, qnew_objs))
+	{
+		// successful steer
+		Node* xnew = new Node(qnew, qnew_objs, xnear);
+	}
 }
 
 } // namespace sampling

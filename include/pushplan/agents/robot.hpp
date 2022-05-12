@@ -48,6 +48,12 @@ public:
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false, bool movable=false);
 	bool ProcessObstacles(const std::vector<Object*>& obstacles, bool remove=false, bool movable=false);
 
+	bool SetScene(const comms::ObjectsPoses& objects);
+	bool SteerAction(
+		const smpl::RobotState& to,
+		const smpl::RobotState& from, const comms::ObjectsPoses& start_objs,
+		smpl::RobotState& action_end, comms::ObjectsPoses& end_objs);
+
 	bool Init();
 	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
 	bool RandomiseStart();

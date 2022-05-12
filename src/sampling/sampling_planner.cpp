@@ -43,6 +43,11 @@ void SamplingPlanner::addNode(Node* node)
 	// add to vertex in graph
 	Vertex_t v = boost::add_vertex(m_G);
 	m_G[v] = node;
+
+	if (node->parent() != nullptr)
+	{
+
+	}
 }
 
 } // namespace sampling

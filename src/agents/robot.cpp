@@ -9,6 +9,7 @@
 #include <sbpl_collision_checking/shapes.h>
 #include <sbpl_collision_checking/types.h>
 #include <sbpl_collision_checking/voxel_operations.h>
+#include <sbpl_collision_checking/robot_motion_collision_model.h>
 #include <smpl/angles.h>
 #include <smpl/debug/marker_utils.h>
 #include <smpl/console/console.h>
@@ -326,6 +327,126 @@ bool Robot::ProcessObstacles(const std::vector<Object*>& obstacles,
 
 	// SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
 	return true;
+}
+
+bool Robot::SetScene(const comms::ObjectsPoses& objects)
+{
+	for (const auto& object : objects)
+	{
+		// find the collision object with this name
+		auto* cc_object = findCollisionObject(object.id, movable);
+		if (!cc_object) {
+			return false;
+		}
+
+		Eigen::Affine3d pose = Eigen::Translation3d(object.xyz[0], object.xyz[1], object.xyz[2]) *
+			Eigen::AngleAxisd(object.rpy[2], Eigen::Vector3d::UnitZ()) *
+			Eigen::AngleAxisd(object.rpy[1], Eigen::Vector3d::UnitY()) *
+			Eigen::AngleAxisd(object.rpy[0], Eigen::Vector3d::UnitX());;
+
+		if (cc_object->shape_poses[0].translation() == pose.translation()
+			&& cc_object->shape_poses[0].rotation() == pose.rotation()) {
+			continue;
+		}
+		else
+		{
+			cc_object->shape_poses[0] = pose;
+			if (!cc->moveShapes(cc_object)) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool Robot::SteerAction(
+	const smpl::RobotState& to,
+	const smpl::RobotState& from, const comms::ObjectsPoses& start_objs,
+	smpl::RobotState& action_end, comms::ObjectsPoses& end_objs)
+{
+	const double res = 0.05;
+	smpl::collision::MotionInterpolation interp(m_cc_i->robotCollisionModel().get());
+
+	auto planning_variables = m_cc_i->planningVariables();
+	m_cc_i->robotMotionCollisionModel()->->fillMotionInterpolation(
+			from,
+			to,
+			planning_variables,
+			res,
+			interp);
+
+	const int inc_cc = 5;
+
+	smpl::RobotState interm;
+	int collides_immov_idx = -1, collides_mov_idx = -1;
+	for (std::size_t i = 0; i < interp.waypointCount(); i++)
+	{
+		interp.interpolate(i, interm, planning_variables);
+
+		// check if interpolated waypoint collides with movable obstacles
+		if (collides_mov_idx < 0 && !m_cc_m->isStateValid(interm)) {
+			collides_mov_idx = (int)i;
+		}
+		// check if interpolated waypoint collides with immovable obstacles
+		if (collides_immov_idx < 0 && !m_cc_i->isStateValid(interm)) {
+			collides_immov_idx = (int)i;
+		}
+
+		if (collides_mov_idx < 0 && collides_immov_idx >= 0) {
+			// we know that its valid up to waypoint collides_immov_idx - 1
+			break;
+		}
+		else if (collides_mov_idx >= 0 && collides_immmov_idx >= 0) {
+			// we know that it must be simulated up to waypoint collides_immov_idx - 1
+			break;
+		}
+	}
+
+	if (collides_immov_idx == 0) {
+		SMPL_ERROR("Start state of SteerAction collides with immovable obstacles!!");
+		return false;
+	}
+
+	std::size_t action_size = collides_immov_idx < 0 ? interp.waypointCount() : collides_immov_idx;
+	if (collides_mov_idx < 0)
+	{
+		// no collision with movable objects along action, no need to simulate
+		// whole or partial action is valid
+		interp.interpolate(action_size - 1, action_end, planning_variables);
+		end_objs = start_objs;
+		return true;
+	}
+	else
+	{
+		// simulate whole or partial action
+		trajectory_msgs::JointTrajectory steer_action;
+		trajectory_msgs::JointTrajectoryPoint action_pt;
+		// starting waypoint
+		action_pt.positions = from;
+		action_pt.time_from_start = 0.0;
+		steer_action.points.push_back(action_pt);
+
+		for (std::size_t i = 1; i < action_size; i++)
+		{
+			// get intermediate waypoint
+			interp.interpolate(i, action_pt.positions, planning_variables);
+			// get time to intermediate waypoint
+			auto prev_state = steer_action.points.at(i - 1).positions;
+			double duration = profileAction(prev_state, action_pt.positions);
+			action_pt.time_from_start = steer_action.points.at(i - 1).time_from_start + ros::Duration(duration);
+			// add intermediate waypoint
+			steer_action.points.push_back(action_pt);
+		}
+		// set final waypoint
+		interp.interpolate(action_size - 1, action_end, planning_variables);
+
+		int dummy, success;
+		// simulate for result
+		return m_sim->SimPushes(	{ steer_action }, -1, -1.0, -1.0,
+									dummy, success,
+									start_objs, end_objs);
+	}
 }
 
 bool Robot::Init()
@@ -2321,32 +2442,21 @@ bool Robot::addCollisionObjectMsg(
 		}
 
 		Eigen::Affine3d pose;
-		if (!object.primitives.empty())
-		{
+		if (!object.primitives.empty()) {
 			tf::poseMsgToEigen(object.primitive_poses[0], pose);
-			if (cc_object->shape_poses[0].translation() == pose.translation()
-				&& cc_object->shape_poses[0].rotation() == pose.rotation()) {
-				return true;
-			}
-			else
-			{
-				cc_object->shape_poses[0] = pose;
-				return cc->moveShapes(cc_object);
-			}
+		}
+		else if (!object.meshes.empty()) {
+			tf::poseMsgToEigen(object.mesh_poses[0], pose);
 		}
 
-		else if (!object.meshes.empty())
+		if (cc_object->shape_poses[0].translation() == pose.translation()
+			&& cc_object->shape_poses[0].rotation() == pose.rotation()) {
+			return true;
+		}
+		else
 		{
-			tf::poseMsgToEigen(object.mesh_poses[0], pose);
-			if (cc_object->shape_poses[0].translation() == pose.translation()
-				&& cc_object->shape_poses[0].rotation() == pose.rotation()) {
-				return true;
-			}
-			else
-			{
-				cc_object->shape_poses[0] = pose;
-				return cc->moveShapes(cc_object);
-			}
+			cc_object->shape_poses[0] = pose;
+			return cc->moveShapes(cc_object);
 		}
 	}
 

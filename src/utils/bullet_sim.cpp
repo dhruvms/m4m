@@ -266,7 +266,7 @@ bool BulletSim::SimPushes(
 	successes = srv.response.successes;
 	result = srv.response.objects;
 
-	return true;
+	return srv.response.res;
 }
 
 bool BulletSim::RemoveConstraint()
