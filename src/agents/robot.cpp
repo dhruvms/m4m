@@ -331,10 +331,10 @@ bool Robot::ProcessObstacles(const std::vector<Object*>& obstacles,
 
 bool Robot::SetScene(const comms::ObjectsPoses& objects)
 {
-	for (const auto& object : objects)
+	for (const auto& object : objects.poses)
 	{
 		// find the collision object with this name
-		auto* cc_object = findCollisionObject(object.id, movable);
+		auto* cc_object = findCollisionObject(std::to_string(object.id), true);
 		if (!cc_object) {
 			return false;
 		}
@@ -351,7 +351,7 @@ bool Robot::SetScene(const comms::ObjectsPoses& objects)
 		else
 		{
 			cc_object->shape_poses[0] = pose;
-			if (!cc->moveShapes(cc_object)) {
+			if (!m_cc_m->moveShapes(cc_object)) {
 				return false;
 			}
 		}
@@ -361,26 +361,28 @@ bool Robot::SetScene(const comms::ObjectsPoses& objects)
 }
 
 bool Robot::SteerAction(
-	const smpl::RobotState& to,
+	const smpl::RobotState& to, int steps,
 	const smpl::RobotState& from, const comms::ObjectsPoses& start_objs,
-	smpl::RobotState& action_end, comms::ObjectsPoses& end_objs)
+	smpl::RobotState& action_end, comms::ObjectsPoses& end_objs,
+	std::uint32_t& result)
 {
-	const double res = 0.05;
+	result = 0x00000000; // error in action computation
+
+	const double res = DEG5/5; // 1 degree
 	smpl::collision::MotionInterpolation interp(m_cc_i->robotCollisionModel().get());
 
 	auto planning_variables = m_cc_i->planningVariables();
-	m_cc_i->robotMotionCollisionModel()->->fillMotionInterpolation(
+	m_cc_i->robotMotionCollisionModel()->fillMotionInterpolation(
 			from,
 			to,
 			planning_variables,
 			res,
 			interp);
 
-	const int inc_cc = 5;
-
 	smpl::RobotState interm;
 	int collides_immov_idx = -1, collides_mov_idx = -1;
-	for (std::size_t i = 0; i < interp.waypointCount(); i++)
+	std::size_t max_idx = interp.waypointCount() > steps ? steps : interp.waypointCount();
+	for (std::size_t i = 0; i < max_idx; i++)
 	{
 		interp.interpolate(i, interm, planning_variables);
 
@@ -397,7 +399,7 @@ bool Robot::SteerAction(
 			// we know that its valid up to waypoint collides_immov_idx - 1
 			break;
 		}
-		else if (collides_mov_idx >= 0 && collides_immmov_idx >= 0) {
+		else if (collides_mov_idx >= 0 && collides_immov_idx >= 0) {
 			// we know that it must be simulated up to waypoint collides_immov_idx - 1
 			break;
 		}
@@ -407,14 +409,18 @@ bool Robot::SteerAction(
 		SMPL_ERROR("Start state of SteerAction collides with immovable obstacles!!");
 		return false;
 	}
+	result |= collides_immov_idx < 0 ? 0x00000001 : 0x00000002; // we have an action to validate, full or partial
 
-	std::size_t action_size = collides_immov_idx < 0 ? interp.waypointCount() : collides_immov_idx;
+	std::size_t action_size = collides_immov_idx < 0 ? max_idx : collides_immov_idx;
 	if (collides_mov_idx < 0)
 	{
 		// no collision with movable objects along action, no need to simulate
 		// whole or partial action is valid
 		interp.interpolate(action_size - 1, action_end, planning_variables);
 		end_objs = start_objs;
+		result |= 0x00000004;
+		// there was no need to simulate
+		// if result is 5: full action, 6: partial action
 		return true;
 	}
 	else
@@ -424,7 +430,7 @@ bool Robot::SteerAction(
 		trajectory_msgs::JointTrajectoryPoint action_pt;
 		// starting waypoint
 		action_pt.positions = from;
-		action_pt.time_from_start = 0.0;
+		action_pt.time_from_start = ros::Duration(0.0);
 		steer_action.points.push_back(action_pt);
 
 		for (std::size_t i = 1; i < action_size; i++)
@@ -443,10 +449,18 @@ bool Robot::SteerAction(
 
 		int dummy, success;
 		// simulate for result
-		return m_sim->SimPushes(	{ steer_action }, -1, -1.0, -1.0,
-									dummy, success,
-									start_objs, end_objs);
+		bool sim_result = m_sim->SimPushes(	{ steer_action }, -1, -1.0, -1.0,
+										dummy, success,
+										start_objs, end_objs);
+		result |= sim_result ? 0x00000008 : 0x00000063;
+		// simulated an action
+		// success if result is < 100, failure otherwise
+		// full action if result = 9, partial if result = 10
+		return sim_result;
 	}
+
+	SMPL_ERROR("Why are we returning from the very end of Robot::SteerAction?");
+	return false;
 }
 
 bool Robot::Init()

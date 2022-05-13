@@ -50,9 +50,10 @@ public:
 
 	bool SetScene(const comms::ObjectsPoses& objects);
 	bool SteerAction(
-		const smpl::RobotState& to,
+		const smpl::RobotState& to, int steps,
 		const smpl::RobotState& from, const comms::ObjectsPoses& start_objs,
-		smpl::RobotState& action_end, comms::ObjectsPoses& end_objs);
+		smpl::RobotState& action_end, comms::ObjectsPoses& end_objs,
+		std::uint32_t& result);
 
 	bool Init();
 	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
@@ -145,6 +146,10 @@ public:
 	}
 	void ClearPushDebugData() {
 		m_push_debug_data.clear();
+	}
+
+	auto RobotModel() const -> const smpl::PushingKDLRobotModel* {
+		return m_rm.get();
 	}
 
 private:
