@@ -10,21 +10,23 @@ class RRT : public SamplingPlanner
 {
 public:
 	RRT();
-	RRT(int samples, double gbias, double gthresh, double eps, double timeout);
+	RRT(int samples, int steps, double gbias, double gthresh, double timeout);
 
 	bool Solve() override;
 	virtual ExtractPath() = 0;
 
 private:
-	int m_N;
-	double m_gbias, m_gthresh, m_eps;
+	int m_N, m_steps;
+	double m_gbias, m_gthresh;
 
-	std::uint32_t extend(const smpl::RobotState& sample) override;
-	Node* selectVertex(const smpl::RobotState& qrand) override;
+	std::uint32_t extend(const smpl::RobotState& sample, Vertex_t& new_v) override;
+	Node* selectVertex(const smpl::RobotState& qrand, Vertex_t& nearest) override;
 	bool steer(
 		const smpl::RobotState& qrand,
 		Node* xnear,
-		smpl::RobotState& qnew) override;
+		smpl::RobotState& qnew,
+		comms::ObjectsPoses& qnew_objs,
+		std::uint32_t& result) override;
 };
 
 } // namespace sampling

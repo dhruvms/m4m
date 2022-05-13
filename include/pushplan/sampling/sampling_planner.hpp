@@ -24,7 +24,11 @@ class Node;
 class SamplingPlanner
 {
 public:
-	SamplingPlanner() : m_start(nullptr), m_goal(nullptr), m_rng(m_dev()) {};
+	SamplingPlanner() :
+	m_start(nullptr), m_goal(nullptr), m_rng(m_dev()),
+	m_goal_nodes(0) {
+		m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
+	};
 
 	virtual void SetStartState(
 		const smpl::RobotState& state,
@@ -53,8 +57,8 @@ protected:
 	std::deque<Node*> m_nodes;
 
 	typedef bg::model::point<double, 7, bg::cs::cartesian> point;
-	typedef std::pair<point, std::size_t> value;
-	bgi::rtree<value, bgi::quadratic<16> > m_rtree;
+	typedef std::pair<point, Vertex_t> value;
+	bgi::rtree<value, bgi::quadratic<8> > m_rtree;
 
 	Node *m_start, *m_goal;
 	std::random_device m_dev;
@@ -62,15 +66,21 @@ protected:
 	std::uniform_real_distribution<double> m_distD;
 
 	std::function<void(smpl::RobotState&)> m_goal_fn;
+	int m_goal_nodes;
 
-	virtual std::uint32_t extend(const smpl::RobotState& sample) = 0;
-	virtual Node* selectVertex(const smpl::RobotState& qrand) = 0;
+	virtual std::uint32_t extend(const smpl::RobotState& sample, Vertex_t& new_v) = 0;
+	virtual bool selectVertex(const smpl::RobotState& qrand, Vertex_t& nearest) = 0;
 	virtual bool steer(
 		const smpl::RobotState& qrand,
 		Node* xnear,
-		smpl::RobotState& qnew) = 0;
+		smpl::RobotState& qnew,
+		comms::ObjectsPoses& qnew_objs,
+		std::uint32_t& result) = 0;
 
-	virtual void addNode(Node* node);
+	virtual void addNode(Node* node, Vertex_t& node_v);
+	virtual void addEdge(const Vertex_t& from, const Vertex_t& to);
+
+	double configDistance(const smpl::RobotState& s1, const smpl::RobotState& s2);
 };
 
 } // namespace sampling

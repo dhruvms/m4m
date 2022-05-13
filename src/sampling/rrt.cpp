@@ -10,17 +10,17 @@ namespace sampling {
 RRT::RRT()
 :
 SamplingPlanner(),
-m_N(10000),
+m_N(10000), m_steps(10),
 m_gbias(0.05), m_gthresh(DEG5/5),
-m_eps(DEG5/5), m_timeout(120.0)
+m_timeout(120.0)
 {}
 
-RRT::RRT(int samples, double gbias, double gthresh, double eps, double timeout)
+RRT::RRT(int samples, int steps, double gbias, double gthresh, double timeout)
 :
 SamplingPlanner(),
-m_N(samples),
+m_N(samples), m_steps(steps),
 m_gbias(gbias), m_gthresh(gthresh),
-m_eps(eps), m_timeout(timeout)
+m_timeout(timeout)
 {}
 
 bool RRT::Solve()
@@ -31,59 +31,131 @@ bool RRT::Solve()
 		return false;
 	}
 
-	addNode(m_start);
+	Vertex_t tree_v;
+	addNode(m_start, tree_v);
+
 	for (int i = 0; i < m_N; ++i)
 	{
 		// get random sample
 		smpl::RobotState qrand;
-		if (m_distD(m_rng) < m_gbias) {
+		bool try_goal = false;
+		if (m_distD(m_rng) < m_gbias)
+		{
+			try_goal = true;
 			m_goal_fn(qrand);
 		}
 		else {
 			m_robot->GetRandomState(qrand);
 		}
 
-		extend(qrand);
+		std::uint32_t result;
+		if (!extend(qrand, tree_v, result))
+		{
+			if (result == 10000) {
+				SMPL_DEBUG("Failed to selectVertex from tree!");
+			}
+			else
+			{
+				if (result == 10001) {
+					SMPL_DEBUG("Failed to SetScene for xnear!");
+				}
+				else if (result == 0) {
+					SMPL_ERROR("Error in SteerAction computation!");
+				}
+				else if (result == 100 || result == 101) {
+					SMPL_DEBUG("SteerAction failed in simulation!");
+				}
+			}
+		}
+		else
+		{
+			if (try_goal)
+			{
+				Node* xnew = m_G[tree_v];
+				if (result == 1000 || configDistance(qrand, xnew->robot_state()) < m_gthresh)
+				{
+					++m_goal_nodes;
+					SMPL_INFO("Added a node close to the goal to the tree!");
+				}
+			}
+
+			if (result == 5 || result == 6) {
+				SMPL_DEBUG("SteerAction added to tree without simulation!");
+			}
+			else if (result == 9 || result == 10) {
+				SMPL_DEBUG("SteerAction added to tree after simulation!");
+			}
+		}
 	}
 }
 
-std::uint32_t RRT::extend(const smpl::RobotState& qrand)
+bool RRT::extend(const smpl::RobotState& qrand, Vertex_t& new_v, std::uint32_t& result)
 {
-	Node* xnear = selectVertex(qrand);
+	Node* xnear = nullptr;
+	Vertex_t near_v;
+	if (selectVertex(qrand, near_v)) {
+		xnear = m_G[near_v];
+	}
+	else
+	{
+		result = 0x0002710;
+		return false;
+	}
+
+	if (configDistance(qrand, xnear->robot_state()) < m_gthresh) {
+		result = 0x000003E8; // 1000 if sampled config too near to tree node
+		return true;
+	}
+
 	smpl::RobotState qnew;
 	comms::ObjectsPoses qnew_objs;
-	if (steer(qrand, xnear, qnew, qnew_objs))
+	if (steer(qrand, xnear, qnew, qnew_objs, result))
 	{
+		// successful steer
+		Node* xnew = new Node(qnew, qnew_objs, xnear);
+		addNode(xnew, new_v);
+		addEdge(near_v, new_v);
 
+		return true;
 	}
+
+	return false;
 }
 
-Node* RRT::selectVertex(const smpl::RobotState& qrand)
+bool RRT::selectVertex(const smpl::RobotState& qrand, Vertex_t& nearest)
 {
-	std::vector<value> nn;
-	rtree.query(bgi::nearest(qrand, 1), std::back_inserter(nn));
+	if (m_rtree.empty()) {
+		return false;
+	}
 
-	return m_nodes.at(nn.front().second);
+	std::vector<value> nn;
+	point query_p;
+	for (auto i = 0; i < qrand.size(); ++i) {
+		bg::set<i>(query_p, qrand.at(i));
+	}
+	m_rtree.query(bgi::nearest(query_p, 1), std::back_inserter(nn));
+
+	nearest = nn.front().second;
+	return true;
 }
 
 bool RRT::steer(
 	const smpl::RobotState& qrand,
 	Node* xnear,
 	smpl::RobotState& qnew,
-	comms::ObjectsPoses& qnew_obs)
+	comms::ObjectsPoses& qnew_objs,
+	std::uint32_t& result)
 {
-	if (!m_robot->SetScene(xnear->objects())) {
+	if (!m_robot->SetScene(xnear->objects()))
+	{
+		result = 0x0002711;
 		return false;
 	}
 
-	if (m_robot->SteerAction(
-			qrand,
+	return m_robot->SteerAction(
+			qrand, m_steps,
 			xnear->robot_state(), xnear->objects(),
-			qnew, qnew_objs))
-	{
-		// successful steer
-		Node* xnew = new Node(qnew, qnew_objs, xnear);
-	}
+			qnew, qnew_objs, result);
 }
 
 } // namespace sampling
