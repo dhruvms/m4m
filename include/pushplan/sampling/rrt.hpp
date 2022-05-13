@@ -13,6 +13,10 @@ public:
 	RRT(int samples, int steps, double gbias, double gthresh, double timeout);
 
 	bool Solve() override;
+	bool ExtractPath(std::vector<smpl::RobotState>& path) override;
+	bool FoundGoal() {
+		return m_goal_nodes > 0;
+	}
 
 private:
 	int m_N, m_steps;

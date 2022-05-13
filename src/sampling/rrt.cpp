@@ -32,8 +32,7 @@ bool RRT::Solve()
 		return false;
 	}
 
-	Vertex_t tree_v;
-	addNode(m_start, tree_v);
+	addNode(m_start, m_start_v);
 
 	for (int i = 0; i < m_N; ++i)
 	{
@@ -49,6 +48,7 @@ bool RRT::Solve()
 			m_robot->GetRandomState(qrand);
 		}
 
+		Vertex_t tree_v;
 		std::uint32_t result;
 		if (!extend(qrand, tree_v, result))
 		{
@@ -88,6 +88,37 @@ bool RRT::Solve()
 			}
 		}
 	}
+}
+
+bool RRT::ExtractPath(std::vector<smpl::RobotState>& path)
+{
+	path.clear();
+
+	// get goal state in robot configuration space
+	smpl::RobotState goal_state;
+	m_goal_fn(goal_state);
+
+	// get tree vertex closest to goal state
+	Vertex_t current_v, parent_v;
+	selectVertex(goal_state, current_v);
+	path.insert(path.begin(), m_G[current_v]->robot_state());
+
+	while (current_v != m_start_v)
+	{
+		if (boost::in_degree(current_v, m_G) != 1)
+		{
+			SMPL_ERROR("Found an RRT node with more than one parent!");
+			return false;
+		}
+
+		Graph_t::in_edge_iterator eit_begin, eit_end;
+		std::tie(eit_begin, eit_end) = boost::in_edges(current_v, m_G);
+		parent_v = boost::source(*eit_begin, m_G);
+		path.insert(path.begin(), m_G[parent_v]->robot_state());
+		current_v = parent_v;
+	}
+
+	return true;
 }
 
 bool RRT::extend(const smpl::RobotState& sample, Vertex_t& new_v, std::uint32_t& result)

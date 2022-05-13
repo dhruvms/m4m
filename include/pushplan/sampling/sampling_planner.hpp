@@ -37,7 +37,7 @@ public:
 		const smpl::RobotState& state,
 		const comms::ObjectsPoses& objects);
 	virtual bool Solve();
-	virtual bool ExtractPath() = 0;
+	virtual bool ExtractPath(std::vector<smpl::RobotState>& path) = 0;
 
 	void SetRobot(const std::shared_ptr<Robot>& robot) {
 		m_robot = robot;
@@ -61,6 +61,7 @@ protected:
 	bgi::rtree<value, bgi::quadratic<8> > m_rtree;
 
 	Node *m_start, *m_goal;
+	Vertex_t m_start_v;
 	std::random_device m_dev;
 	std::mt19937 m_rng;
 	std::uniform_real_distribution<double> m_distD;
