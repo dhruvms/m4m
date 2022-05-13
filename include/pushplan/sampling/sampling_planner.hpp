@@ -68,7 +68,8 @@ protected:
 	std::function<void(smpl::RobotState&)> m_goal_fn;
 	int m_goal_nodes;
 
-	virtual std::uint32_t extend(const smpl::RobotState& sample, Vertex_t& new_v) = 0;
+	virtual bool extend(
+		const smpl::RobotState& sample, Vertex_t& new_v, std::uint32_t& result) = 0;
 	virtual bool selectVertex(const smpl::RobotState& qrand, Vertex_t& nearest) = 0;
 	virtual bool steer(
 		const smpl::RobotState& qrand,

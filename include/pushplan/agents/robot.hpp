@@ -54,6 +54,7 @@ public:
 		const smpl::RobotState& from, const comms::ObjectsPoses& start_objs,
 		smpl::RobotState& action_end, comms::ObjectsPoses& end_objs,
 		std::uint32_t& result);
+	void GetRandomState(smpl::RobotState& s);
 
 	bool Init();
 	void SetMovables(const std::vector<std::shared_ptr<Agent> >& agents);
@@ -226,7 +227,6 @@ private:
 		const Eigen::Affine3d& end_pose,
 		trajectory_msgs::JointTrajectory& action);
 
-	void getRandomState(smpl::RobotState& s);
 	bool reinitStartState();
 
 	void coordToState(const Coord& coord, State& state) const;

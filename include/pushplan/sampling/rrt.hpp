@@ -13,14 +13,14 @@ public:
 	RRT(int samples, int steps, double gbias, double gthresh, double timeout);
 
 	bool Solve() override;
-	virtual ExtractPath() = 0;
 
 private:
 	int m_N, m_steps;
-	double m_gbias, m_gthresh;
+	double m_gbias, m_gthresh, m_timeout;
 
-	std::uint32_t extend(const smpl::RobotState& sample, Vertex_t& new_v) override;
-	Node* selectVertex(const smpl::RobotState& qrand, Vertex_t& nearest) override;
+	bool extend(
+		const smpl::RobotState& sample, Vertex_t& new_v, std::uint32_t& result) override;
+	bool selectVertex(const smpl::RobotState& qrand, Vertex_t& nearest) override;
 	bool steer(
 		const smpl::RobotState& qrand,
 		Node* xnear,

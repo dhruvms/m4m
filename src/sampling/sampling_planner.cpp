@@ -1,4 +1,5 @@
 #include <pushplan/sampling/sampling_planner.hpp>
+#include <pushplan/sampling/node.hpp>
 
 namespace clutter {
 namespace sampling {
@@ -38,10 +39,16 @@ void SamplingPlanner::addNode(Node* node, Vertex_t& node_v)
 	m_G[node_v] = node;
 
 	// add to rtree for nearest neighbours
+	// hax?
 	point p;
-	for (auto i = 0; i < node->robot_state().size(); ++i) {
-		bg::set<i>(p, node->robot_state().at(i));
-	}
+	auto s = node->robot_state();
+	bg::set<0>(p, s.at(0));
+	bg::set<1>(p, s.at(1));
+	bg::set<2>(p, s.at(2));
+	bg::set<3>(p, s.at(3));
+	bg::set<4>(p, s.at(4));
+	bg::set<5>(p, s.at(5));
+	bg::set<6>(p, s.at(6));
 	m_rtree.insert(std::make_pair(p, node_v));
 }
 

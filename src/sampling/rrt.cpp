@@ -1,7 +1,8 @@
 #include <pushplan/sampling/rrt.hpp>
+#include <pushplan/sampling/node.hpp>
 #include <pushplan/utils/constants.hpp>
-#include <comms/ObjectsPoses.h>
 
+#include <comms/ObjectsPoses.h>
 #include <smpl/console/console.h>
 
 namespace clutter {
@@ -89,27 +90,27 @@ bool RRT::Solve()
 	}
 }
 
-bool RRT::extend(const smpl::RobotState& qrand, Vertex_t& new_v, std::uint32_t& result)
+bool RRT::extend(const smpl::RobotState& sample, Vertex_t& new_v, std::uint32_t& result)
 {
 	Node* xnear = nullptr;
 	Vertex_t near_v;
-	if (selectVertex(qrand, near_v)) {
+	if (selectVertex(sample, near_v)) {
 		xnear = m_G[near_v];
 	}
 	else
 	{
-		result = 0x0002710;
+		result = 0x0002710; // 10000
 		return false;
 	}
 
-	if (configDistance(qrand, xnear->robot_state()) < m_gthresh) {
+	if (configDistance(sample, xnear->robot_state()) < m_gthresh) {
 		result = 0x000003E8; // 1000 if sampled config too near to tree node
 		return true;
 	}
 
 	smpl::RobotState qnew;
 	comms::ObjectsPoses qnew_objs;
-	if (steer(qrand, xnear, qnew, qnew_objs, result))
+	if (steer(sample, xnear, qnew, qnew_objs, result))
 	{
 		// successful steer
 		Node* xnew = new Node(qnew, qnew_objs, xnear);
@@ -129,10 +130,16 @@ bool RRT::selectVertex(const smpl::RobotState& qrand, Vertex_t& nearest)
 	}
 
 	std::vector<value> nn;
+	// hax?
 	point query_p;
-	for (auto i = 0; i < qrand.size(); ++i) {
-		bg::set<i>(query_p, qrand.at(i));
-	}
+	bg::set<0>(query_p, qrand.at(0));
+	bg::set<1>(query_p, qrand.at(1));
+	bg::set<2>(query_p, qrand.at(2));
+	bg::set<3>(query_p, qrand.at(3));
+	bg::set<4>(query_p, qrand.at(4));
+	bg::set<5>(query_p, qrand.at(5));
+	bg::set<6>(query_p, qrand.at(6));
+
 	m_rtree.query(bgi::nearest(query_p, 1), std::back_inserter(nn));
 
 	nearest = nn.front().second;

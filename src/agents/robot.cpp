@@ -1769,7 +1769,7 @@ void Robot::getPushStartPose(
 		push_pose, m_grid_i->getReferenceFrame(), "sampled_push_pose"));
 }
 
-void Robot::getRandomState(smpl::RobotState& s)
+void Robot::GetRandomState(smpl::RobotState& s)
 {
 	s.clear();
 	s.resize(m_rm->jointVariableCount(), 0.0);
@@ -1812,7 +1812,7 @@ bool Robot::reinitStartState()
 				break;
 			}
 		}
-		getRandomState(seed);
+		GetRandomState(seed);
 	}
 	while (true);
 
@@ -2960,7 +2960,7 @@ bool Robot::getStateNearPose(
 		seed = seed_state;
 	}
 	else {
-		getRandomState(seed);
+		GetRandomState(seed);
 	}
 
 	int tries = 0;
@@ -2984,7 +2984,7 @@ bool Robot::getStateNearPose(
 				break;
 			}
 		}
-		getRandomState(seed);
+		GetRandomState(seed);
 		state.clear();
 		++tries;
 	}

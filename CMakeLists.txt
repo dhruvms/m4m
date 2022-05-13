@@ -48,13 +48,16 @@ add_library(
 	src/search/cbs.cpp
 	src/search/cbswp.cpp
 	src/search/pbs.cpp
+	src/search/wastar.cpp
+	src/search/focal.cpp
+	src/sampling/node.cpp
+	src/sampling/sampling_planner.cpp
+	src/sampling/rrt.cpp
 	src/utils/collision_checker.cpp
 	src/agents/object.cpp
 	src/agents/agent_lattice.cpp
 	src/agents/agent.cpp
 	src/agents/robot.cpp
-	src/search/wastar.cpp
-	src/search/focal.cpp
 	src/utils/constants.cpp)
 target_link_libraries(PUSHPLAN ${catkin_LIBRARIES} smpl::smpl) # -lprofiler
 

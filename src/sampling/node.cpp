@@ -6,7 +6,7 @@ namespace sampling {
 Node::Node(
 	const smpl::RobotState& state,
 	const comms::ObjectsPoses& objects,
-	Node* parent=nullptr) :
+	Node* parent) :
 m_state(state),
 m_objects(objects),
 m_parent(parent)
