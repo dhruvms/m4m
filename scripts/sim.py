@@ -661,8 +661,8 @@ class BulletSim:
 						controlMode=sim.VELOCITY_CONTROL,
 						targetVelocities=target_vel)
 
-				objs_curr = self.getObjects(sim_id)
 				action_interactions = []
+				objs_curr = self.getObjects(sim_id)
 				for i in range(int(duration)):
 					sim.stepSimulation()
 
@@ -698,7 +698,7 @@ class BulletSim:
 			self.holdPosition(sim_id)
 
 			objs_curr = self.getObjects(sim_id)
-			del action_interactions[:]
+			action_interactions = []
 			for i in range(480):
 				sim.stepSimulation()
 

@@ -20,6 +20,11 @@ namespace clutter
 
 class CBS;
 
+namespace sampling
+{
+class SamplingPlanner;
+} // namespace sampling
+
 class Planner
 {
 public:
@@ -37,6 +42,7 @@ public:
 	std::uint32_t RunSim();
 	bool TryExtract();
 	void AnimateSolution();
+	bool RunRRT();
 
 	Agent* GetAgent(const int& id) {
 		assert(id > 0); // 0 is robot
@@ -73,6 +79,7 @@ private:
 	std::shared_ptr<Robot> m_robot;
 	std::shared_ptr<BulletSim> m_sim;
 	std::shared_ptr<CBS> m_cbs;
+	std::shared_ptr<sampling::SamplingPlanner> m_sampling_planner;
 	bool m_replan, m_plan_success, m_sim_success;
 
 	int m_num_objs, m_scene_id;

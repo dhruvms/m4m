@@ -3,9 +3,12 @@
 #include <pushplan/search/cbs.hpp>
 #include <pushplan/search/cbswp.hpp>
 #include <pushplan/search/pbs.hpp>
+#include <pushplan/sampling/sampling_planner.hpp>
+#include <pushplan/sampling/rrt.hpp>
 #include <pushplan/utils/constants.hpp>
 #include <pushplan/utils/geometry.hpp>
 #include <pushplan/utils/helpers.hpp>
+#include <comms/ObjectPose.h>
 
 #include <smpl/console/console.h>
 #include <moveit_msgs/RobotTrajectory.h>
@@ -207,6 +210,44 @@ bool Planner::FinalisePlan()
 
 	m_stats["robot_planner_time"] += GetTime() - m_timer;
 	return true;
+}
+
+bool Planner::RunRRT()
+{
+	m_sampling_planner = std::make_shared<sampling::RRT>();
+	m_sampling_planner->SetRobot(m_robot);
+	m_sampling_planner->SetRobotGoalCallback(std::bind(&Robot::GetPregraspState, m_robot.get(), std::placeholders::_1));
+
+	smpl::RobotState start_config;
+	m_robot->GetHomeState(start_config);
+
+	comms::ObjectsPoses start_objects;
+	for (const auto& a: m_agents) {
+		auto object = a->GetObject();
+
+		comms::ObjectPose obj_pose;
+		obj_pose.id = object->desc.id;
+		obj_pose.xyz = { object->desc.o_x, object->desc.o_y, object->desc.o_z };
+		obj_pose.rpy = { object->desc.o_roll, object->desc.o_pitch, object->desc.o_yaw };
+		start_objects.poses.push_back(std::move(obj_pose));
+	}
+	m_sampling_planner->SetStartState(start_config, start_objects);
+
+	if (m_sampling_planner->Solve())
+	{
+		m_sampling_planner->ExtractTraj(m_exec);
+
+		SMPL_WARN("Execute RRT solution?");
+		getchar();
+		if (!m_sim->ExecTraj(m_exec, start_objects))
+		{
+			SMPL_ERROR("Failed to exec RRT Plan!");
+			return false;
+		}
+
+		return true;
+	}
+	return false;
 }
 
 bool Planner::createCBS()
