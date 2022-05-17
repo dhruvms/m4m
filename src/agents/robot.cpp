@@ -494,105 +494,48 @@ bool Robot::RandomiseStart()
 
 void Robot::ConvertTraj(
 	const Trajectory& traj_in,
-	moveit_msgs::RobotTrajectory& traj_out)
+	trajectory_msgs::JointTrajectory& traj_out)
 {
-	traj_out.joint_trajectory.header.frame_id = m_planning_frame;
-	traj_out.multi_dof_joint_trajectory.header.frame_id = m_planning_frame;
+	traj_out.header.frame_id = m_planning_frame;
+	traj_out.joint_names.clear();
+	traj_out.points.clear();
 
-	traj_out.joint_trajectory.joint_names.clear();
-	traj_out.joint_trajectory.points.clear();
-	traj_out.multi_dof_joint_trajectory.joint_names.clear();
-	traj_out.multi_dof_joint_trajectory.points.clear();
-
-	// fill joint names header for both single- and multi-dof joint trajectories
+	// fill joint names header
 	auto& variable_names = m_rm->getPlanningJoints();
 	for (auto& var_name : variable_names) {
-		std::string joint_name;
-		if (smpl::IsMultiDOFJointVariable(var_name, &joint_name)) {
-			auto it = std::find(
-					begin(traj_out.multi_dof_joint_trajectory.joint_names),
-					end(traj_out.multi_dof_joint_trajectory.joint_names),
-					joint_name);
-			if (it == end(traj_out.multi_dof_joint_trajectory.joint_names)) {
-				// avoid duplicates
-				traj_out.multi_dof_joint_trajectory.joint_names.push_back(joint_name);
-			}
-		} else {
-			traj_out.joint_trajectory.joint_names.push_back(var_name);
-		}
+		traj_out.joint_names.push_back(var_name);
 	}
 
 	// empty or number of points in the path
-	if (!traj_out.joint_trajectory.joint_names.empty()) {
-		traj_out.joint_trajectory.points.resize(traj_in.size());
-	}
-	// empty or number of points in the path
-	if (!traj_out.multi_dof_joint_trajectory.joint_names.empty()) {
-		traj_out.multi_dof_joint_trajectory.points.resize(traj_in.size());
+	if (!traj_out.joint_names.empty()) {
+		traj_out.points.resize(traj_in.size());
 	}
 
-	for (size_t pidx = 0; pidx < traj_in.size(); ++pidx) {
+	for (size_t pidx = 0; pidx < traj_in.size(); ++pidx)
+	{
 		auto& point = traj_in[pidx].state;
 
-		for (size_t vidx = 0; vidx < variable_names.size(); ++vidx) {
-			auto& var_name = variable_names[vidx];
-
-			std::string joint_name, local_name;
-			if (smpl::IsMultiDOFJointVariable(var_name, &joint_name, &local_name)) {
-				auto& p = traj_out.multi_dof_joint_trajectory.points[pidx];
-				p.transforms.resize(traj_out.multi_dof_joint_trajectory.joint_names.size());
-
-				auto it = std::find(
-						begin(traj_out.multi_dof_joint_trajectory.joint_names),
-						end(traj_out.multi_dof_joint_trajectory.joint_names),
-						joint_name);
-				if (it == end(traj_out.multi_dof_joint_trajectory.joint_names)) continue;
-
-				auto tidx = std::distance(begin(traj_out.multi_dof_joint_trajectory.joint_names), it);
-
-				if (local_name == "x" ||
-					local_name == "trans_x")
-				{
-					p.transforms[tidx].translation.x = point[vidx];
-				} else if (local_name == "y" ||
-					local_name == "trans_y")
-				{
-					p.transforms[tidx].translation.y = point[vidx];
-				} else if (local_name == "trans_z") {
-					p.transforms[tidx].translation.z = point[vidx];
-				} else if (local_name == "theta") {
-					Eigen::Quaterniond q(Eigen::AngleAxisd(point[vidx], Eigen::Vector3d::UnitZ()));
-					tf::quaternionEigenToMsg(q, p.transforms[tidx].rotation);
-				} else if (local_name == "rot_w") {
-					p.transforms[tidx].rotation.w = point[vidx];
-				} else if (local_name == "rot_x") {
-					p.transforms[tidx].rotation.x = point[vidx];
-				} else if (local_name == "rot_y") {
-					p.transforms[tidx].rotation.y = point[vidx];
-				} else if (local_name == "rot_z") {
-					p.transforms[tidx].rotation.z = point[vidx];
-				} else {
-					SMPL_WARN("Unrecognized multi-dof local variable name '%s'", local_name.c_str());
-					continue;
-				}
-			} else {
-				auto& p = traj_out.joint_trajectory.points[pidx];
-				p.positions.resize(traj_out.joint_trajectory.joint_names.size());
-
-				auto it = std::find(
-						begin(traj_out.joint_trajectory.joint_names),
-						end(traj_out.joint_trajectory.joint_names),
-						var_name);
-				if (it == end(traj_out.joint_trajectory.joint_names)) continue;
-
-				auto posidx = std::distance(begin(traj_out.joint_trajectory.joint_names), it);
-
-				p.positions[posidx] = point[vidx];
-				p.time_from_start = ros::Duration(point.back());
+		auto& p = traj_out.points[pidx];
+		p.positions.resize(traj_out.joint_names.size());
+		if (point.size() == traj_out.joint_names.size())
+		{
+			p.positions = point;
+			if (pidx == 0) {
+				p.time_from_start = ros::Duration(0.0);
+			}
+			else
+			{
+				double step_time = profileAction(traj_out.points[pidx-1].positions, p.positions);
+				p.time_from_start = traj_out.points[pidx-1].time_from_start + ros::Duration(step_time);
 			}
 		}
+		else
+		{
+			p.positions.insert(p.positions.begin(), point.begin(), point.begin() + traj_out.joint_names.size());
+			p.time_from_start = ros::Duration(point.back());
+		}
 	}
-	traj_out.joint_trajectory.header.stamp = ros::Time::now();
+	traj_out.header.stamp = ros::Time::now();
 }
 
 void Robot::ProfileTraj(Trajectory& traj)

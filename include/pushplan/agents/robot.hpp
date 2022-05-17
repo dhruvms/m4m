@@ -69,7 +69,7 @@ public:
 		const std::vector<double>& pregrasp_goal);
 	void ConvertTraj(
 		const Trajectory& traj_in,
-		moveit_msgs::RobotTrajectory& traj_out);
+		trajectory_msgs::JointTrajectory& traj_out);
 
 	bool AtGrasp() {
 		return m_t == m_grasp_at - 1;
