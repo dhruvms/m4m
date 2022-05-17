@@ -46,7 +46,7 @@ robot:
     tries: 20
     lift: 0.075
   semi_minor: 0.05
-  speed: 1.0
+  speed: 0.1
   interpolate: false
 
 mapf:

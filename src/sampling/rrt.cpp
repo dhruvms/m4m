@@ -11,7 +11,7 @@ namespace sampling {
 RRT::RRT()
 :
 SamplingPlanner(),
-m_N(10000), m_steps(10),
+m_N(10000), m_steps(100),
 m_gbias(0.05), m_gthresh(DEG5/5),
 m_timeout(120.0)
 {}
@@ -61,7 +61,7 @@ bool RRT::Solve()
 					SMPL_DEBUG("Failed to SetScene for xnear!");
 				}
 				else if (result == 0) {
-					SMPL_ERROR("Error in SteerAction computation!");
+					SMPL_DEBUG("SteerAction computation failed!");
 				}
 				else if (result == 100 || result == 101) {
 					SMPL_DEBUG("SteerAction failed in simulation!");
@@ -88,6 +88,8 @@ bool RRT::Solve()
 			}
 		}
 	}
+
+	return m_goal_nodes > 0;
 }
 
 bool RRT::ExtractPath(std::vector<smpl::RobotState>& path)

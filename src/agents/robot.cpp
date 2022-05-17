@@ -368,7 +368,7 @@ bool Robot::SteerAction(
 {
 	result = 0x00000000; // error in action computation
 
-	const double res = DEG5/5; // 1 degree
+	const double res = DEG5; // 1 degree
 	smpl::collision::MotionInterpolation interp(m_cc_i->robotCollisionModel().get());
 
 	auto planning_variables = m_cc_i->planningVariables();
