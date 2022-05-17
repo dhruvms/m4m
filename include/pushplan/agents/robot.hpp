@@ -153,6 +153,23 @@ public:
 		return m_rm.get();
 	}
 
+	void UpdateCCGroup(const std::string& group_name) {
+		m_cc_i->UpdateGroup(group_name);
+		m_cc_m->UpdateGroup(group_name);
+	}
+	void GetHomeState(smpl::RobotState& state) const {
+		state = m_home_state;
+	}
+	void GetPregraspState(smpl::RobotState& state) const {
+		state = m_pregrasp_state;
+	}
+	void GetGraspState(smpl::RobotState& state) const {
+		state = m_grasp_state;
+	}
+	void GetPostgraspState(smpl::RobotState& state) const {
+		state = m_postgrasp_state;
+	}
+
 private:
 	int m_id;
 	ros::NodeHandle m_nh, m_ph;
@@ -177,7 +194,7 @@ private:
 	const smpl::urdf::Link* m_link_s = nullptr;
 	const smpl::urdf::Link* m_link_e = nullptr;	const smpl::urdf::Link* m_link_w = nullptr;
 	const smpl::urdf::Link* m_link_t = nullptr;
-	smpl::RobotState m_pregrasp_state, m_grasp_state, m_postgrasp_state;
+	smpl::RobotState m_home_state, m_pregrasp_state, m_grasp_state, m_postgrasp_state;
 
 	std::random_device m_dev;
 	std::mt19937 m_rng;

@@ -1148,6 +1148,10 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 bool Robot::ComputeGrasps(
 	const std::vector<double>& pregrasp_goal)
 {
+	m_home_state.clear();
+	m_home_state.insert(m_home_state.begin(),
+		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
+
 	m_pregrasp_state.clear();
 	m_grasp_state.clear();
 	m_postgrasp_state.clear();
