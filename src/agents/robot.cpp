@@ -357,6 +357,7 @@ bool Robot::SetScene(const comms::ObjectsPoses& objects)
 		}
 	}
 
+	SV_SHOW_INFO(m_cc_m->getCollisionWorldVisualization());
 	return true;
 }
 
@@ -385,14 +386,32 @@ bool Robot::SteerAction(
 	for (std::size_t i = 0; i < max_idx; i++)
 	{
 		interp.interpolate(i, interm, planning_variables);
+		if (!m_rm->checkJointLimits(interm)) {
+			return false;
+		}
+
+		bool mov_collision = false, immov_collision = false;
 
 		// check if interpolated waypoint collides with movable obstacles
-		if (collides_mov_idx < 0 && !m_cc_m->isStateValid(interm)) {
-			collides_mov_idx = (int)i;
+		if (collides_mov_idx < 0)
+		{
+			mov_collision = !m_cc_m->isStateValid(interm);
+			if (mov_collision) {
+				collides_mov_idx = (int)i;
+			}
 		}
 		// check if interpolated waypoint collides with immovable obstacles
-		if (collides_immov_idx < 0 && !m_cc_i->isStateValid(interm)) {
-			collides_immov_idx = (int)i;
+		if (collides_immov_idx < 0)
+		{
+			immov_collision = !m_cc_i->isStateValid(interm);
+			if (immov_collision) {
+				collides_immov_idx = (int)i;
+			}
+		}
+
+		if (mov_collision && immov_collision) {
+			SMPL_DEBUG("Action must be in collision with robot body!");
+			return false;
 		}
 
 		if (collides_mov_idx < 0 && collides_immov_idx >= 0) {
