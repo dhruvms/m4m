@@ -1,6 +1,7 @@
 #include <pushplan/sampling/rrt.hpp>
 #include <pushplan/sampling/node.hpp>
 #include <pushplan/utils/constants.hpp>
+#include <pushplan/utils/helpers.hpp>
 
 #include <comms/ObjectsPoses.h>
 #include <smpl/console/console.h>
@@ -11,7 +12,7 @@ namespace sampling {
 RRT::RRT()
 :
 SamplingPlanner(),
-m_N(10000), m_steps(100),
+m_N(10000), m_steps(50),
 m_gbias(0.05), m_gthresh(DEG5/5),
 m_timeout(120.0)
 {}
@@ -32,8 +33,17 @@ bool RRT::Solve()
 		return false;
 	}
 
+	m_stats["first_goal"] = -1.0;
+	m_stats["sims"] = 0.0;
+	m_stats["sim_time"] = 0.0;
+	m_stats["soln_cost"] = 0.0;
+	m_stats["first_soln_time"] = 0.0;
+	m_stats["goal_samples"] = 0.0;
+	m_stats["random_samples"] = 0.0;
+
 	addNode(m_start, m_start_v);
 
+	double start_time = GetTime();
 	for (int i = 0; i < m_N; ++i)
 	{
 		// get random sample
@@ -43,9 +53,12 @@ bool RRT::Solve()
 		{
 			try_goal = true;
 			m_goal_fn(qrand);
+			++m_stats["goal_samples"];
 		}
-		else {
+		else
+		{
 			m_robot->GetRandomState(qrand);
+			++m_stats["random_samples"];
 		}
 
 		Vertex_t tree_v;
@@ -77,6 +90,11 @@ bool RRT::Solve()
 				{
 					++m_goal_nodes;
 					SMPL_DEBUG("Added a node close to the goal to the tree!");
+					if (m_stats["first_goal"] < 0)
+					{
+						m_stats["first_goal"] = i;
+						m_stats["first_soln_time"] = GetTime() - start_time;
+					}
 				}
 			}
 
@@ -87,8 +105,16 @@ bool RRT::Solve()
 				SMPL_DEBUG("SteerAction added to tree after simulation!");
 			}
 		}
+
+		if (GetTime() - start_time > m_timeout) {
+			break;
+		}
 	}
 
+	m_stats["vertices"] = (double)boost::num_vertices(m_G);
+	m_stats["plan_time"] = GetTime() - start_time;
+
+	SMPL_DEBUG("Goal samples: %d, Random samples: %d", m_stats["goal_samples"], m_stats["random_samples"]);
 	return m_goal_nodes > 0;
 }
 
@@ -118,6 +144,10 @@ bool RRT::ExtractPath(std::vector<smpl::RobotState>& path)
 		parent_v = boost::source(*eit_begin, m_G);
 		path.insert(path.begin(), m_G[parent_v]->robot_state());
 		current_v = parent_v;
+	}
+
+	for (std::size_t i = 1; i < path.size(); ++i) {
+		m_stats["soln_cost"] += configDistance(path[i-1], path[i]);
 	}
 
 	return true;
@@ -158,17 +188,26 @@ bool RRT::extend(const smpl::RobotState& sample, Vertex_t& new_v, std::uint32_t&
 
 	smpl::RobotState qnew;
 	comms::ObjectsPoses qnew_objs;
-	if (steer(sample, xnear, qnew, qnew_objs, result))
+
+	double steer_time = GetTime();
+	bool steered = steer(sample, xnear, qnew, qnew_objs, result);
+	steer_time = GetTime() - steer_time;
+
+	if (steered)
 	{
 		// successful steer
 		Node* xnew = new Node(qnew, qnew_objs, xnear);
 		addNode(xnew, new_v);
 		addEdge(near_v, new_v);
-
-		return true;
 	}
 
-	return false;
+	if (result >= 9 && result <= 101)
+	{
+		++m_stats["sims"];
+		m_stats["sim_time"] += steer_time;
+	}
+
+	return steered;
 }
 
 bool RRT::selectVertex(const smpl::RobotState& qrand, Vertex_t& nearest)

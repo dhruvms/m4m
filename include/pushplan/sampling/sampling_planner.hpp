@@ -12,6 +12,7 @@
 #include <deque>
 #include <random>
 #include <functional>
+#include <map>
 
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
@@ -46,6 +47,9 @@ public:
 	void SetRobotGoalCallback(std::function<void(smpl::RobotState&)> callback) {
 		m_goal_fn = callback;
 	}
+	auto GetStats() const -> const std::map<std::string, double>& {
+		return m_stats;
+	}
 
 protected:
 	typedef boost::adjacency_list<
@@ -69,6 +73,7 @@ protected:
 
 	std::function<void(smpl::RobotState&)> m_goal_fn;
 	int m_goal_nodes;
+	std::map<std::string, double> m_stats;
 
 	virtual bool extend(
 		const smpl::RobotState& sample, Vertex_t& new_v, std::uint32_t& result) = 0;

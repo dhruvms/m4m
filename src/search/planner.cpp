@@ -215,7 +215,7 @@ bool Planner::FinalisePlan()
 
 bool Planner::RunRRT()
 {
-	m_sampling_planner = std::make_shared<sampling::RRTStar>();
+	m_sampling_planner = std::make_shared<sampling::RRT>();
 	m_sampling_planner->SetRobot(m_robot);
 	m_sampling_planner->SetRobotGoalCallback(std::bind(&Robot::GetPregraspState, m_robot.get(), std::placeholders::_1));
 
@@ -234,22 +234,47 @@ bool Planner::RunRRT()
 	}
 	m_sampling_planner->SetStartState(start_config, start_objects);
 
-	if (m_sampling_planner->Solve())
+	bool plan_success = m_sampling_planner->Solve();
+	bool exec_success = false;
+	if (plan_success)
 	{
 		m_sampling_planner->ExtractTraj(m_exec);
-
-		SMPL_WARN("Execute RRT solution?");
-		getchar();
-		if (!m_sim->ExecTraj(m_exec, start_objects))
-		{
-			SMPL_ERROR("Failed to exec RRT Plan!");
-			return false;
-		}
-
-		return true;
+		exec_success = m_sim->ExecTraj(m_exec, start_objects);
 	}
+
+	auto rrt_stats = m_sampling_planner->GetStats();
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../../dat/RRT.csv";
+
+	// m_stats["
+	// m_stats["goal_samples"] = 0.0;
+	// m_stats["random_samples"] = 0.0;
+
+	bool exists = FileExists(filename);
+	std::ofstream STATS;
+	STATS.open(filename, std::ofstream::out | std::ofstream::app);
+	if (!exists)
+	{
+		STATS << "UID,"
+				<< "PlanSuccess,ExecSuccess,SimCalls,SimTime,"
+				<< "TotalVertices,PlanTime,SolnCost,"
+				<< "FirstGoalVertex,FirstSolnTime,"
+				<< "GoalSamples,RandomSamples\n";
+	}
+
+	STATS << m_scene_id << ','
+			<< plan_success << ',' << exec_success << ','
+			<< rrt_stats["sims"] << ',' << rrt_stats["sim_time"] << ','
+			<< rrt_stats["vertices"] << ',' << rrt_stats["plan_time"] << ','
+			<< rrt_stats["soln_cost"] << ',' << rrt_stats["first_goal"] << ','
+			<< rrt_stats["first_soln_time"] << ',' << rrt_stats["goal_samples"] << ','
+			<< rrt_stats["random_samples"] << '\n';
+	STATS.close();
+
 	return false;
 }
+
 
 bool Planner::createCBS()
 {

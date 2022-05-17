@@ -7,8 +7,8 @@
     <param name="robot_description" command="$(find xacro)/xacro.py '$(find pushplan)/config/urdf/pr2_description/robots/pr2.urdf.xacro'"/>
 
     <param name="fridge" type="bool" value="true"/>
-    <node pkg="pushplan" type="coop_plan" name="coop_plan" output="screen" respawn="false">
-        <!-- launch-prefix="gdb -ex run - - args" -->
+    <node pkg="pushplan" type="sampling" name="sampling" output="screen" respawn="false">
+        <!-- launch-prefix="gdb - -args" -->
         <param name="planning_frame" value="odom_combined"/>
 
         <!-- 1. robot model (for planning) -->
