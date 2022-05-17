@@ -76,7 +76,7 @@ bool RRT::Solve()
 				if (result == 1000 || configDistance(qrand, xnew->robot_state()) < m_gthresh)
 				{
 					++m_goal_nodes;
-					SMPL_INFO("Added a node close to the goal to the tree!");
+					SMPL_DEBUG("Added a node close to the goal to the tree!");
 				}
 			}
 

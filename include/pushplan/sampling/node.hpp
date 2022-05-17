@@ -10,21 +10,30 @@ namespace sampling {
 class Node
 {
 public:
-	Node() : m_parent(nullptr) {};
+	Node() : m_parent(nullptr), m_cost(-1.0) {};
 	Node(
 		const smpl::RobotState& state,
 		const comms::ObjectsPoses& objects,
-		Node* parent=nullptr);
+		Node* parent=nullptr,
+		const double& cost=-1.0);
+
+	void set_objects(const comms::ObjectsPoses& objects) { m_objects = objects; };
+	void set_parent(Node* parent);
+	void set_cost(double cost) { m_cost = cost; };
+	void remove_child(Node* child) { m_children.remove(child); };
 
 	auto robot_state() const -> const smpl::RobotState& { return m_state; }
 	auto objects() const -> const comms::ObjectsPoses& { return m_objects; }
 	const Node* parent() const { return m_parent; }
+	Node* parent() { return m_parent; }
+	auto cost() const -> const double&  { return m_cost; }
 
 private:
 	smpl::RobotState m_state;
 	comms::ObjectsPoses m_objects;
 	Node* m_parent;
 	std::list<Node*> m_children;
+	double m_cost;
 };
 
 } // namespace sampling

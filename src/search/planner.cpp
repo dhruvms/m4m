@@ -5,6 +5,7 @@
 #include <pushplan/search/pbs.hpp>
 #include <pushplan/sampling/sampling_planner.hpp>
 #include <pushplan/sampling/rrt.hpp>
+#include <pushplan/sampling/rrtstar.hpp>
 #include <pushplan/utils/constants.hpp>
 #include <pushplan/utils/geometry.hpp>
 #include <pushplan/utils/helpers.hpp>
@@ -214,7 +215,7 @@ bool Planner::FinalisePlan()
 
 bool Planner::RunRRT()
 {
-	m_sampling_planner = std::make_shared<sampling::RRT>();
+	m_sampling_planner = std::make_shared<sampling::RRTStar>();
 	m_sampling_planner->SetRobot(m_robot);
 	m_sampling_planner->SetRobotGoalCallback(std::bind(&Robot::GetPregraspState, m_robot.get(), std::placeholders::_1));
 

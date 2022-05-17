@@ -19,7 +19,7 @@ public:
 		return m_goal_nodes > 0;
 	}
 
-private:
+protected:
 	int m_N, m_steps;
 	double m_gbias, m_gthresh, m_timeout;
 
