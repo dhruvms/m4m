@@ -14,6 +14,7 @@ public:
 
 	bool Solve() override;
 	bool ExtractPath(std::vector<smpl::RobotState>& path) override;
+	bool ExtractTraj(trajectory_msgs::JointTrajectory& exec_traj) override;
 	bool FoundGoal() {
 		return m_goal_nodes > 0;
 	}

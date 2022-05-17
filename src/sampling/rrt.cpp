@@ -123,6 +123,21 @@ bool RRT::ExtractPath(std::vector<smpl::RobotState>& path)
 	return true;
 }
 
+bool RRT::ExtractTraj(trajectory_msgs::JointTrajectory& exec_traj)
+{
+	std::vector<smpl::RobotState> path;
+	ExtractPath(path);
+
+	Trajectory path_traj;
+	for (const auto& wp : path) {
+		LatticeState s;
+		s.state = wp;
+		path_traj.push_back(std::move(s));
+	}
+
+	m_robot->ConvertTraj(path_traj, exec_traj);
+}
+
 bool RRT::extend(const smpl::RobotState& sample, Vertex_t& new_v, std::uint32_t& result)
 {
 	Node* xnear = nullptr;

@@ -38,6 +38,7 @@ public:
 		const comms::ObjectsPoses& objects);
 	virtual bool Solve();
 	virtual bool ExtractPath(std::vector<smpl::RobotState>& path) = 0;
+	virtual bool ExtractTraj(trajectory_msgs::JointTrajectory& exec_traj) = 0;
 
 	void SetRobot(const std::shared_ptr<Robot>& robot) {
 		m_robot = robot;
