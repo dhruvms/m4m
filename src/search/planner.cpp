@@ -435,11 +435,9 @@ int Planner::chooseObjDTS()
 	std::vector<double> r(m_moved, 0);
 	for (int i = 0; i < m_moved; ++i)
 	{
-		std::cout << "(" << m_alphas.at(i) << ", " << m_betas.at(i) << ")\t";
 		boost::math::beta_distribution<> dist(m_alphas.at(i), m_betas.at(i));
 		r.at(i) = boost::math::quantile(dist, m_distD(m_rng));
 	}
-	std::cout << std::endl;
 
 	return (int)std::distance(r.begin(), std::max_element(r.begin(), r.end()));
 }
@@ -457,61 +455,59 @@ bool Planner::rearrange()
 
 	comms::ObjectsPoses rearranged = m_rearranged;
 	bool push_found = false;
-	while (!push_found)
+	int idx = chooseObjDTS();
+	const auto& path = m_cbs_soln->m_solution[m_cbs_soln_map[idx]];
+
+	// get push location
+	std::vector<double> push;
+	m_agents.at(m_agent_map[path.first])->GetSE2Push(push);
+	SMPL_INFO("Object %d push is (%f, %f, %f)", path.first, push[0], push[1], push[2]);
+
+	// other movables to be considered as obstacles
+	std::vector<Object*> movable_obstacles;
+	for (const auto& a: m_agents)
 	{
-		int idx = chooseObjDTS();
-		const auto& path = m_cbs_soln->m_solution[m_cbs_soln_map[idx]];
-
-		// get push location
-		std::vector<double> push;
-		m_agents.at(m_agent_map[path.first])->GetSE2Push(push);
-		SMPL_INFO("Object %d push is (%f, %f, %f)", path.first, push[0], push[1], push[2]);
-
-		// other movables to be considered as obstacles
-		std::vector<Object*> movable_obstacles;
-		for (const auto& a: m_agents)
-		{
-			if (a->GetID() == path.first) {
-				continue; // selected object cannot be obstacle
-			}
-			movable_obstacles.push_back(a->GetObject());
+		if (a->GetID() == path.first) {
+			continue; // selected object cannot be obstacle
 		}
-
-		// plan to push location
-		// m_robot->PlanPush creates the planner internally, because it might
-		// change KDL chain during the process
-		comms::ObjectsPoses result;
-
-		std::vector<double> push_start_state;
-		if (!m_rearrangements.empty()) {
-			push_start_state = m_rearrangements.back().points.back().positions;
-		}
-
-		int push_reward = 0;
-		if (m_robot->PlanPush(push_start_state, m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result, push_reward))
-		{
-			m_rearrangements.push_back(m_robot->GetLastPlan());
-
-			// update positions of moved objects
-			updateAgentPositions(result, rearranged);
-			push_found = true;
-			SMPL_INFO("Push found!");
-		}
-
-		if (push_reward > 0) {
-			m_alphas[idx] += push_reward;
-		}
-		if (push_reward < 0) {
-			m_betas[idx] -= push_reward;
-		}
-
-		if (m_alphas[idx] + m_betas[idx] > m_C)
-		{
-			double factor = double(m_C/(m_C + std::abs(push_reward)));
-			m_alphas[idx] *= factor;
-			m_betas[idx] *= factor;
-		}
+		movable_obstacles.push_back(a->GetObject());
 	}
+
+	// plan to push location
+	// m_robot->PlanPush creates the planner internally, because it might
+	// change KDL chain during the process
+	comms::ObjectsPoses result;
+
+	std::vector<double> push_start_state;
+	if (!m_rearrangements.empty()) {
+		push_start_state = m_rearrangements.back().points.back().positions;
+	}
+
+	double push_reward = 0.0;
+	if (m_robot->PlanPush(push_start_state, m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result, push_reward))
+	{
+		m_rearrangements.push_back(m_robot->GetLastPlan());
+
+		// update positions of moved objects
+		updateAgentPositions(result, rearranged);
+		push_found = true;
+		SMPL_INFO("Push found!");
+	}
+
+	if (push_reward > 0) {
+		m_alphas[idx] += push_reward;
+	}
+	if (push_reward < 0) {
+		m_betas[idx] -= push_reward;
+	}
+
+	if (m_alphas[idx] + m_betas[idx] > m_C)
+	{
+		double factor = m_C/double((m_C + std::abs(push_reward)));
+		m_alphas[idx] *= factor;
+		m_betas[idx] *= factor;
+	}
+
 	m_rearranged = rearranged;
 	m_replan = push_found;
 

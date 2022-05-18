@@ -1257,7 +1257,7 @@ bool Robot::planToPoseGoal(
 	moveit_msgs::MotionPlanResponse res;
 
 	createPoseGoalConstraint(pose_goal, req);
-	req.allowed_planning_time = 0.5;
+	req.allowed_planning_time = 0.1;
 	req.max_acceleration_scaling_factor = 1.0;
 	req.max_velocity_scaling_factor = 1.0;
 	req.num_planning_attempts = 1;
@@ -1422,9 +1422,8 @@ bool Robot::PlanPush(
 	Agent* object, const std::vector<double>& push,
 	const std::vector<Object*>& other_movables,	const comms::ObjectsPoses& rearranged,
 	comms::ObjectsPoses& result,
-	int& push_reward)
+	double& push_reward)
 {
-	++m_stats["plan_push_calls"];
 	m_push_trajs.clear();
 	m_push_actions.clear();
 
@@ -1453,6 +1452,8 @@ bool Robot::PlanPush(
 	bool added = false;
 	while((i < m_pushes_per_object) && (GetTime() - start_time < m_plan_push_time))
 	{
+		++m_stats["plan_push_calls"];
+
 		// add all movable objects as obstacles into immovable collision checker
 		// they should be at their latest positions
 		if (!added)
@@ -1476,7 +1477,7 @@ bool Robot::PlanPush(
 				-99.0,
 				-99.0,
 				-1.0});
-			push_reward = -4;
+			push_reward = -1;
 			continue;
 		}
 
@@ -1500,7 +1501,7 @@ bool Robot::PlanPush(
 				-99.0,
 				-99.0,
 				0.0});
-			push_reward = -3;
+			push_reward = -1;
 			continue;
 		}
 		++m_stats["push_samples_found"];
@@ -1549,7 +1550,7 @@ bool Robot::PlanPush(
 					push_end_pose.translation().x(),
 					push_end_pose.translation().y(),
 					2.0});
-				push_reward = -1;
+				push_reward = 0.1;
 				continue;
 			}
 
@@ -1572,7 +1573,7 @@ bool Robot::PlanPush(
 					push_end_pose.translation().x(),
 					push_end_pose.translation().y(),
 					2.0});
-				push_reward = -1;
+				push_reward = 0.1;
 				continue;
 			}
 
@@ -1599,7 +1600,7 @@ bool Robot::PlanPush(
 					push_end_pose.translation().x(),
 					push_end_pose.translation().y(),
 					2.0});
-				push_reward = -1;
+				push_reward = 0.1;
 				continue;
 			}
 			ProcessObstacles(pushed_obj, true, false);
@@ -1638,7 +1639,7 @@ bool Robot::PlanPush(
 				push_end_pose.translation().x(),
 				push_end_pose.translation().y(),
 				1.0});
-			push_reward = -2;
+			push_reward = -0.5;
 		}
 	}
 
@@ -1727,12 +1728,12 @@ void Robot::getPushStartPose(
 	int link = 1; // std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
 	UpdateKDLRobot(link);
 
-	// z is between 2 to 5cm above table height
-	double z = m_table_z + (m_distD(m_rng) * 0.03) + 0.02;
+	// z is between 3 to 5cm above table height
+	double z = m_table_z + (m_distD(m_rng) * 0.02) + 0.03;
 
 	// (x, y) is randomly sampled near push start location
-	double x = push[0] + std::cos(push[2] + M_PI) * 0.025 + (m_distG(m_rng) * 0.025);
-	double y = push[1] + std::sin(push[2] + M_PI) * 0.025 + (m_distG(m_rng) * 0.025);
+	double x = push[0] + std::cos(push[2] + M_PI) * 0.05 + (m_distG(m_rng) * 0.025);
+	double y = push[1] + std::sin(push[2] + M_PI) * 0.05 + (m_distG(m_rng) * 0.025);
 
 	push_pose = Eigen::Translation3d(x, y, z) *
 				Eigen::AngleAxisd(push[2], Eigen::Vector3d::UnitZ()) *

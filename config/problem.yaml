@@ -35,7 +35,7 @@ robot:
     qw: 1.0
   pushing:
     num: 1
-    plan_time: 2.0
+    plan_time: 0.2
     control:
       dt: 0.01
       Kp: 0.5
