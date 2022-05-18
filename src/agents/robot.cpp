@@ -1421,7 +1421,8 @@ bool Robot::PlanPush(
 	const std::vector<double>& start_state,
 	Agent* object, const std::vector<double>& push,
 	const std::vector<Object*>& other_movables,	const comms::ObjectsPoses& rearranged,
-	comms::ObjectsPoses& result)
+	comms::ObjectsPoses& result,
+	int& push_reward)
 {
 	++m_stats["plan_push_calls"];
 	m_push_trajs.clear();
@@ -1475,6 +1476,7 @@ bool Robot::PlanPush(
 				-99.0,
 				-99.0,
 				-1.0});
+			push_reward = -4;
 			continue;
 		}
 
@@ -1498,6 +1500,7 @@ bool Robot::PlanPush(
 				-99.0,
 				-99.0,
 				0.0});
+			push_reward = -3;
 			continue;
 		}
 		++m_stats["push_samples_found"];
@@ -1546,6 +1549,7 @@ bool Robot::PlanPush(
 					push_end_pose.translation().x(),
 					push_end_pose.translation().y(),
 					2.0});
+				push_reward = -1;
 				continue;
 			}
 
@@ -1568,6 +1572,7 @@ bool Robot::PlanPush(
 					push_end_pose.translation().x(),
 					push_end_pose.translation().y(),
 					2.0});
+				push_reward = -1;
 				continue;
 			}
 
@@ -1594,6 +1599,7 @@ bool Robot::PlanPush(
 					push_end_pose.translation().x(),
 					push_end_pose.translation().y(),
 					2.0});
+				push_reward = -1;
 				continue;
 			}
 			ProcessObstacles(pushed_obj, true, false);
@@ -1604,6 +1610,7 @@ bool Robot::PlanPush(
 				push_end_pose.translation().x(),
 				push_end_pose.translation().y(),
 				3.0});
+			push_reward = 1;
 
 			// append waypoints to retract to push start pose
 			auto push_action_copy = push_action;
@@ -1631,6 +1638,7 @@ bool Robot::PlanPush(
 				push_end_pose.translation().x(),
 				push_end_pose.translation().y(),
 				1.0});
+			push_reward = -2;
 		}
 	}
 

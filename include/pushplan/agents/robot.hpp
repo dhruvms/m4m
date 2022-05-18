@@ -86,7 +86,8 @@ public:
 		Agent* object, const std::vector<double>& push,
 		const std::vector<Object*>& other_movables,
 		const comms::ObjectsPoses& rearranged,
-		comms::ObjectsPoses& result);
+		comms::ObjectsPoses& result,
+		int& push_reward);
 	trajectory_msgs::JointTrajectory GetLastPlan()
 	{
 		m_planner->ProfilePath(m_rm.get(), m_traj);

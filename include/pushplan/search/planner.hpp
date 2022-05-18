@@ -30,7 +30,8 @@ class Planner
 public:
 	Planner() : m_num_objs(-1), m_scene_id(-1),
 				m_ph("~"), m_replan(true),
-				m_plan_success(false), m_sim_success(false) {};
+				m_plan_success(false), m_sim_success(false),
+				m_rng(m_dev()) {};
 	bool Init(const std::string& scene_file, int scene_id, bool ycb);
 	bool Alive();
 	bool SetupNGR();
@@ -94,7 +95,14 @@ private:
 	std::vector<trajectory_msgs::JointTrajectory> m_rearrangements;
 	comms::ObjectsPoses m_rearranged;
 
-	std::vector<size_t> m_priorities;
+	HighLevelNode* m_cbs_soln;
+	std::unordered_map<int, std::size_t> m_cbs_soln_map;
+	int m_moved;
+	std::random_device m_dev;
+	std::mt19937 m_rng;
+	std::uniform_real_distribution<double> m_distD;
+	std::vector<double> m_alphas, m_betas;
+	int m_C;
 
 	ros::NodeHandle m_ph, m_nh;
 	std::uint32_t m_violation;
@@ -107,6 +115,7 @@ private:
 	bool runSim();
 	bool animateSolution();
 	bool rearrange();
+	int chooseObjDTS();
 
 	bool setupProblem(bool backwards);
 	void updateAgentPositions(

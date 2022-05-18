@@ -13,6 +13,7 @@
 
 #include <smpl/console/console.h>
 #include <moveit_msgs/RobotTrajectory.h>
+#include <boost/math/distributions/beta.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -121,6 +122,8 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	setupSim(m_sim.get(), m_robot->GetStartState()->joint_state, armId(), m_ooi->GetID());
 	m_violation = 0x00000008;
+	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
+	m_C = 25;
 
 	return true;
 }
@@ -333,6 +336,36 @@ bool Planner::Plan()
 	m_cbs->UpdateStats(m_cbs_stats);
 	m_stats["mapf_time"] += GetTime() - m_timer;
 
+	m_cbs_soln = m_cbs->GetSolution();
+	m_cbs_soln_map.clear();
+	m_moved = 0;
+	for (std::size_t i = 0; i < m_cbs_soln->m_solution.size(); ++i)
+	{
+		const auto& path = m_cbs_soln->m_solution[i];
+		if (path.first == 0 || path.second.front().coord == path.second.back().coord)
+		{
+			// either this is robot or the object did not move
+			continue;
+		}
+		m_cbs_soln_map[m_moved] = i;
+		++m_moved;
+	}
+
+	m_alphas.clear();
+	m_betas.clear();
+	if (m_moved == 0)
+	{
+		m_plan_success = true;
+		if (m_cbs) {
+			m_cbs->WriteRoot();
+		}
+	}
+	else
+	{
+		m_alphas.resize(m_moved, 1.0);
+		m_betas.resize(m_moved, 1.0);
+	}
+
 	m_replan = !result;
 	return result;
 }
@@ -397,25 +430,37 @@ void Planner::AnimateSolution()
 	animateSolution();
 }
 
+int Planner::chooseObjDTS()
+{
+	std::vector<double> r(m_moved, 0);
+	for (int i = 0; i < m_moved; ++i)
+	{
+		std::cout << "(" << m_alphas.at(i) << ", " << m_betas.at(i) << ")\t";
+		boost::math::beta_distribution<> dist(m_alphas.at(i), m_betas.at(i));
+		r.at(i) = boost::math::quantile(dist, m_distD(m_rng));
+	}
+	std::cout << std::endl;
+
+	return (int)std::distance(r.begin(), std::max_element(r.begin(), r.end()));
+}
+
 bool Planner::rearrange()
 {
+	if (m_moved == 0) {
+		return false;
+	}
+
 	SMPL_INFO("Rearrange?");
 	for (auto& a: m_agents) {
 		a->ResetObject();
 	}
 
 	comms::ObjectsPoses rearranged = m_rearranged;
-
-	bool push_found = false, movement = false;
-	auto cbs_soln = m_cbs->GetSolution();
-	for (auto& path: cbs_soln->m_solution)
+	bool push_found = false;
+	while (!push_found)
 	{
-		if (path.first == 0 || path.second.front().coord == path.second.back().coord)
-		{
-			// either this is robot or the object did not move
-			continue;
-		}
-		movement = true;
+		int idx = chooseObjDTS();
+		const auto& path = m_cbs_soln->m_solution[m_cbs_soln_map[idx]];
 
 		// get push location
 		std::vector<double> push;
@@ -442,7 +487,8 @@ bool Planner::rearrange()
 			push_start_state = m_rearrangements.back().points.back().positions;
 		}
 
-		if (m_robot->PlanPush(push_start_state, m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result))
+		int push_reward = 0;
+		if (m_robot->PlanPush(push_start_state, m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result, push_reward))
 		{
 			m_rearrangements.push_back(m_robot->GetLastPlan());
 
@@ -451,22 +497,25 @@ bool Planner::rearrange()
 			push_found = true;
 			SMPL_INFO("Push found!");
 		}
-		if (push_found) {
-			break;
+
+		if (push_reward > 0) {
+			m_alphas[idx] += push_reward;
+		}
+		if (push_reward < 0) {
+			m_betas[idx] -= push_reward;
+		}
+
+		if (m_alphas[idx] + m_betas[idx] > m_C)
+		{
+			double factor = double(m_C/(m_C + std::abs(push_reward)));
+			m_alphas[idx] *= factor;
+			m_betas[idx] *= factor;
 		}
 	}
 	m_rearranged = rearranged;
 	m_replan = push_found;
 
-	if (!movement)
-	{
-		m_plan_success = true;
-		if (m_cbs) {
-			m_cbs->WriteRoot();
-		}
-	}
-
-	return movement;
+	return true;
 }
 
 bool Planner::animateSolution()
