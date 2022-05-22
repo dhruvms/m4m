@@ -298,7 +298,8 @@ bool Robot::ProcessObstacles(const std::vector<Object>& obstacles,
 		}
 	}
 
-	// SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	auto cc = movable ? m_cc_m.get() : m_cc_i.get();
+	SV_SHOW_INFO(cc->getCollisionWorldVisualization());
 	return true;
 }
 
@@ -325,7 +326,8 @@ bool Robot::ProcessObstacles(const std::vector<Object*>& obstacles,
 		}
 	}
 
-	// SV_SHOW_INFO(m_cc_i->getCollisionWorldVisualization());
+	auto cc = movable ? m_cc_m.get() : m_cc_i.get();
+	SV_SHOW_INFO(cc->getCollisionWorldVisualization());
 	return true;
 }
 
@@ -1367,30 +1369,30 @@ bool Robot::computePushAction(
 		{
 			// if so, we are done
 			// SMPL_INFO("SUCCESS - reached end point");
-			// std::vector<smpl::visual::Marker> ma;
+			std::vector<smpl::visual::Marker> ma;
 
-			// auto cinc = 1.0f / float(action.points.size());
-			// for (size_t i = 0; i < action.points.size(); ++i) {
-			// 	auto markers = m_cc_i->getCollisionModelVisualization(action.points[i].positions);
+			auto cinc = 1.0f / float(action.points.size());
+			for (size_t i = 0; i < action.points.size(); ++i) {
+				auto markers = m_cc_i->getCollisionModelVisualization(action.points[i].positions);
 
-			// 	for (auto& marker : markers) {
-			// 		auto r = 0.1f;
-			// 		auto g = cinc * (float)(action.points.size() - (i + 1));
-			// 		auto b = cinc * (float)i;
-			// 		marker.color = smpl::visual::Color{ r, g, b, 1.0f };
-			// 	}
+				for (auto& marker : markers) {
+					auto r = 0.1f;
+					auto g = cinc * (float)(action.points.size() - (i + 1));
+					auto b = cinc * (float)i;
+					marker.color = smpl::visual::Color{ r, g, b, 1.0f };
+				}
 
-			// 	for (auto& m : markers) {
-			// 		ma.push_back(std::move(m));
-			// 	}
-			// }
+				for (auto& m : markers) {
+					ma.push_back(std::move(m));
+				}
+			}
 
-			// for (size_t i = 0; i < ma.size(); ++i) {
-			// 	auto& marker = ma[i];
-			// 	marker.ns = "push_action";
-			// 	marker.id = i;
-			// }
-			// SV_SHOW_INFO_NAMED("push_action", ma);
+			for (size_t i = 0; i < ma.size(); ++i) {
+				auto& marker = ma[i];
+				marker.ns = "push_action";
+				marker.id = i;
+			}
+			SV_SHOW_INFO_NAMED("push_action", ma);
 
 			return true;
 		}
@@ -1405,10 +1407,19 @@ bool Robot::computePushAction(
 			}
 		}
 
+		auto markers = m_cc_i->getCollisionRobotVisualization(q_);
+		for (auto& m : markers.markers) {
+			m.ns = "push_action_state";
+		}
+		SV_SHOW_INFO(markers);
+
 		// TODO: check velocity limit
 		// Check joint limits
-		if (!m_rm->checkJointLimits(q_)) {
-			// SMPL_INFO("Violates joint limits");
+		bool joint_limits = m_rm->checkJointLimits(q_);
+		bool immov_collision = m_cc_i->isStateValid(q_);
+		if (!joint_limits || !immov_collision)
+		{
+			SMPL_ERROR("[PlanPush] Violations: joint limits - %d, immovable collision - %d", joint_limits, immov_collision);
 			return false;
 		}
 	}
@@ -1478,6 +1489,7 @@ bool Robot::PlanPush(
 				-99.0,
 				-1.0});
 			push_reward = -1;
+			SMPL_ERROR("[PlanPush] Push start pose is inside occupancy grid!");
 			continue;
 		}
 
@@ -1502,6 +1514,7 @@ bool Robot::PlanPush(
 				-99.0,
 				0.0});
 			push_reward = -1;
+			SMPL_ERROR("[PlanPush] Failed to find plan to push start pose!");
 			continue;
 		}
 		++m_stats["push_samples_found"];
@@ -1538,48 +1551,50 @@ bool Robot::PlanPush(
 				push_end_pose,
 				push_action))
 		{
-			// collision check push action against immovable obstacles
-			if (push_action.points.size() <= 1
-				|| !m_cc_i->isStateValid(push_action.points[0].positions)
-				|| !m_cc_i->isStateValid(push_action.points.back().positions)
-				|| !m_cc_i->isStateToStateValid(push_action.points[0].positions, push_action.points[1].positions))
-			{
-				m_push_debug_data.push_back({
-					push_start_pose.translation().x(),
-					push_start_pose.translation().y(),
-					push_end_pose.translation().x(),
-					push_end_pose.translation().y(),
-					2.0});
-				push_reward = 0.1;
-				continue;
-			}
+			// // collision check push action against immovable obstacles
+			// if (push_action.points.size() <= 1
+			// 	|| !m_cc_i->isStateValid(push_action.points[0].positions)
+			// 	|| !m_cc_i->isStateValid(push_action.points.back().positions)
+			// 	|| !m_cc_i->isStateToStateValid(push_action.points[0].positions, push_action.points[1].positions))
+			// {
+			// 	m_push_debug_data.push_back({
+			// 		push_start_pose.translation().x(),
+			// 		push_start_pose.translation().y(),
+			// 		push_end_pose.translation().x(),
+			// 		push_end_pose.translation().y(),
+			// 		2.0});
+			// 	push_reward = 0.1;
+			// 	SMPL_ERROR("[PlanPush] IK push action collides with obstacles at first step!");
+			// 	continue;
+			// }
 
-			bool collides = false;
-			for (size_t wp = 1; wp < push_action.points.size(); ++wp)
-			{
-				auto& prev_istate = push_action.points[wp - 1].positions;
-				auto& curr_istate = push_action.points[wp].positions;
-				if (!m_cc_i->isStateToStateValid(prev_istate, curr_istate))
-				{
-					collides = true;
-					break;
-				}
-			}
-			if (collides)
-			{
-				m_push_debug_data.push_back({
-					push_start_pose.translation().x(),
-					push_start_pose.translation().y(),
-					push_end_pose.translation().x(),
-					push_end_pose.translation().y(),
-					2.0});
-				push_reward = 0.1;
-				continue;
-			}
+			// bool collides = false;
+			// for (size_t wp = 1; wp < push_action.points.size(); ++wp)
+			// {
+			// 	auto& prev_istate = push_action.points[wp - 1].positions;
+			// 	auto& curr_istate = push_action.points[wp].positions;
+			// 	if (!m_cc_i->isStateToStateValid(prev_istate, curr_istate))
+			// 	{
+			// 		collides = true;
+			// 		break;
+			// 	}
+			// }
+			// if (collides)
+			// {
+			// 	m_push_debug_data.push_back({
+			// 		push_start_pose.translation().x(),
+			// 		push_start_pose.translation().y(),
+			// 		push_end_pose.translation().x(),
+			// 		push_end_pose.translation().y(),
+			// 		2.0});
+			// 	push_reward = 0.1;
+			// 	SMPL_ERROR("[PlanPush] IK push action collides with obstacles at some point!");
+			// 	continue;
+			// }
 
 			// collision check push action against pushed object
 			// ensure that it collides
-			collides = false;
+			bool collides = false;
 			ProcessObstacles(pushed_obj, false, false);
 			for (size_t wp = 1; wp < push_action.points.size(); ++wp)
 			{
@@ -1601,9 +1616,11 @@ bool Robot::PlanPush(
 					push_end_pose.translation().y(),
 					2.0});
 				push_reward = 0.1;
+				SMPL_ERROR("[PlanPush] IK push action does not collide with intended object!");
 				continue;
 			}
 			ProcessObstacles(pushed_obj, true, false);
+
 			++m_stats["push_actions_found"];
 			m_push_debug_data.push_back({
 				push_start_pose.translation().x(),
@@ -1640,6 +1657,7 @@ bool Robot::PlanPush(
 				push_end_pose.translation().y(),
 				1.0});
 			push_reward = -0.5;
+			SMPL_ERROR("[PlanPush] Failed to compute IK push action!");
 		}
 	}
 
