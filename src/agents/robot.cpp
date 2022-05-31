@@ -1415,11 +1415,7 @@ bool Robot::computePushAction(
 
 		// TODO: check velocity limit
 		// Check joint limits
-		bool joint_limits = m_rm->checkJointLimits(q_);
-		bool immov_collision = m_cc_i->isStateValid(q_);
-		if (!joint_limits || !immov_collision)
-		{
-			SMPL_ERROR("[PlanPush] Violations: joint limits - %d, immovable collision - %d", joint_limits, immov_collision);
+		if (!m_rm->checkJointLimits(q_) || !m_cc_i->isStateValid(q_)) {
 			return false;
 		}
 	}
@@ -1489,7 +1485,6 @@ bool Robot::PlanPush(
 				-99.0,
 				-1.0});
 			push_reward = -1;
-			SMPL_ERROR("[PlanPush] Push start pose is inside occupancy grid!");
 			continue;
 		}
 
@@ -1514,7 +1509,6 @@ bool Robot::PlanPush(
 				-99.0,
 				0.0});
 			push_reward = -1;
-			SMPL_ERROR("[PlanPush] Failed to find plan to push start pose!");
 			continue;
 		}
 		++m_stats["push_samples_found"];
@@ -1564,7 +1558,6 @@ bool Robot::PlanPush(
 			// 		push_end_pose.translation().y(),
 			// 		2.0});
 			// 	push_reward = 0.1;
-			// 	SMPL_ERROR("[PlanPush] IK push action collides with obstacles at first step!");
 			// 	continue;
 			// }
 
@@ -1588,7 +1581,6 @@ bool Robot::PlanPush(
 			// 		push_end_pose.translation().y(),
 			// 		2.0});
 			// 	push_reward = 0.1;
-			// 	SMPL_ERROR("[PlanPush] IK push action collides with obstacles at some point!");
 			// 	continue;
 			// }
 
@@ -1616,7 +1608,6 @@ bool Robot::PlanPush(
 					push_end_pose.translation().y(),
 					2.0});
 				push_reward = 0.1;
-				SMPL_ERROR("[PlanPush] IK push action does not collide with intended object!");
 				continue;
 			}
 			ProcessObstacles(pushed_obj, true, false);
@@ -1657,7 +1648,6 @@ bool Robot::PlanPush(
 				push_end_pose.translation().y(),
 				1.0});
 			push_reward = -0.5;
-			SMPL_ERROR("[PlanPush] Failed to compute IK push action!");
 		}
 	}
 
@@ -1746,8 +1736,8 @@ void Robot::getPushStartPose(
 	int link = 1; // std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
 	UpdateKDLRobot(link);
 
-	// z is between 3 to 5cm above table height
-	double z = m_table_z + (m_distD(m_rng) * 0.02) + 0.03;
+	// z is between 3 to 8cm above table height
+	double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.03;
 
 	// (x, y) is randomly sampled near push start location
 	double x = push[0] + std::cos(push[2] + M_PI) * 0.05 + (m_distG(m_rng) * 0.025);
