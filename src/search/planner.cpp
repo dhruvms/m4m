@@ -336,34 +336,37 @@ bool Planner::Plan()
 	m_cbs->UpdateStats(m_cbs_stats);
 	m_stats["mapf_time"] += GetTime() - m_timer;
 
-	m_cbs_soln = m_cbs->GetSolution();
-	m_cbs_soln_map.clear();
 	m_moved = 0;
-	for (std::size_t i = 0; i < m_cbs_soln->m_solution.size(); ++i)
-	{
-		const auto& path = m_cbs_soln->m_solution[i];
-		if (path.first == 0 || path.second.front().coord == path.second.back().coord)
-		{
-			// either this is robot or the object did not move
-			continue;
-		}
-		m_cbs_soln_map[m_moved] = i;
-		++m_moved;
-	}
-
+	m_cbs_soln_map.clear();
 	m_alphas.clear();
 	m_betas.clear();
-	if (m_moved == 0)
+	if (result)
 	{
-		m_plan_success = true;
-		if (m_cbs) {
-			m_cbs->WriteRoot();
+		m_cbs_soln = m_cbs->GetSolution();
+		for (std::size_t i = 0; i < m_cbs_soln->m_solution.size(); ++i)
+		{
+			const auto& path = m_cbs_soln->m_solution[i];
+			if (path.first == 0 || path.second.front().coord == path.second.back().coord)
+			{
+				// either this is robot or the object did not move
+				continue;
+			}
+			m_cbs_soln_map[m_moved] = i;
+			++m_moved;
 		}
-	}
-	else
-	{
-		m_alphas.resize(m_moved, 1.0);
-		m_betas.resize(m_moved, 1.0);
+
+		if (m_moved == 0)
+		{
+			m_plan_success = true;
+			if (m_cbs) {
+				m_cbs->WriteRoot();
+			}
+		}
+		else
+		{
+			m_alphas.resize(m_moved, 1.0);
+			m_betas.resize(m_moved, 1.0);
+		}
 	}
 
 	m_replan = !result;
