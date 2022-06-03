@@ -1292,7 +1292,7 @@ bool Robot::computePushAction(
 	const smpl::RobotState& jnt_positions,
 	const smpl::RobotState& jnt_velocities,
 	const Eigen::Affine3d& end_pose,
-	trajectory_msgs::JointTrajectory& action)
+	trajectory_msgs::JointTrajectory& action, int& failure)
 {
 	// Constants
 	double xy_thresh = 0.01;
@@ -1351,6 +1351,7 @@ bool Robot::computePushAction(
 		if (!m_rm->computeInverseVelocity(q_, x_dot, q_dot))
 		{
 			// SMPL_INFO("Failed to compute inverse velocity");
+			failure = 1;
 			return false;
 		}
 
@@ -1415,12 +1416,18 @@ bool Robot::computePushAction(
 
 		// TODO: check velocity limit
 		// Check joint limits
-		if (!m_rm->checkJointLimits(q_) || !m_cc_i->isStateValid(q_)) {
+		if (!m_rm->checkJointLimits(q_)) {
+			failure = 2;
+			return false;
+		}
+		if (!m_cc_i->isStateValid(q_)) {
+			failure = 3;
 			return false;
 		}
 	}
 
 	// SMPL_INFO("Failed to reach end pose");
+	failure = 1;
 	return false;
 }
 
@@ -1538,12 +1545,13 @@ bool Robot::PlanPush(
 		// get push action trajectory via inverse velocity
 		trajectory_msgs::JointTrajectory push_action;
 		smpl::RobotState joint_vel(m_rm->jointVariableCount(), 0.0);
+		int failure = 0;
 		if (computePushAction(
 				push_traj.points.back().time_from_start.toSec(),
 				push_traj.points.back().positions,
 				joint_vel,
 				push_end_pose,
-				push_action))
+				push_action, failure))
 		{
 			// // collision check push action against immovable obstacles
 			// if (push_action.points.size() <= 1
@@ -1606,7 +1614,7 @@ bool Robot::PlanPush(
 					push_start_pose.translation().y(),
 					push_end_pose.translation().x(),
 					push_end_pose.translation().y(),
-					2.0});
+					4.0});
 				push_reward = 0.1;
 				continue;
 			}
@@ -1618,7 +1626,7 @@ bool Robot::PlanPush(
 				push_start_pose.translation().y(),
 				push_end_pose.translation().x(),
 				push_end_pose.translation().y(),
-				3.0});
+				5.0});
 			push_reward = 1;
 
 			// append waypoints to retract to push start pose
@@ -1646,7 +1654,7 @@ bool Robot::PlanPush(
 				push_start_pose.translation().y(),
 				push_end_pose.translation().x(),
 				push_end_pose.translation().y(),
-				1.0});
+				failure});
 			push_reward = -0.5;
 		}
 	}
@@ -1689,7 +1697,7 @@ bool Robot::PlanPush(
 		pose.translation().y(),
 		-99.0,
 		-99.0,
-		4.0});
+		6.0});
 	// SMPL_INFO("Found good push traj of length %d!", m_traj.points.size());
 	return true;
 }

@@ -243,7 +243,7 @@ private:
 		const smpl::RobotState& jnt_positions,
 		const smpl::RobotState& jnt_velocities,
 		const Eigen::Affine3d& end_pose,
-		trajectory_msgs::JointTrajectory& action);
+		trajectory_msgs::JointTrajectory& action, int& failure);
 
 	bool reinitStartState();
 

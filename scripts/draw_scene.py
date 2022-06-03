@@ -183,7 +183,7 @@ def DrawScene(filepath, objs, trajs, ngr, goals, pushes, alpha=1.0):
 			AX.text(GOALS[i, 1], GOALS[i, 2], str(int(oid)), color='violet', zorder=3)
 
 	if (pushes):
-		colours = {4: 'black', 3: 'green', 2: 'gold', 1: 'deepskyblue', 0: 'deeppink', -1: 'firebrick'}
+		colours = {6: 'black', 5: 'green', 4: 'gold', 3: 'teal',  2: 'deepskyblue', 1: 'slategrey', 0: 'deeppink', -1: 'firebrick'}
 		for p in pushes:
 			if (p[2] == -99 and p[3] == -99):
 				if (int(p[4]) == 4):
