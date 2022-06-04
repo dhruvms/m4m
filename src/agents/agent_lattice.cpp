@@ -105,6 +105,10 @@ bool AgentLattice::IsGoal(int state_id)
 			bool conflict = goalConflict(*s);
 
 			// for forward search goal must valid for all future time
+			// if (!conflict) {
+			// 	m_agent->VisualiseState(*s, "valid_goal", 147);
+			// 	SMPL_WARN("Goal visualised!");
+			// }
 			return !conflict;
 		}
 
@@ -283,8 +287,8 @@ unsigned int AgentLattice::cost(
 	double dist = EuclideanDist(s1->coord, s2->coord);
 	dist = dist == 0.0 ? 1.0 : dist;
 
-	double obs_cost = m_agent->ObsDist(s2->state[0], s2->state[1], s2->state[2]);
-	obs_cost = 2 * std::pow(2, -obs_cost/0.1);
+	double obs_cost = m_agent->ObsDist(s2->state[0], s2->state[1]);
+	obs_cost = std::pow(2, 1 - (obs_cost/0.15));
 	double cost = (dist + obs_cost) * COST_MULT;
 	return cost;
 }

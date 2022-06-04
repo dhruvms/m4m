@@ -1654,7 +1654,7 @@ bool Robot::PlanPush(
 				push_start_pose.translation().y(),
 				push_end_pose.translation().x(),
 				push_end_pose.translation().y(),
-				failure});
+				(double)failure});
 			push_reward = -0.5;
 		}
 	}
