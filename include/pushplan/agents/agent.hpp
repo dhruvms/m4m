@@ -91,14 +91,12 @@ public:
 			const std::vector<int>& other_ids,
 			const std::vector<LatticeState>& other_poses);
 	bool OutsideNGR(const LatticeState& s);
+	double ObsDist(double x, double y);
+
 	void VisualiseState(const Coord& s, const std::string& ns="", int hue=180);
 	void VisualiseState(const LatticeState& s, const std::string& ns="", int hue=180);
 
 	Coord Goal() const { return m_goal; };
-	double ObsDist(double x, double y, double z) {
-		return m_obs_grid->getDistanceFromPoint(x, y, z);
-	}
-
 	auto InitState() const -> const LatticeState& { return m_init; };
 
 private:

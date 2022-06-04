@@ -30,6 +30,7 @@ m_rng(m_dev())
 		m_obstacles.at(i).UpdatePose(s);
 		m_fcl_immov->registerObject(m_obstacles.at(i).GetFCLObject());
 	}
+	m_fcl_immov->setup();
 
 	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
 
@@ -86,7 +87,6 @@ bool CollisionChecker::ImmovableCollision(fcl::CollisionObject* o)
 {
 	// double start_time = GetTime(), time_taken;
 
-	m_fcl_immov->setup();
 	fcl::DefaultCollisionData collision_data;
 	m_fcl_immov->collide(o, &collision_data, fcl::DefaultCollisionFunction);
 
@@ -139,6 +139,13 @@ bool CollisionChecker::ObjectObjectsCollision(
 
 	return collision_data.result.isCollision();
 
+}
+
+double CollisionChecker::ObstacleDist(fcl::CollisionObject* o)
+{
+	fcl::DefaultDistanceData distance_data;
+	m_fcl_immov->distance(o, &distance_data, fcl::DefaultDistanceFunction);
+	return distance_data.result.min_distance;
 }
 
 bool CollisionChecker::RobotObjectCollision(

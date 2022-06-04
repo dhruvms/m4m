@@ -67,6 +67,8 @@ public:
 		s.state.push_back(m_obstacles.back().desc.o_y);
 		m_obstacles.back().UpdatePose(s);
 		m_fcl_immov->registerObject(m_obstacles.back().GetFCLObject());
+
+		m_fcl_immov->setup();
 	};
 	void AddObstacle(Object* o) {
 		AddObstacle(*o);
@@ -83,6 +85,7 @@ public:
 			fcl::CollisionObject* o1,
 			const std::vector<int>& other_ids,
 			const std::vector<LatticeState>& other_poses);
+	double ObstacleDist(fcl::CollisionObject* o);
 	bool RobotObjectCollision(
 		Agent* a1, const LatticeState& a1_state,
 		const LatticeState& robot_state,

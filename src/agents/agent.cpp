@@ -191,6 +191,17 @@ bool Agent::OutsideNGR(const LatticeState& s)
 	return stateOutsideNGR(s);
 }
 
+double Agent::ObsDist(double x, double y)
+{
+	LatticeState s;
+	s.state = { x, y, m_obj_desc.o_z };
+	m_obj.UpdatePose(s);
+	double dist = m_cc->ObstacleDist(m_obj.GetFCLObject());
+	m_obj.UpdatePose(m_init);
+
+	return dist;
+}
+
 void Agent::VisualiseState(const Coord& c, const std::string& ns, int hue)
 {
 	LatticeState s;
@@ -452,7 +463,7 @@ bool Agent::stateOutsideNGR(const LatticeState& s)
 	std::vector<const smpl::collision::CollisionSphereState*> q = {
 									m_obj.SpheresState()->spheres.root() };
 
-	double padding = 0.0, dist;
+	double padding = 0.0, dist = -1.0;
 	return smpl::collision::CheckVoxelsCollisions(
 							m_obj, q, *(m_ngr_grid.get()), padding, dist);
 }
