@@ -512,19 +512,19 @@ bool Planner::rearrange()
 		SMPL_INFO("Push found!");
 	}
 
-	if (push_reward > 0) {
-		m_alphas[idx] += push_reward;
-	}
-	if (push_reward < 0) {
-		m_betas[idx] -= push_reward;
-	}
+	// if (push_reward > 0) {
+	// 	m_alphas[idx] += push_reward;
+	// }
+	// if (push_reward < 0) {
+	// 	m_betas[idx] -= push_reward;
+	// }
 
-	if (m_alphas[idx] + m_betas[idx] > m_C)
-	{
-		double factor = m_C/double((m_C + std::abs(push_reward)));
-		m_alphas[idx] *= factor;
-		m_betas[idx] *= factor;
-	}
+	// if (m_alphas[idx] + m_betas[idx] > m_C)
+	// {
+	// 	double factor = m_C/double((m_C + std::abs(push_reward)));
+	// 	m_alphas[idx] *= factor;
+	// 	m_betas[idx] *= factor;
+	// }
 
 	m_rearranged = rearranged;
 	m_replan = push_found;
