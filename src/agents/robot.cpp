@@ -879,7 +879,7 @@ void Robot::voxeliseTrajectory()
 		for (auto& marker : markers)
 		{
 			std::unique_ptr<smpl::collision::CollisionShape> shape;
-			shape = smpl::make_unique<smpl::collision::SphereShape>(boost::get<smpl::visual::Ellipse>(marker.shape).axis_x);
+			shape = smpl::make_unique<smpl::collision::SphereShape>(boost::get<smpl::visual::Ellipse>(marker.shape).axis_x - RES);
 
 			std::vector<smpl::collision::CollisionShape*> shapes;
 			shapes.push_back(shape.get());
