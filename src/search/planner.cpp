@@ -204,7 +204,7 @@ bool Planner::FinalisePlan()
 
 	m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
 	// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
-	smpl::RobotState start_state;
+	smpl::RobotState start_state = {};
 	if (!m_rearrangements.empty()) {
 		start_state = m_rearrangements.back().points.back().positions;
 	}
@@ -321,8 +321,10 @@ bool Planner::Plan(bool& done)
 		return true;
 	}
 
-	if (FinalisePlan()) {
+	if (FinalisePlan())
+	{
 		done = true;
+		m_plan_success = true;
 		if (m_cbs)
 		{
 			m_cbs->WriteRoot();
