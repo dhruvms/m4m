@@ -311,9 +311,20 @@ bool Planner::createCBS()
 	return true;
 }
 
-bool Planner::Plan()
+bool Planner::Plan(bool& done)
 {
+	done = false;
 	if (!m_replan) {
+		return true;
+	}
+
+	if (FinalisePlan()) {
+		done = true;
+		if (m_cbs)
+		{
+			m_cbs->WriteRoot();
+			m_cbs.reset();
+		}
 		return true;
 	}
 

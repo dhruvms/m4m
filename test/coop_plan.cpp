@@ -80,8 +80,14 @@ int main(int argc, char** argv)
 			bool rearrange = true, lucky = false, rearranged = false;
 			do
 			{
-				if (p.Plan())
+				bool done;
+				if (p.Plan(done))
 				{
+					if (done)
+					{
+						SMPL_INFO("Final plan found!");
+						break;
+					}
 					// ROS_WARN("Try extraction before rearrangement! Did we get lucky?");
 					// if (p.Alive() && p.TryExtract())
 					// {
