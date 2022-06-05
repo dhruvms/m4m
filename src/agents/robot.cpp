@@ -1556,16 +1556,15 @@ bool Robot::PlanPush(
 		}
 
 		// push action parameters
-		double push_frac = 1.0;
-		double push_dist = EuclideanDist(obj_traj->front().state, obj_traj->back().state);
 		push_end_pose = m_rm->computeFK(push_traj.points.back().positions);
+		double push_dist = EuclideanDist({ push_end_pose.translation().x(), push_end_pose.translation().y() }, obj_traj->back().state);
 		double push_at_angle = std::atan2(
 				obj_traj->back().state.at(1) - push_end_pose.translation().y(),
 				obj_traj->back().state.at(0) - push_end_pose.translation().x());
 
 		// compute push action end pose
-		push_end_pose.translation().x() += std::cos(push_at_angle) * (push_dist * push_frac + push[3]);
-		push_end_pose.translation().y() += std::sin(push_at_angle) * (push_dist * push_frac + push[3]);
+		push_end_pose.translation().x() += std::cos(push_at_angle) * push_dist;
+		push_end_pose.translation().y() += std::sin(push_at_angle) * push_dist;
 		// SV_SHOW_INFO_NAMED("push_end_pose", smpl::visual::MakePoseMarkers(
 		// 	push_end_pose, m_grid_i->getReferenceFrame(), "push_end_pose"));
 
