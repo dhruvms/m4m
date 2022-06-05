@@ -677,7 +677,8 @@ bool Robot::planApproach(
 	const std::vector<std::vector<double> >& approach_cvecs,
 	moveit_msgs::MotionPlanResponse& res,
 	const std::vector<Object*>& movable_obstacles,
-	bool finalise)
+	bool finalise,
+	smpl::RobotState start_state)
 {
 	bool have_obs = !movable_obstacles.empty();
 
@@ -705,6 +706,18 @@ bool Robot::planApproach(
 	else {
 		req.planner_id = "mhastar.manip_cbs.bfs.joint_distance";
 	}
+
+	// set appropriate start state for approach plan to pregrasp state
+	moveit_msgs::RobotState orig_start = m_start_state;
+	if (!start_state.empty())
+	{
+		m_start_state.joint_state.position.erase(
+			m_start_state.joint_state.position.begin() + 1,
+			m_start_state.joint_state.position.begin() + 1 + start_state.size());
+		m_start_state.joint_state.position.insert(
+			m_start_state.joint_state.position.begin() + 1,
+			start_state.begin(), start_state.end());
+	}
 	req.start_state = m_start_state;
 	// req.trajectory_constraints;
 	// req.workspace_parameters;
@@ -717,6 +730,10 @@ bool Robot::planApproach(
 	if (!m_planner->init_planner(planning_scene, req, res))
 	{
 		// ROS_ERROR("Failed to init planner!");
+
+		if (!start_state.empty()) {
+			m_start_state = orig_start;
+		}
 		return false;
 	}
 
@@ -737,6 +754,10 @@ bool Robot::planApproach(
 			// remove from immovable collision checker
 			ProcessObstacles(movable_obstacles, true, false);
 		}
+
+		if (!start_state.empty()) {
+			m_start_state = orig_start;
+		}
 		return false;
 	}
 	// SMPL_INFO("Robot found approach plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
@@ -744,6 +765,10 @@ bool Robot::planApproach(
 	if (have_obs && finalise) {
 		// remove from immovable collision checker
 		ProcessObstacles(movable_obstacles, true, false);
+	}
+
+	if (!start_state.empty()) {
+		m_start_state = orig_start;
 	}
 
 	return true;
@@ -938,7 +963,7 @@ bool Robot::PlanApproachOnly(const std::vector<Object*>& movable_obstacles)
 	return true;
 }
 
-bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool finalise)
+bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool finalise, smpl::RobotState start_state)
 {
 	///////////////////
 	// Plan approach //
@@ -946,7 +971,7 @@ bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool fi
 
 	std::vector<std::vector<double> > dummy;
 	moveit_msgs::MotionPlanResponse res_a;
-	if (!planApproach(dummy, res_a, movable_obstacles, finalise)) {
+	if (!planApproach(dummy, res_a, movable_obstacles, finalise, start_state)) {
 		return false;
 	}
 

@@ -204,8 +204,11 @@ bool Planner::FinalisePlan()
 
 	m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
 	// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
-	SMPL_INFO("FinalisePlan!");
-	if (!m_robot->PlanRetrieval(movable_obstacles, true))
+	smpl::RobotState start_state;
+	if (!m_rearrangements.empty()) {
+		start_state = m_rearrangements.back().points.back().positions;
+	}
+	if (!m_robot->PlanRetrieval(movable_obstacles, true, start_state))
 	{
 		m_stats["robot_planner_time"] += GetTime() - m_timer;
 		return false;
