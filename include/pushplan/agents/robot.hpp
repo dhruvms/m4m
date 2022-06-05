@@ -88,11 +88,15 @@ public:
 		const comms::ObjectsPoses& rearranged,
 		comms::ObjectsPoses& result,
 		double& push_reward);
-	trajectory_msgs::JointTrajectory GetLastPlan()
+	trajectory_msgs::JointTrajectory GetLastPlanProfiled()
 	{
 		m_planner->ProfilePath(m_rm.get(), m_traj);
 		return m_traj;
 	};
+	trajectory_msgs::JointTrajectory GetLastPlan() {
+		return m_traj;
+	};
+
 	void SetSim(const std::shared_ptr<BulletSim>& sim) {
 		m_sim = sim;
 	}
@@ -103,7 +107,6 @@ public:
 		SetOOI(*ooi);
 	}
 
-	void AnimateSolution();
 
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;
@@ -115,6 +118,7 @@ public:
 	State GetEEState(const State& state);
 	const moveit_msgs::RobotState* GetStartState() { return &m_start_state; };
 
+	void AnimateSolution();
 	void PrintFK(const trajectory_msgs::JointTrajectory& traj)
 	{
 		for (const auto& p: traj.points)

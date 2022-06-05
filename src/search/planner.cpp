@@ -146,7 +146,8 @@ bool Planner::Alive()
 	// 	4. time taken to solve mapf problem
 	double total_time = m_stats["robot_planner_time"] + m_stats["push_planner_time"] + m_stats["mapf_time"];
 	if (total_time > m_total_budget) {
-		if (m_cbs) {
+		if (m_cbs)
+		{
 			m_cbs->WriteRoot();
 			m_cbs.reset();
 		}
@@ -170,7 +171,7 @@ bool Planner::SetupNGR()
 	}
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
 	m_robot->UpdateNGR();
-	m_exec = m_robot->GetLastPlan();
+	m_exec = m_robot->GetLastPlanProfiled();
 
 	double ox, oy, oz, sx, sy, sz;
 	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
@@ -210,7 +211,7 @@ bool Planner::FinalisePlan()
 		return false;
 	}
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
-	m_exec = m_robot->GetLastPlan();
+	m_exec = m_robot->GetLastPlanProfiled();
 
 	m_stats["robot_planner_time"] += GetTime() - m_timer;
 	return true;

@@ -1639,6 +1639,7 @@ bool Robot::PlanPush(
 				t_reverse = itr->time_from_start;
 			}
 
+			m_planner->ProfilePath(m_rm.get(), push_traj);
 			for (auto itr = push_action.points.begin() + 1; itr != push_action.points.end(); ++itr) {
 				push_traj.points.push_back(*itr);
 			}
