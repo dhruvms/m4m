@@ -981,7 +981,7 @@ bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool fi
 	// Append grasp //
 	//////////////////
 
-	m_grasp_at = m_traj.points.size();
+	int grasp_at = m_traj.points.size();
 
 	double grasp_time = profileAction(m_pregrasp_state, m_grasp_state);
 	double postgrasp_time = profileAction(m_grasp_state, m_postgrasp_state);
@@ -1005,6 +1005,7 @@ bool Robot::PlanRetrieval(const std::vector<Object*>& movable_obstacles, bool fi
 		return false;
 	}
 
+	m_grasp_at = grasp_at;
 	auto extract_start_time = m_traj.points.back().time_from_start;
 	for (size_t i = 0; i < res_r.trajectory.joint_trajectory.points.size(); ++i)
 	{
@@ -1073,7 +1074,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 	// Append grasp //
 	//////////////////
 
-	m_grasp_at = m_traj.points.size();
+	int grasp_at = m_traj.points.size();
 
 	double grasp_time = profileAction(m_pregrasp_state, m_grasp_state);
 	double postgrasp_time = profileAction(m_grasp_state, m_postgrasp_state);
@@ -1102,6 +1103,7 @@ bool Robot::SatisfyPath(HighLevelNode* ct_node, Trajectory** sol_path, int& expa
 	expands += planner_stats["expansions"];
 	min_f = std::min(min_f, (int)planner_stats["min f val"]);
 
+	m_grasp_at = grasp_at;
 	auto extract_start_time = m_traj.points.back().time_from_start;
 	for (size_t i = 0; i < res_r.trajectory.joint_trajectory.points.size(); ++i)
 	{
