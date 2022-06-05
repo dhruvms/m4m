@@ -48,6 +48,7 @@ robot:
   semi_minor: 0.05
   speed: 0.1
   interpolate: false
+  runs: 3
 
 mapf:
   res: 0.01

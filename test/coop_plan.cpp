@@ -64,8 +64,13 @@ int main(int argc, char** argv)
 			auto found = planfile.find_last_of("/\\");
 			planfile = planfile.substr(0, found + 1) + "../../../../simplan/src/simplan/data/clutter_scenes/";
 			planfile += level + "/plan_" + line + "_SCENE.txt";
-			ROS_WARN("Run planner on: %s", planfile.c_str());
 
+			int runs;
+			ph.getParam("robot/runs", runs);
+			ROS_WARN("Run planner %d times on: %s", runs, planfile.c_str());
+
+for (int i = 0; i < runs; ++i)
+{
 			Planner p;
 			bool ycb;
 			ph.getParam("objects/ycb", ycb);
@@ -123,6 +128,7 @@ int main(int argc, char** argv)
 			if (SAVE) {
 				p.SaveData();
 			}
+}
 		}
 	}
 	else
