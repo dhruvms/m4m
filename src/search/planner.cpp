@@ -397,6 +397,29 @@ bool Planner::Rearrange()
 	{
 		SMPL_INFO("There were no conflicts to rearrange! WE ARE DONE!");
 		m_stats["push_planner_time"] += GetTime() - m_timer;
+
+		m_timer = GetTime();
+
+		std::vector<Object*> movable_obstacles;
+		for (const auto& a: m_agents) {
+			movable_obstacles.push_back(a->GetObject());
+		}
+
+		smpl::RobotState start_state = {};
+		if (!m_rearrangements.empty()) {
+			start_state = m_rearrangements.back().points.back().positions;
+		}
+
+		m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
+		// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
+		if (!m_robot->PlanRetrieval(movable_obstacles, false, start_state))	{
+			return false;
+		}
+		m_robot->ProcessObstacles({ m_ooi->GetObject() });
+		m_exec = m_robot->GetLastPlanProfiled();
+
+		m_stats["robot_planner_time"] += GetTime() - m_timer;
+
 		return false;
 	}
 
