@@ -27,10 +27,9 @@ int main(int argc, char** argv)
 	ros::Duration(1.0).sleep();
 
 	// read from NONE file
-	std::string filename(__FILE__), results(__FILE__);
+	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../dat/FIRST.txt";
-	results = results.substr(0, found + 1) + "../dat/RESULTS.csv";
+	filename = filename.substr(0, found + 1) + "../dat/SAMPLING.txt";
 
 	std::ifstream NONE;
 	NONE.open(filename);

@@ -75,3 +75,15 @@ objects:
   num_immov: 5
   num_mov: 5
   ycb: false
+
+sampling:
+  samples: 25000
+  steps: 50
+  gbias: 0.05
+  gthresh: 0.0174533 # 1 radian
+  timeout: 120.0
+  planner: 2 # 0: RRT, 1: RRT*, 2: TCRRT
+  tcrrt:
+    mode: 1
+    I: 1000
+    J: 100

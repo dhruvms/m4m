@@ -17,7 +17,7 @@ public:
 	bool ExtractTraj(trajectory_msgs::JointTrajectory& exec_traj) override;
 	bool FoundGoal() {
 		return m_goal_nodes > 0;
-	}
+	};
 
 protected:
 	int m_N, m_steps;

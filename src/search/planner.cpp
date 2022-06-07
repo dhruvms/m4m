@@ -6,6 +6,7 @@
 #include <pushplan/sampling/sampling_planner.hpp>
 #include <pushplan/sampling/rrt.hpp>
 #include <pushplan/sampling/rrtstar.hpp>
+#include <pushplan/sampling/tcrrt.hpp>
 #include <pushplan/utils/constants.hpp>
 #include <pushplan/utils/geometry.hpp>
 #include <pushplan/utils/helpers.hpp>
@@ -223,7 +224,58 @@ bool Planner::FinalisePlan()
 
 bool Planner::RunRRT()
 {
-	m_sampling_planner = std::make_shared<sampling::RRT>();
+	int samples, steps, planner;
+	double gbias, gthresh, timeout;
+
+	m_ph.getParam("sampling/samples", samples);
+	m_ph.getParam("sampling/steps", steps);
+	m_ph.getParam("sampling/gbias", gbias);
+	m_ph.getParam("sampling/gthresh", gthresh);
+	m_ph.getParam("sampling/timeout", timeout);
+	m_ph.getParam("sampling/planner", planner);
+
+	switch (planner)
+	{
+		case 0:
+		{
+			m_sampling_planner = std::make_shared<sampling::RRT>(
+				samples, steps, gbias, gthresh, timeout);
+			SMPL_INFO("Run RRT");
+			break;
+		}
+		case 1:
+		{
+			m_sampling_planner = std::make_shared<sampling::RRTStar>(
+				samples, steps, gbias, gthresh, timeout);
+			SMPL_INFO("Run RRTStar");
+			break;
+		}
+		case 2:
+		{
+			int mode, I, J;
+			m_ph.getParam("sampling/tcrrt/mode", mode);
+			m_ph.getParam("sampling/tcrrt/I", I);
+			m_ph.getParam("sampling/tcrrt/J", J);
+
+			m_sampling_planner = std::make_shared<sampling::TCRRT>(
+				samples, steps, gbias, gthresh, timeout, mode, I, J);
+			SMPL_INFO("Run TCRRT");
+
+			smpl::RobotState pregrasp_state;
+			Eigen::Affine3d pregrasp_pose;
+			m_robot->GetPregraspState(pregrasp_state);
+			m_robot->ComputeFK(pregrasp_state, pregrasp_pose);
+			m_robot->VizPlane(pregrasp_pose.translation().z());
+			m_sampling_planner->SetConstraintHeight(pregrasp_pose.translation().z());
+			break;
+		}
+		default:
+		{
+			SMPL_ERROR("Unsupported sampling planner!");
+			return false;
+		}
+	}
+
 	m_sampling_planner->SetRobot(m_robot);
 	m_sampling_planner->SetRobotGoalCallback(std::bind(&Robot::GetPregraspState, m_robot.get(), std::placeholders::_1));
 
@@ -244,7 +296,7 @@ bool Planner::RunRRT()
 
 	bool plan_success = m_sampling_planner->Solve();
 	bool exec_success = false;
-	if (plan_success)
+	// if (plan_success)
 	{
 		m_sampling_planner->ExtractTraj(m_exec);
 		exec_success = m_sim->ExecTraj(m_exec, start_objects);
