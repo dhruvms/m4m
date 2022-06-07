@@ -175,6 +175,17 @@ public:
 		state = m_postgrasp_state;
 	}
 
+	void ComputeFK(const smpl::RobotState& q, Eigen::Affine3d& ee_pose) {
+		ee_pose = m_rm->computeFK(q);
+	}
+	void ComputeJacobian(const smpl::RobotState& q, Eigen::MatrixXd& Jq) {
+		m_rm->computeJacobian(q, Jq);
+	}
+
+	void RunManipulabilityStudy(int N=1000);
+	void RunPushIKStudy(int N=25);
+	void VizPlane(double z);
+
 private:
 	int m_id;
 	ros::NodeHandle m_nh, m_ph;
@@ -241,7 +252,8 @@ private:
 	bool planToPoseGoal(
 		const moveit_msgs::RobotState& start_state,
 		const Eigen::Affine3d& pose_goal,
-		trajectory_msgs::JointTrajectory& push_traj);
+		trajectory_msgs::JointTrajectory& push_traj,
+		double t=0.1);
 	bool computePushAction(
 		const double time_start,
 		const smpl::RobotState& jnt_positions,

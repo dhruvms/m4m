@@ -49,6 +49,9 @@ robot:
   speed: 0.1
   interpolate: false
   runs: 3
+  study: 1
+  yoshikawa_tries: 10
+  push_ik_yaws: 50
 
 mapf:
   res: 0.01

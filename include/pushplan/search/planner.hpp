@@ -44,6 +44,7 @@ public:
 	bool TryExtract();
 	void AnimateSolution();
 	bool RunRRT();
+	void RunStudy(int study);
 
 	Agent* GetAgent(const int& id) {
 		assert(id > 0); // 0 is robot

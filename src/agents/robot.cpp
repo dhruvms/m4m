@@ -344,7 +344,7 @@ bool Robot::SetScene(const comms::ObjectsPoses& objects)
 		Eigen::Affine3d pose = Eigen::Translation3d(object.xyz[0], object.xyz[1], object.xyz[2]) *
 			Eigen::AngleAxisd(object.rpy[2], Eigen::Vector3d::UnitZ()) *
 			Eigen::AngleAxisd(object.rpy[1], Eigen::Vector3d::UnitY()) *
-			Eigen::AngleAxisd(object.rpy[0], Eigen::Vector3d::UnitX());;
+			Eigen::AngleAxisd(object.rpy[0], Eigen::Vector3d::UnitX());
 
 		if (cc_object->shape_poses[0].translation() == pose.translation()
 			&& cc_object->shape_poses[0].rotation() == pose.rotation()) {
@@ -359,7 +359,9 @@ bool Robot::SetScene(const comms::ObjectsPoses& objects)
 		}
 	}
 
-	SV_SHOW_INFO(m_cc_m->getCollisionWorldVisualization());
+	// if (!objects.poses.empty()) {
+	// 	SV_SHOW_INFO(m_cc_m->getCollisionWorldVisualization());
+	// }
 	return true;
 }
 
@@ -442,6 +444,13 @@ bool Robot::SteerAction(
 		result |= 0x00000004;
 		// there was no need to simulate
 		// if result is 5: full action, 6: partial action
+
+		// auto markers = m_cc_i->getCollisionRobotVisualization(action_end);
+		// for (auto& m : markers.markers) {
+		// 	m.ns = "rrt_state";
+		// }
+		// SV_SHOW_INFO(markers);
+
 		return true;
 	}
 	else
@@ -1277,7 +1286,8 @@ bool Robot::InitArmPlanner(bool interp)
 bool Robot::planToPoseGoal(
 	const moveit_msgs::RobotState& start_state,
 	const Eigen::Affine3d& pose_goal,
-	trajectory_msgs::JointTrajectory& push_traj)
+	trajectory_msgs::JointTrajectory& push_traj,
+	double t)
 {
 	// create planning problem to push start pose
 	InitArmPlanner(false);
@@ -1286,7 +1296,7 @@ bool Robot::planToPoseGoal(
 	moveit_msgs::MotionPlanResponse res;
 
 	createPoseGoalConstraint(pose_goal, req);
-	req.allowed_planning_time = 0.1;
+	req.allowed_planning_time = t;
 	req.max_acceleration_scaling_factor = 1.0;
 	req.max_velocity_scaling_factor = 1.0;
 	req.num_planning_attempts = 1;
@@ -3041,6 +3051,261 @@ void Robot::displayObjectMarker(const Object& object)
 	marker.scale.y = 2 * object.desc.y_size;
 	marker.scale.z = 2 * object.desc.z_size;
 	marker.scale.z /= object.Shape() == 2 ? 2.0 : 1.0;
+
+	marker.color.a = 0.5; // Don't forget to set the alpha!
+	marker.color.r = 0.86;
+	marker.color.g = 0.34;
+	marker.color.b = 0.16;
+
+	m_vis_pub.publish(marker);
+}
+
+void Robot::RunManipulabilityStudy(int N)
+{
+	double ox, oy, oz, sx, sy, sz;
+	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
+
+	moveit_msgs::RobotState start = m_start_state;
+	smpl::RobotState start_state, end_state;
+	Eigen::Affine3d goal;
+	trajectory_msgs::JointTrajectory path;
+	Eigen::MatrixXd J, Jprod;
+
+	for (double z = 0.03; z < 0.08; z += 0.02)
+	{
+		std::string filename(__FILE__);
+		auto found = filename.find_last_of("/\\");
+		filename = filename.substr(0, found + 1) + "../../dat/MANIPULABILITY_";
+		filename += std::to_string(int(z * 100)) + "cm.csv";
+
+		bool exists = FileExists(filename);
+		std::ofstream DATA;
+		DATA.open(filename, std::ofstream::out | std::ofstream::app);
+		if (!exists)
+		{
+			DATA << "x,y,manipulability,success\n";
+		}
+
+		for (double x = ox; x <= ox + sx; x += 0.05)
+		{
+			for (double y = oy; y <= oy + sy; y += 0.05)
+			{
+				double manipulability = std::numeric_limits<double>::lowest();
+				int plans = 0;
+				for (int t = 0; t < N; ++t)
+				{
+					// random start state
+					while (true)
+					{
+						GetRandomState(start_state);
+						if (!m_rm->checkJointLimits(start_state)) {
+							continue;
+						}
+
+						auto ee_pose = m_rm->computeFK(start_state);
+						double eex = ee_pose.translation().x();
+						double eey = ee_pose.translation().y();
+						double eez = ee_pose.translation().z();
+						if (eex <= ox - 0.05 || eex >= ox + sx + 0.05
+							|| eey <= oy - 0.05 || eey >= oy + sy + 0.05
+							|| eez <= oz - 0.05 || eez >= oz + sz + 0.05) {
+							continue;
+						}
+
+						if (!m_cc_i->isStateValid(start_state)) {
+							continue;
+						}
+
+						break;
+					}
+					start.joint_state.position.erase(
+						start.joint_state.position.begin() + 1,
+						start.joint_state.position.begin() + 1 + start_state.size());
+					start.joint_state.position.insert(
+						start.joint_state.position.begin() + 1,
+						start_state.begin(), start_state.end());
+
+					// goal xyz
+					goal = Eigen::Translation3d(x, y, z + oz) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
+
+					if (planToPoseGoal(start, goal, path, 0.2))
+					{
+						++plans;
+
+						end_state = path.points.back().positions;
+						m_rm->computeJacobian(end_state, J);
+						Jprod = J * J.transpose();
+
+						double w = std::sqrt(Jprod.determinant());
+						if (w > manipulability) {
+							manipulability = w;
+						}
+					}
+				}
+
+				double success = 100.0 * (plans/(double)N);
+				DATA << x << ',' << y << ',' << manipulability << ',' << success << '\n';
+			}
+		}
+
+		DATA.close();
+	}
+}
+
+void Robot::RunPushIKStudy(int N)
+{
+	m_ph.param<double>("robot/pushing/control/Kp", m_Kp, 1.0);
+	m_ph.param<double>("robot/pushing/control/Ki", m_Ki, 1.0);
+	m_ph.param<double>("robot/pushing/control/Kd", m_Kd, 1.0);
+	m_ph.param<double>("robot/pushing/control/dt", m_dt, 0.01);
+	m_ph.param<int>("robot/pushing/control/iters", m_invvel_iters, 1000);
+
+	double ox, oy, oz, sx, sy, sz;
+	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
+
+	moveit_msgs::RobotState start = m_start_state;
+	smpl::RobotState start_state, end_state;
+	Eigen::Affine3d goal;
+	trajectory_msgs::JointTrajectory path;
+	Eigen::MatrixXd J, Jprod;
+
+	for (double z = 0.03; z < 0.08; z += 0.02)
+	{
+		std::string filename(__FILE__);
+		auto found = filename.find_last_of("/\\");
+		filename = filename.substr(0, found + 1) + "../../dat/PUSHES_IK_";
+		filename += std::to_string(int(z * 100)) + "cm.csv";
+
+		bool exists = FileExists(filename);
+		std::ofstream DATA;
+		DATA.open(filename, std::ofstream::out | std::ofstream::app);
+		if (!exists)
+		{
+			DATA << "x0,y0,yaw0,x1,y1,result\n";
+		}
+
+		for (double x0 = ox; x0 <= ox + sx - 0.02; x0 += 0.05)
+		{
+			for (double y0 = oy + 0.02; y0 <= oy + sy; y0 += 0.05)
+			{
+				for (int t = 0; t < N; ++t)
+				{
+					// 1. random start state
+					while (true)
+					{
+						GetRandomState(start_state);
+						if (!m_rm->checkJointLimits(start_state)) {
+							continue;
+						}
+
+						auto ee_pose = m_rm->computeFK(start_state);
+						double eex = ee_pose.translation().x();
+						double eey = ee_pose.translation().y();
+						double eez = ee_pose.translation().z();
+						if (eex <= ox - 0.05 || eex >= ox + sx + 0.05
+							|| eey <= oy - 0.05 || eey >= oy + sy + 0.05
+							|| eez <= oz - 0.05 || eez >= oz + sz + 0.05) {
+							continue;
+						}
+
+						if (!m_cc_i->isStateValid(start_state)) {
+							continue;
+						}
+
+						break;
+					}
+					start.joint_state.position.erase(
+						start.joint_state.position.begin() + 1,
+						start.joint_state.position.begin() + 1 + start_state.size());
+					start.joint_state.position.insert(
+						start.joint_state.position.begin() + 1,
+						start_state.begin(), start_state.end());
+
+					// 2. random ee yaw at push start pose
+					double yaw0 = m_distD(m_rng) * M_PI * 2;
+					yaw0 = smpl::angles::normalize_angle(yaw0);
+
+					// 3. random push start pose
+					goal = Eigen::Translation3d(x0, y0, z + oz) *
+						Eigen::AngleAxisd(yaw0, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
+
+					// 4. find path to push start
+					if (planToPoseGoal(start, goal, path, 0.2))
+					{
+						// 5. compute push end pose (x, y) coordinates
+						double x1, y1, dist;
+						do
+						{
+							x1 = ox + 0.01 + (m_distD(m_rng) * (sx - 0.02));
+							y1 = oy + 0.01 + (m_distD(m_rng) * (sy - 0.02));
+							dist = std::sqrt(std::pow(x0 - x1, 2) + std::pow(y0 - y1, 2));
+						} while (dist >= sy/2.0);
+
+						// set push end pose
+						goal = m_rm->computeFK(path.points.back().positions);
+						goal.translation().x() = x1;
+						goal.translation().y() = y1;
+						SV_SHOW_INFO_NAMED("push_end_pose", smpl::visual::MakePoseMarkers(
+								goal, m_grid_i->getReferenceFrame(), "push_end_pose"));
+
+						// get push action trajectory via inverse velocity
+						trajectory_msgs::JointTrajectory push_action;
+						smpl::RobotState joint_vel(m_rm->jointVariableCount(), 0.0);
+						int failure = 0;
+						if (computePushAction(
+								path.points.back().time_from_start.toSec(),
+								path.points.back().positions,
+								joint_vel,
+								goal,
+								push_action, failure))
+						{
+							DATA << x0 << ',' << y0 << ',' << yaw0 << ','
+								<< x1 << ',' << y1 << ',' << 4 << '\n';
+						}
+						else
+						{
+							DATA << x0 << ',' << y0 << ',' << yaw0 << ','
+								<< x1 << ',' << y1 << ',' << failure << '\n';
+						}
+					}
+					else
+					{
+						DATA << x0 << ',' << y0 << ',' << yaw0 << ','
+								<< -1 << ',' << -1 << ',' << 0 << '\n';
+					}
+				}
+			}
+		}
+
+		DATA.close();
+	}
+}
+
+void Robot::VizPlane(double z)
+{
+	double ox, oy, oz, sx, sy, sz;
+	m_sim->GetShelfParams(ox, oy, oz, sx, sy, sz);
+
+	visualization_msgs::Marker marker;
+	marker.header.frame_id = "base_footprint";
+	marker.header.stamp = ros::Time();
+	marker.ns = "constraint_plane";
+	marker.id = 0;
+	marker.action = visualization_msgs::Marker::ADD;
+	marker.type = visualization_msgs::Marker::CUBE;
+
+	marker.pose.position.x = ox + sx/2.0;
+	marker.pose.position.y = oy + sy/2.0;
+	marker.pose.position.z = z;
+
+	marker.scale.x = 2.0 * sx;
+	marker.scale.y = 2.0 * sy;
+	marker.scale.z = 0.01;
 
 	marker.color.a = 0.5; // Don't forget to set the alpha!
 	marker.color.r = 0.86;

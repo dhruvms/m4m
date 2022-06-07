@@ -46,6 +46,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	m_robot = std::make_shared<Robot>();
 	m_robot->SetID(0);
+	m_robot->SetSim(m_sim);
 
 	m_stats["robot_planner_time"] = 0.0;
 	m_stats["push_planner_time"] = 0.0;
@@ -73,50 +74,50 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	// create collision checker
 	m_cc = std::make_shared<CollisionChecker>(this, all_obstacles);
 
-	// Get OOI goal
-	m_ooi_gf = m_cc->GetRandomStateOutside(m_ooi->GetFCLObject());
-	ContToDisc(m_ooi_gf, m_ooi_g);
-	m_cc->AddObstacle(m_ooi->GetObject());
-
-	m_robot->SetSim(m_sim);
 	m_robot->SetCC(m_cc);
-	m_ooi->SetCC(m_cc);
 	for (auto& a: m_agents) {
 		a->SetCC(m_cc);
 	}
-
 	if (!m_robot->Setup())
 	{
 		SMPL_ERROR("Robot setup failed!");
 		return false;
 	}
-
 	if (!m_robot->ProcessObstacles(all_obstacles))
 	{
 		SMPL_ERROR("Robot collision space setup failed!");
 		return false;
 	}
 	all_obstacles.clear();
-	m_robot->SetOOI(m_ooi->GetObject());
-	// m_robot->SetMovables(m_agents);
 
-	// Compute robot grasping states and plan path through them
-	int t = 0, grasp_tries;
-	m_ph.getParam("robot/grasping/tries", grasp_tries);
-	m_timer = GetTime();
-	for (; t < grasp_tries; ++t)
+	// Ready OOI
+	if (m_ooi->Set())
 	{
-		if (m_robot->ComputeGrasps(m_goal)) {
-			if (SetupNGR()) {
-				break;
+		m_ooi_gf = m_cc->GetRandomStateOutside(m_ooi->GetFCLObject());
+		ContToDisc(m_ooi_gf, m_ooi_g);
+		m_cc->AddObstacle(m_ooi->GetObject());
+		m_ooi->SetCC(m_cc);
+		m_robot->SetOOI(m_ooi->GetObject());
+		// m_robot->SetMovables(m_agents);
+
+		// Compute robot grasping states and plan path through them
+		int t = 0, grasp_tries;
+		m_ph.getParam("robot/grasping/tries", grasp_tries);
+		m_timer = GetTime();
+		for (; t < grasp_tries; ++t)
+		{
+			if (m_robot->ComputeGrasps(m_goal)) {
+				if (SetupNGR()) {
+					break;
+				}
 			}
 		}
-	}
-	m_stats["robot_planner_time"] += GetTime() - m_timer;
-	if (t == grasp_tries)
-	{
-		SMPL_ERROR("Robot failed to compute grasp states!");
-		return false;
+		m_stats["robot_planner_time"] += GetTime() - m_timer;
+		if (t == grasp_tries)
+		{
+			SMPL_ERROR("Robot failed to compute grasp states!");
+			return false;
+		}
 	}
 	m_robot->VizCC();
 
@@ -282,6 +283,20 @@ bool Planner::RunRRT()
 	return false;
 }
 
+void Planner::RunStudy(int study)
+{
+	int N;
+	if (study == 0)
+	{
+		m_ph.getParam("robot/yoshikawa_tries", N);
+		m_robot->RunManipulabilityStudy(N);
+	}
+	else if (study == 1)
+	{
+		m_ph.getParam("robot/push_ik_yaws", N);
+		m_robot->RunPushIKStudy(N);
+	}
+}
 
 bool Planner::createCBS()
 {

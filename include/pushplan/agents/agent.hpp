@@ -30,8 +30,8 @@ struct Eigen_Vector3d_compare
 class Agent
 {
 public:
-	Agent() : m_ph("~") {};
-	Agent(const Object& o) : m_ph("~")
+	Agent() : m_ph("~"), m_set(false) {};
+	Agent(const Object& o) : m_ph("~"), m_set(true)
 	{
 		m_obj = o;
 		m_obj_desc = o.desc;
@@ -40,6 +40,7 @@ public:
 	{
 		m_obj = o;
 		m_obj_desc = o.desc;
+		m_set = true;
 	}
 
 	bool ResetObject();
@@ -99,6 +100,8 @@ public:
 	Coord Goal() const { return m_goal; };
 	auto InitState() const -> const LatticeState& { return m_init; };
 
+	bool Set() { return m_set; };
+
 private:
 	ros::NodeHandle m_ph;
 	Object m_obj;
@@ -106,6 +109,7 @@ private:
 	LatticeState m_init;
 	Coord m_goal;
 	Trajectory m_solve;
+	bool m_set;
 
 	std::unique_ptr<AgentLattice> m_lattice;
 	std::string m_planning_frame;

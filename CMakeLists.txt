@@ -67,3 +67,6 @@ target_link_libraries(coop_plan ${catkin_LIBRARIES} smpl::smpl PUSHPLAN)
 
 add_executable(sampling test/sampling.cpp)
 target_link_libraries(sampling ${catkin_LIBRARIES} smpl::smpl PUSHPLAN)
+
+add_executable(study test/study.cpp)
+target_link_libraries(study ${catkin_LIBRARIES} smpl::smpl PUSHPLAN)
