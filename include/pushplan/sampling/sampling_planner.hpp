@@ -101,6 +101,8 @@ protected:
 	virtual void addEdge(const Vertex_t& from, const Vertex_t& to);
 
 	double configDistance(const smpl::RobotState& s1, const smpl::RobotState& s2);
+	bool poseWithinTolerance(const smpl::RobotState& s, double xyz_tolerance, double rpy_tolerance);
+	double poseGoalDistance(const smpl::RobotState& s);
 };
 
 } // namespace sampling

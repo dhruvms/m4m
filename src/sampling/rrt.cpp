@@ -40,6 +40,7 @@ bool RRT::Solve()
 	m_stats["first_soln_time"] = 0.0;
 	m_stats["goal_samples"] = 0.0;
 	m_stats["random_samples"] = 0.0;
+	m_stats["goal_nodes"] = 0.0;
 
 	addNode(m_start, m_start_v);
 
@@ -83,18 +84,15 @@ bool RRT::Solve()
 		}
 		else
 		{
-			if (try_goal)
+			Node* xnew = m_G[tree_v];
+			if ((try_goal && result == 1000) || poseWithinTolerance(xnew->robot_state(), 0.01, m_gthresh))
 			{
-				Node* xnew = m_G[tree_v];
-				if (result == 1000 || configDistance(qrand, xnew->robot_state()) < m_gthresh)
+				++m_goal_nodes;
+				SMPL_DEBUG("Added a node close to the goal to the tree!");
+				if (m_stats["first_goal"] < 0)
 				{
-					++m_goal_nodes;
-					SMPL_DEBUG("Added a node close to the goal to the tree!");
-					if (m_stats["first_goal"] < 0)
-					{
-						m_stats["first_goal"] = i;
-						m_stats["first_soln_time"] = GetTime() - start_time;
-					}
+					m_stats["first_goal"] = i;
+					m_stats["first_soln_time"] = GetTime() - start_time;
 				}
 			}
 
@@ -113,8 +111,9 @@ bool RRT::Solve()
 
 	m_stats["vertices"] = (double)boost::num_vertices(m_G);
 	m_stats["plan_time"] = GetTime() - start_time;
+	m_stats["goal_nodes"] = m_goal_nodes;
 
-	SMPL_DEBUG("Goal samples: %d, Random samples: %d", m_stats["goal_samples"], m_stats["random_samples"]);
+	SMPL_INFO("Goal samples: %f, Random samples: %f | Goal nodes: %d", m_stats["goal_samples"], m_stats["random_samples"], m_goal_nodes);
 	return m_goal_nodes > 0;
 }
 
@@ -122,15 +121,30 @@ bool RRT::ExtractPath(std::vector<smpl::RobotState>& path)
 {
 	path.clear();
 
-	// get goal state in robot configuration space
-	smpl::RobotState goal_state;
-	m_goal_fn(goal_state);
-
 	// get tree vertex closest to goal state
-	Vertex_t current_v, parent_v;
-	selectVertex(goal_state, current_v);
-	path.insert(path.begin(), m_G[current_v]->robot_state());
+	Graph_t::vertex_iterator vit_begin, vit_end;
+	std::tie(vit_begin, vit_end) = boost::vertices(m_G);
 
+	double best_dist = std::numeric_limits<double>::infinity();
+	Vertex_t current_v, parent_v;
+
+	if (boost::num_vertices(m_G) == 0) {
+		SMPL_ERROR("Graph empty!");
+		return false;
+	}
+	for (Graph_t::vertex_iterator it = vit_begin; it != vit_end; ++it)
+	{
+		double dist = poseGoalDistance(m_G[*it]->robot_state());
+		if (dist < best_dist)
+		{
+			best_dist = dist;
+			current_v = *it;
+		}
+	}
+	SMPL_INFO("Extracting path to node with (best) goal distance = %f", best_dist);
+
+	// get path
+	path.insert(path.begin(), m_G[current_v]->robot_state());
 	while (current_v != m_start_v)
 	{
 		if (boost::in_degree(current_v, m_G) != 1)

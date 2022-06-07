@@ -73,5 +73,46 @@ double SamplingPlanner::configDistance(const smpl::RobotState& s1, const smpl::R
 	return dist;
 }
 
+bool SamplingPlanner::poseWithinTolerance(const smpl::RobotState& s, double xyz_tolerance, double rpy_tolerance)
+{
+	Eigen::Affine3d s_pose;
+	m_robot->ComputeFK(s, s_pose);
+
+	auto dx = std::fabs(s_pose.translation()[0] - m_goal_pose.translation()[0]);
+	auto dy = std::fabs(s_pose.translation()[1] - m_goal_pose.translation()[1]);
+	auto dz = std::fabs(s_pose.translation()[2] - m_goal_pose.translation()[2]);
+
+	Eigen::Quaterniond qg(m_goal_pose.rotation());
+	Eigen::Quaterniond q(s_pose.rotation());
+	if (q.dot(qg) < 0.0) {
+		qg = Eigen::Quaterniond(-qg.w(), -qg.x(), -qg.y(), -qg.z());
+	}
+
+	auto theta = smpl::angles::normalize_angle(2.0 * std::acos(q.dot(qg)));
+
+	return dx <= xyz_tolerance && dy <= xyz_tolerance && dz <= xyz_tolerance && theta < rpy_tolerance;
+}
+
+double SamplingPlanner::poseGoalDistance(const smpl::RobotState& s)
+{
+	Eigen::Affine3d s_pose;
+	m_robot->ComputeFK(s, s_pose);
+
+	Eigen::Vector4d dist;
+	dist(0) = std::fabs(s_pose.translation()[0] - m_goal_pose.translation()[0]);
+	dist(1) = std::fabs(s_pose.translation()[1] - m_goal_pose.translation()[1]);
+	dist(2) = std::fabs(s_pose.translation()[2] - m_goal_pose.translation()[2]);
+
+	Eigen::Quaterniond qg(m_goal_pose.rotation());
+	Eigen::Quaterniond q(s_pose.rotation());
+	if (q.dot(qg) < 0.0) {
+		qg = Eigen::Quaterniond(-qg.w(), -qg.x(), -qg.y(), -qg.z());
+	}
+
+	dist(3) = smpl::angles::normalize_angle(2.0 * std::acos(q.dot(qg)));
+
+	return dist.norm();
+}
+
 } // namespace sampling
 } // namespace clutter
