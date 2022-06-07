@@ -253,6 +253,14 @@ bool setupSim(BulletSim* sim, const sensor_msgs::JointState& state, const int& a
 	return true;
 }
 
+template <typename Mat_t>
+Mat_t MoorePenrosePInv(const Mat_t& mat, double epsilon=std::numeric_limits<double>::epsilon())
+{
+	Eigen::JacobiSVD<Mat_t> svd(mat, Eigen::ComputeThinU | Eigen::ComputeThinV);
+	double tolerance = epsilon * std::max(mat.cols(), mat.rows()) * svd.singularValues().array().abs()(0);
+	return svd.matrixV() * (svd.singularValues().array().abs() > tolerance).select(svd.singularValues().array().inverse(), 0).matrix().asDiagonal() * svd.matrixU().adjoint();
+}
+
 }
 
 #endif // HELPERS_HPP

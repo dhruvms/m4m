@@ -27,8 +27,10 @@ class SamplingPlanner
 public:
 	SamplingPlanner() :
 	m_start(nullptr), m_goal(nullptr), m_rng(m_dev()),
-	m_goal_nodes(0) {
+	m_goal_nodes(0)
+	{
 		m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
+		m_distG = std::normal_distribution<>(0.0, 1.0);
 	};
 
 	virtual void SetStartState(
@@ -43,13 +45,20 @@ public:
 
 	void SetRobot(const std::shared_ptr<Robot>& robot) {
 		m_robot = robot;
-	}
-	void SetRobotGoalCallback(std::function<void(smpl::RobotState&)> callback) {
+	};
+	void SetRobotGoalCallback(std::function<void(smpl::RobotState&)> callback)
+	{
 		m_goal_fn = callback;
-	}
+
+		m_goal_fn(m_goal_state);
+		m_robot->ComputeFK(m_goal_state, m_goal_pose);
+	};
 	auto GetStats() const -> const std::map<std::string, double>& {
 		return m_stats;
-	}
+	};
+
+	virtual void SetMode(int mode) {};
+	virtual void SetConstraintHeight(double z) {};
 
 protected:
 	typedef boost::adjacency_list<
@@ -70,7 +79,10 @@ protected:
 	std::random_device m_dev;
 	std::mt19937 m_rng;
 	std::uniform_real_distribution<double> m_distD;
+	std::normal_distribution<> m_distG;
 
+	smpl::RobotState m_goal_state;
+	Eigen::Affine3d m_goal_pose;
 	std::function<void(smpl::RobotState&)> m_goal_fn;
 	int m_goal_nodes;
 	std::map<std::string, double> m_stats;

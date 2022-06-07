@@ -54,6 +54,7 @@ add_library(
 	src/sampling/sampling_planner.cpp
 	src/sampling/rrt.cpp
 	src/sampling/rrtstar.cpp
+	src/sampling/tcrrt.cpp
 	src/utils/collision_checker.cpp
 	src/agents/object.cpp
 	src/agents/agent_lattice.cpp
