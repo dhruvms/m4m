@@ -4,13 +4,18 @@ from matplotlib.path import Path
 import matplotlib.patches as patches
 
 import os
+import sys
 import collections
 
+def onclick(event):
+	print('(%f, %f)' % (event.xdata, event.ydata))
+
 FIG, AX = plt.subplots(figsize=(13, 13))
+cid = FIG.canvas.mpl_connect('button_press_event', onclick)
 FRIDGE = True
 RES = 0.01
 
-def ParseFile(filepath):
+def ParseFile(filepath, saving=True):
 	objs = {}
 	trajs = {}
 	ngr = []
@@ -26,7 +31,7 @@ def ParseFile(filepath):
 
 			if line == 'O':
 				line = f.readline()[:-1]
-				num_objs = int(line) - 3
+				num_objs = int(line) - 3 * saving
 				for i in range(num_objs):
 					line = f.readline()[:-1]
 					obj = [float(val) for val in line.split(',')[:-1]]
@@ -39,11 +44,12 @@ def ParseFile(filepath):
 
 			if line == 'G':
 				line = f.readline()[:-1]
-				num_pts = int(line)
-				for i in range(num_pts):
-					line = f.readline()[:-1]
-					pt = [float(val) for val in line.split(',')]
-					goals.append(pt)
+				if len(line) == 1:
+					num_pts = int(line)
+					for i in range(num_pts):
+						line = f.readline()[:-1]
+						pt = [float(val) for val in line.split(',')]
+						goals.append(pt)
 
 			if line == 'T':
 				line = f.readline()[:-1]
@@ -219,5 +225,25 @@ def main():
 			objs, trajs, ngr, goals, pushes = ParseFile(filepath)
 			DrawScene(filepath, objs, trajs, ngr, goals, pushes)
 
+def click_push(scene_id):
+	filename = '../../../../simplan/src/simplan/data/clutter_scenes/'
+
+	level = ''
+	if (scene_id < 100000):
+		level = '0'
+	elif (scene_id < 200000):
+		level = '5'
+	elif (scene_id < 300000):
+		level = '10'
+	else:
+		level = '15'
+
+	filename += level + '/plan_' + str(scene_id) + '_SCENE.txt'
+	objs, trajs, ngr, goals, pushes = ParseFile(filename, False)
+	DrawScene(filename, objs, trajs, ngr, goals, pushes)
+
 if __name__ == '__main__':
 	main()
+
+	# scene_id = int(sys.argv[1])
+	# click_push(scene_id)
