@@ -249,7 +249,8 @@ private:
 
 	void getPushStartPose(
 		const std::vector<double>& push,
-		Eigen::Affine3d& push_pose);
+		Eigen::Affine3d& push_pose,
+		bool input);
 	bool planToPoseGoal(
 		const moveit_msgs::RobotState& start_state,
 		const Eigen::Affine3d& pose_goal,

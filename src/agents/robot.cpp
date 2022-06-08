@@ -1517,7 +1517,7 @@ bool Robot::PlanPush(
 
 		// get push start pose
 		Eigen::Affine3d push_start_pose, push_end_pose;
-		getPushStartPose(push, push_start_pose);
+		getPushStartPose(push, push_start_pose, input);
 		if (m_grid_i->getDistanceFromPoint(
 			push_start_pose.translation().x(),
 			push_start_pose.translation().y(),
@@ -1790,7 +1790,8 @@ State Robot::GetEEState(const State& state)
 
 void Robot::getPushStartPose(
 	const std::vector<double>& push,
-	Eigen::Affine3d& push_pose)
+	Eigen::Affine3d& push_pose,
+	bool input)
 {
 	// sample robot link
 	int link = 1; // std::floor(m_distD(m_rng) * (m_robot_config.push_links.size() + 1));
@@ -1800,8 +1801,13 @@ void Robot::getPushStartPose(
 	double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.03;
 
 	// (x, y) is randomly sampled near push start location
-	double x = push[0] + std::cos(push[2] + M_PI) * 0.05 + (m_distG(m_rng) * 0.025);
-	double y = push[1] + std::sin(push[2] + M_PI) * 0.05 + (m_distG(m_rng) * 0.025);
+	double x = push[0] + (m_distG(m_rng) * 0.025);
+	double y = push[1] + (m_distG(m_rng) * 0.025);
+	if (input)
+	{
+		x += std::cos(push[2] + M_PI) * 0.05;
+		y += std::sin(push[2] + M_PI) * 0.05;
+	}
 
 	push_pose = Eigen::Translation3d(x, y, z) *
 				Eigen::AngleAxisd(push[2], Eigen::Vector3d::UnitZ()) *
