@@ -1573,8 +1573,9 @@ bool Robot::PlanPush(
 				obj_traj->back().state.at(0) - push_end_pose.translation().x());
 
 		// compute push action end pose
-		push_end_pose.translation().x() += std::cos(push_at_angle) * push_dist;
-		push_end_pose.translation().y() += std::sin(push_at_angle) * push_dist;
+		double push_frac = m_distD(m_rng) * 0.5 + 0.5;
+		push_end_pose.translation().x() += std::cos(push_at_angle) * push_dist * push_frac + (m_distG(m_rng) * 0.025);
+		push_end_pose.translation().y() += std::sin(push_at_angle) * push_dist * push_frac + (m_distG(m_rng) * 0.025);
 		// SV_SHOW_INFO_NAMED("push_end_pose", smpl::visual::MakePoseMarkers(
 		// 	push_end_pose, m_grid_i->getReferenceFrame(), "push_end_pose"));
 
