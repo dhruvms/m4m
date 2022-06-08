@@ -65,6 +65,7 @@ bool Agent::Init(bool backwards)
 	// }
 	// createLatticeAndSearch(backwards);
 	createLatticeAndSearch(false);
+	m_input_push.clear();
 
 	return true;
 }
@@ -252,8 +253,33 @@ void Agent::VisualiseState(const LatticeState& s, const std::string& ns, int hue
 	SV_SHOW_INFO_NAMED(ns, markers);
 }
 
-bool Agent::GetSE2Push(std::vector<double>& push)
+bool Agent::GetSE2Push(std::vector<double>& push, bool input)
 {
+	if (input)
+	{
+		if (!m_input_push.empty())
+		{
+			double x, y;
+			SMPL_WARN("Please specify push (x, y) location");
+			std::cin >> x;
+			std::cin >> y;
+
+			m_input_push.push_back(x);
+			m_input_push.push_back(y);
+		}
+
+		push.clear();
+		push.resize(3, 0.0);
+		push[0] = m_input_push[0];
+		push[1] = m_input_push[1];
+
+		double move_dir = std::atan2(
+					m_solve.back().state.at(1) - m_solve.front().state.at(1),
+					m_solve.back().state.at(0) - m_solve.front().state.at(0));
+		push[2] = move_dir;
+		return true;
+	}
+
 	push.clear();
 	push.resize(4, 0.0);
 	double move_dir = std::atan2(

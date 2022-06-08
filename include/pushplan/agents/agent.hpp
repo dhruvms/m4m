@@ -75,7 +75,7 @@ public:
 		m_solve.clear();
 	}
 
-	bool GetSE2Push(std::vector<double>& push);
+	bool GetSE2Push(std::vector<double>& push, bool input=false);
 	int GetID() { return m_obj.desc.id; };
 
 	Object* GetObject() { return &m_obj; };
@@ -110,6 +110,7 @@ private:
 	Coord m_goal;
 	Trajectory m_solve;
 	bool m_set;
+	std::vector<double> m_input_push;
 
 	std::unique_ptr<AgentLattice> m_lattice;
 	std::string m_planning_frame;
