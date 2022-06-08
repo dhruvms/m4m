@@ -8,7 +8,7 @@ import sys
 import collections
 
 def onclick(event):
-	print('(%f, %f)' % (event.xdata, event.ydata))
+	print('(%f %f)' % (event.xdata, event.ydata))
 
 FIG, AX = plt.subplots(figsize=(13, 13))
 cid = FIG.canvas.mpl_connect('button_press_event', onclick)
@@ -204,8 +204,8 @@ def DrawScene(filepath, objs, trajs, ngr, goals, pushes, alpha=1.0):
 	AX.axis('equal')
 	AX.set_xlim([0.0, 1.2])
 	AX.set_ylim([-1.1, 0.0])
-	# plt.show()
 	plt.savefig(filepath.replace('txt', 'png'), bbox_inches='tight')
+	# plt.show()
 	plt.cla()
 
 def main():

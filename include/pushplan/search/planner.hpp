@@ -31,7 +31,7 @@ public:
 	Planner() : m_num_objs(-1), m_scene_id(-1),
 				m_ph("~"), m_replan(true),
 				m_plan_success(false), m_sim_success(false),
-				m_rng(m_dev()) {};
+				m_push_input(false), m_rng(m_dev()) {};
 	bool Init(const std::string& scene_file, int scene_id, bool ycb);
 	bool Alive();
 	bool SetupNGR();
@@ -82,7 +82,7 @@ private:
 	std::shared_ptr<BulletSim> m_sim;
 	std::shared_ptr<CBS> m_cbs;
 	std::shared_ptr<sampling::SamplingPlanner> m_sampling_planner;
-	bool m_replan, m_plan_success, m_sim_success;
+	bool m_replan, m_plan_success, m_sim_success, m_push_input;
 
 	int m_num_objs, m_scene_id;
 	std::vector<std::shared_ptr<Agent> > m_agents;

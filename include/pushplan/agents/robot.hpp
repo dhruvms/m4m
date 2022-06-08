@@ -87,7 +87,8 @@ public:
 		const std::vector<Object*>& other_movables,
 		const comms::ObjectsPoses& rearranged,
 		comms::ObjectsPoses& result,
-		double& push_reward);
+		double& push_reward,
+		bool input=false);
 	trajectory_msgs::JointTrajectory GetLastPlanProfiled()
 	{
 		m_planner->ProfilePath(m_rm.get(), m_traj);

@@ -257,26 +257,36 @@ bool Agent::GetSE2Push(std::vector<double>& push, bool input)
 {
 	if (input)
 	{
-		if (!m_input_push.empty())
+		if (m_input_push.empty())
 		{
-			double x, y;
-			SMPL_WARN("Please specify push (x, y) location");
-			std::cin >> x;
-			std::cin >> y;
+			double x0, y0, x1, y1;
+			SMPL_WARN("Please specify push start location (x0, y0)");
+			std::cin >> x0 >> y0;
+			SMPL_WARN("Please specify push end location (x1, y1)");
+			std::cin >> x1 >> y1;
 
-			m_input_push.push_back(x);
-			m_input_push.push_back(y);
+			m_input_push.push_back(x0);
+			m_input_push.push_back(y0);
+			m_input_push.push_back(x1);
+			m_input_push.push_back(y1);
 		}
 
 		push.clear();
-		push.resize(3, 0.0);
+		push.resize(5, 0.0);
+
+		// push start
 		push[0] = m_input_push[0];
 		push[1] = m_input_push[1];
+		// push end
+		push[3] = m_input_push[2];
+		push[4] = m_input_push[3];
 
+		// push direction
 		double move_dir = std::atan2(
-					m_solve.back().state.at(1) - m_solve.front().state.at(1),
-					m_solve.back().state.at(0) - m_solve.front().state.at(0));
+					push[4] - push[1],
+					push[3] - push[0]);
 		push[2] = move_dir;
+
 		return true;
 	}
 

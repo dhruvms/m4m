@@ -51,6 +51,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 
 	m_stats["robot_planner_time"] = 0.0;
 	m_stats["push_planner_time"] = 0.0;
+	m_stats["push_input_time"] = 0.0;
 	m_stats["mapf_time"] = 0.0;
 	m_stats["sim_time"] = 0.0;
 
@@ -126,6 +127,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 	m_violation = 0x00000008;
 	m_distD = std::uniform_real_distribution<double>(0.0, 1.0);
 	m_C = 25;
+	m_ph.getParam("robot/pushing/input", m_push_input);
 
 	return true;
 }
@@ -405,9 +407,9 @@ bool Planner::Plan(bool& done)
 		return false;
 	}
 
-	if (m_cbs) {
-		m_cbs->WriteRoot();
-	}
+	// if (m_cbs) {
+	// 	m_cbs->WriteRoot();
+	// }
 	m_timer = GetTime();
 	if (!createCBS())
 	{
@@ -439,12 +441,12 @@ bool Planner::Plan(bool& done)
 			++m_moved;
 		}
 
+		if (m_cbs) {
+			m_cbs->WriteRoot();
+		}
 		if (m_moved == 0)
 		{
 			m_plan_success = true;
-			if (m_cbs) {
-				m_cbs->WriteRoot();
-			}
 		}
 		else
 		{
@@ -459,11 +461,9 @@ bool Planner::Plan(bool& done)
 
 bool Planner::Rearrange()
 {
-	m_timer = GetTime();
 	if (!rearrange())
 	{
 		SMPL_INFO("There were no conflicts to rearrange! WE ARE DONE!");
-		m_stats["push_planner_time"] += GetTime() - m_timer;
 
 		m_timer = GetTime();
 
@@ -490,7 +490,6 @@ bool Planner::Rearrange()
 		return false;
 	}
 
-	m_stats["push_planner_time"] += GetTime() - m_timer;
 	return true;
 }
 
@@ -570,7 +569,10 @@ bool Planner::rearrange()
 
 	// get push location
 	std::vector<double> push;
-	m_agents.at(m_agent_map[path.first])->GetSE2Push(push);
+	SMPL_INFO("Pushing object %d", path.first);
+	m_timer = GetTime();
+	m_agents.at(m_agent_map[path.first])->GetSE2Push(push, m_push_input);
+	m_stats["push_input_time"] += GetTime() - m_timer;
 	SMPL_INFO("Object %d push is (%f, %f, %f)", path.first, push[0], push[1], push[2]);
 
 	// other movables to be considered as obstacles
@@ -594,7 +596,8 @@ bool Planner::rearrange()
 	}
 
 	double push_reward = 0.0;
-	if (m_robot->PlanPush(push_start_state, m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result, push_reward))
+	m_timer = GetTime();
+	if (m_robot->PlanPush(push_start_state, m_agents.at(m_agent_map[path.first]).get(), push, movable_obstacles, rearranged, result, push_reward, m_push_input))
 	{
 		m_rearrangements.push_back(m_robot->GetLastPlan());
 
@@ -603,6 +606,7 @@ bool Planner::rearrange()
 		push_found = true;
 		SMPL_INFO("Push found!");
 	}
+	m_stats["push_planner_time"] += GetTime() - m_timer;
 
 	// if (push_reward > 0) {
 	// 	m_alphas[idx] += push_reward;
@@ -1023,7 +1027,7 @@ bool Planner::SaveData()
 	{
 		STATS << "UID,"
 				<< "PlanSuccess,SimSuccess,SimResult,SimTime,"
-				<< "RobotPlanTime,MAPFTime,PlanPushTime,"
+				<< "RobotPlanTime,MAPFTime,PushInputTime,PlanPushTime,"
 				<< "PlanPushCalls,PushSamplesFound,PushActionsFound,"
 				<< "PushPlanningTime,PushSimTime,PushSimSuccesses,"
 				<< "CBSCalls,CBSSuccesses,CBSTime,"
@@ -1034,10 +1038,10 @@ bool Planner::SaveData()
 			<< m_plan_success << ',' << m_sim_success << ','
 			<< m_violation << ',' << m_stats["sim_time"] << ','
 			<< m_stats["robot_planner_time"] << ',' << m_stats["mapf_time"] << ','
-			<< m_stats["push_planner_time"] << ',' << robot_stats["plan_push_calls"] << ','
-			<< robot_stats["push_samples_found"] << ',' << robot_stats["push_actions_found"] << ','
-			<< robot_stats["push_plan_time"] << ',' << robot_stats["push_sim_time"] << ','
-			<< robot_stats["push_sim_successes"] << ','
+			<< m_stats["push_input_time"] << ',' << m_stats["push_planner_time"] << ','
+			<< robot_stats["plan_push_calls"] << ',' << robot_stats["push_samples_found"] << ','
+			<< robot_stats["push_actions_found"] << ',' << robot_stats["push_plan_time"] << ','
+			<< robot_stats["push_sim_time"] << ',' << robot_stats["push_sim_successes"] << ','
 			<< m_cbs_stats["calls"] << ',' << m_cbs_stats["solved"] << ','
 			<< m_cbs_stats["search_time"] << ',' << m_cbs_stats["ct_nodes"] << ','
 			<< m_cbs_stats["ct_deadends"] << ',' << m_cbs_stats["ct_expanded"] << ','

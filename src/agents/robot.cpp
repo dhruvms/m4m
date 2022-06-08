@@ -1473,7 +1473,8 @@ bool Robot::PlanPush(
 	Agent* object, const std::vector<double>& push,
 	const std::vector<Object*>& other_movables,	const comms::ObjectsPoses& rearranged,
 	comms::ObjectsPoses& result,
-	double& push_reward)
+	double& push_reward,
+	bool input)
 {
 	m_push_trajs.clear();
 	m_push_actions.clear();
@@ -1567,10 +1568,23 @@ bool Robot::PlanPush(
 
 		// push action parameters
 		push_end_pose = m_rm->computeFK(push_traj.points.back().positions);
-		double push_dist = EuclideanDist({ push_end_pose.translation().x(), push_end_pose.translation().y() }, obj_traj->back().state);
-		double push_at_angle = std::atan2(
-				obj_traj->back().state.at(1) - push_end_pose.translation().y(),
-				obj_traj->back().state.at(0) - push_end_pose.translation().x());
+
+		double push_dist, push_at_angle;
+		if (!input)
+		{
+			push_dist = EuclideanDist({ push_end_pose.translation().x(), push_end_pose.translation().y() }, obj_traj->back().state);
+			push_at_angle = std::atan2(
+					obj_traj->back().state.at(1) - push_end_pose.translation().y(),
+					obj_traj->back().state.at(0) - push_end_pose.translation().x());
+		}
+		else
+		{
+			std::vector<double> pstart = { push[0], push[1] }, pend = { push[3], push[4] };
+			push_dist = EuclideanDist(pstart, pend);
+			push_at_angle = std::atan2(
+					push[4] - push_end_pose.translation().y(),
+					push[3] - push_end_pose.translation().x());
+		}
 
 		// compute push action end pose
 		double push_frac = m_distD(m_rng) * 0.5 + 0.5;
