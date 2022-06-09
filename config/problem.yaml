@@ -42,7 +42,7 @@ robot:
       Ki: 0.1
       Kd: 0.01
       iters: 1000
-    input: true
+    input: false
   grasping:
     tries: 20
     lift: 0.075
