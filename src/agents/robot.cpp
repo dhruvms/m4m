@@ -428,8 +428,9 @@ bool Robot::SteerAction(
 		}
 	}
 
-	if (collides_immov_idx == 0) {
-		SMPL_ERROR("Start state of SteerAction collides with immovable obstacles!!");
+	if (collides_immov_idx == 0)
+	{
+		// SMPL_ERROR("Start state of SteerAction collides with immovable obstacles!!");
 		return false;
 	}
 	result |= collides_immov_idx < 0 ? 0x00000001 : 0x00000002; // we have an action to validate, full or partial
@@ -491,6 +492,93 @@ bool Robot::SteerAction(
 
 	SMPL_ERROR("Why are we returning from the very end of Robot::SteerAction?");
 	return false;
+}
+
+bool Robot::ComputeGraspTraj(const smpl::RobotState& state, trajectory_msgs::JointTrajectory& grasp_traj)
+{
+	ProcessObstacles({ m_ooi }, true);
+
+	grasp_traj.joint_names.clear();
+	grasp_traj.points.clear();
+
+	grasp_traj.joint_names = m_rm->getPlanningJoints();
+
+	trajectory_msgs::JointTrajectoryPoint p;
+	p.positions = state;
+	p.time_from_start = ros::Duration(0.0);
+	grasp_traj.points.push_back(p);
+
+	//////////////////
+	// Append grasp //
+	//////////////////
+
+	smpl::RobotState pregrasp_state, grasp_state, postgrasp_state, retreat_state;
+	if (!getStateNearPose(m_pregrasp_pose, state, pregrasp_state, 1))
+	{
+		ProcessObstacles({ m_ooi });
+		return false;
+	}
+
+	if (!getStateNearPose(m_grasp_pose, pregrasp_state, grasp_state, 1))
+	{
+		ProcessObstacles({ m_ooi });
+		return false;
+	}
+
+	if (!getStateNearPose(m_postgrasp_pose, grasp_state, postgrasp_state, 1))
+	{
+		ProcessObstacles({ m_ooi });
+		return false;
+	}
+
+	Eigen::Affine3d ee_pose = m_rm->computeFK(postgrasp_state);
+	double yaw, pitch, roll;
+	smpl::angles::get_euler_zyx(ee_pose.rotation(), yaw, pitch, roll);
+	ee_pose.translation().x() -= 0.05 * std::cos(yaw);
+	ee_pose.translation().y() -= 0.05 * std::sin(yaw);
+	if (!getStateNearPose(ee_pose, postgrasp_state, retreat_state, 1))
+	{
+		ProcessObstacles({ m_ooi });
+		return false;
+	}
+
+	double pregrasp_time = profileAction(state, pregrasp_state);
+	double grasp_time = profileAction(pregrasp_state, grasp_state);
+	double postgrasp_time = profileAction(grasp_state, postgrasp_state);
+	double retreat_time = profileAction(postgrasp_state, retreat_state);
+
+	p.positions = pregrasp_state;
+	p.time_from_start = ros::Duration(pregrasp_time) + grasp_traj.points.back().time_from_start;
+	grasp_traj.points.push_back(p);
+
+	p.positions = grasp_state;
+	p.time_from_start = ros::Duration(grasp_time) + grasp_traj.points.back().time_from_start;
+	grasp_traj.points.push_back(p);
+
+	p.positions = postgrasp_state;
+	p.time_from_start = ros::Duration(postgrasp_time) + grasp_traj.points.back().time_from_start;
+	grasp_traj.points.push_back(p);
+
+	p.positions = retreat_state;
+	p.time_from_start = ros::Duration(retreat_time) + grasp_traj.points.back().time_from_start;
+	grasp_traj.points.push_back(p);
+
+	ProcessObstacles({ m_ooi });
+	return true;
+}
+
+bool Robot::CheckGraspTraj(const smpl::RobotState& state, const comms::ObjectsPoses& objects)
+{
+	trajectory_msgs::JointTrajectory grasp_traj;
+
+	bool success = false;
+	if (ComputeGraspTraj(state, grasp_traj))
+	{
+		success = m_sim->ExecTraj(grasp_traj, objects, 2, m_ooi.desc.id);
+		m_sim->RemoveConstraint();
+	}
+
+	return success;
 }
 
 bool Robot::Init()
@@ -1151,6 +1239,7 @@ bool Robot::ComputeGrasps(
 	m_home_state.clear();
 	m_home_state.insert(m_home_state.begin(),
 		m_start_state.joint_state.position.begin() + 1, m_start_state.joint_state.position.end());
+	m_home_pose = m_rm->computeFK(m_home_state);
 
 	m_pregrasp_state.clear();
 	m_grasp_state.clear();
@@ -1179,6 +1268,7 @@ bool Robot::ComputeGrasps(
 	if (tries == m_grasp_tries)	{
 		return false;
 	}
+	m_grasp_pose = m_rm->computeFK(m_grasp_state);
 
 	// vis_name = "grasp_state";
 	// auto markers = m_cc_i->getCollisionModelVisualization(m_grasp_state);
@@ -1200,6 +1290,7 @@ bool Robot::ComputeGrasps(
 
 	if (getStateNearPose(ee_pose, m_grasp_state, m_pregrasp_state, 1))
 	{
+		m_pregrasp_pose = m_rm->computeFK(m_pregrasp_state);
 		// vis_name = "pregrasp_state";
 		// auto markers = m_cc_i->getCollisionModelVisualization(m_pregrasp_state);
 		// for (auto& marker : markers) {
@@ -1218,6 +1309,7 @@ bool Robot::ComputeGrasps(
 		// compute postgrasp state
 		if (getStateNearPose(ee_pose, m_grasp_state, m_postgrasp_state, 1))
 		{
+			m_postgrasp_pose = m_rm->computeFK(m_postgrasp_state);
 			// vis_name = "postgrasp_state";
 			// auto markers = m_cc_i->getCollisionModelVisualization(m_postgrasp_state);
 			// for (auto& marker : markers) {

@@ -283,17 +283,7 @@ bool Planner::RunRRT()
 
 	smpl::RobotState start_config;
 	m_robot->GetHomeState(start_config);
-
-	comms::ObjectsPoses start_objects;
-	for (const auto& a: m_agents) {
-		auto object = a->GetObject();
-
-		comms::ObjectPose obj_pose;
-		obj_pose.id = object->desc.id;
-		obj_pose.xyz = { object->desc.o_x, object->desc.o_y, object->desc.o_z };
-		obj_pose.rpy = { object->desc.o_roll, object->desc.o_pitch, object->desc.o_yaw };
-		start_objects.poses.push_back(std::move(obj_pose));
-	}
+	comms::ObjectsPoses start_objects = GetStartObjects();
 	m_sampling_planner->SetStartState(start_config, start_objects);
 
 	bool plan_success = m_sampling_planner->Solve();

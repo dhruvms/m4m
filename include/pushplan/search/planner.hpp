@@ -75,6 +75,37 @@ public:
 		return all_agents;
 	}
 
+	auto GetStartObjects() -> comms::ObjectsPoses
+	{
+		comms::ObjectsPoses start_objects;
+		for (const auto& a: m_agents) {
+			auto object = a->GetObject();
+
+			comms::ObjectPose obj_pose;
+			obj_pose.id = object->desc.id;
+			obj_pose.xyz = { object->desc.o_x, object->desc.o_y, object->desc.o_z };
+			obj_pose.rpy = { object->desc.o_roll, object->desc.o_pitch, object->desc.o_yaw };
+			start_objects.poses.push_back(std::move(obj_pose));
+		}
+
+		return start_objects;
+	}
+
+	// For KPIECE
+	Robot* GetRobot() { return m_robot.get(); };
+	bool StateValidityChecker(const smpl::RobotState& state) {
+		return m_robot->IsStateValid(state);
+	};
+	void GetStartState(smpl::RobotState& state) {
+		m_robot->GetHomeState(state);
+	}
+	auto GoalPose() -> Eigen::Affine3d {
+		return m_robot->PregraspPose();
+	}
+	bool ExecTraj(const trajectory_msgs::JointTrajectory& traj, int grasp_at=-1) {
+		return m_sim->ExecTraj(traj, GetStartObjects(), grasp_at, m_ooi->GetID());
+	}
+
 private:
 	std::string m_scene_file;
 	std::shared_ptr<CollisionChecker> m_cc;

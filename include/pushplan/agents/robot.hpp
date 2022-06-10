@@ -155,7 +155,7 @@ public:
 		m_push_debug_data.clear();
 	}
 
-	auto RobotModel() const -> const smpl::PushingKDLRobotModel* {
+	smpl::PushingKDLRobotModel* RobotModel() {
 		return m_rm.get();
 	}
 
@@ -187,6 +187,25 @@ public:
 	void RunPushIKStudy(int N=25);
 	void VizPlane(double z);
 
+	// For KPIECE
+	bool ComputeGraspTraj(const smpl::RobotState& state, trajectory_msgs::JointTrajectory& grasp_traj);
+	bool CheckGraspTraj(const smpl::RobotState& state, const comms::ObjectsPoses& objects);
+	auto GetPlanningJoints() const -> const std::vector<std::string>& {
+		return m_robot_config.planning_joints;
+	}
+	auto GetRCM() const -> smpl::collision::RobotCollisionModelConstPtr {
+		return m_cc_i->robotCollisionModel();
+	}
+	auto GetRMCM() const -> smpl::collision::RobotMotionCollisionModelConstPtr {
+		return m_cc_i->robotMotionCollisionModel();
+	}
+	bool IsStateValid(const smpl::RobotState& state) {
+		return m_cc_i->isStateValid(state);
+	}
+	auto PregraspPose() -> Eigen::Affine3d {
+		return m_rm->computeFK(m_pregrasp_state);
+	}
+
 private:
 	int m_id;
 	ros::NodeHandle m_nh, m_ph;
@@ -211,6 +230,7 @@ private:
 	const smpl::urdf::Link* m_link_s = nullptr;
 	const smpl::urdf::Link* m_link_e = nullptr;	const smpl::urdf::Link* m_link_w = nullptr;
 	const smpl::urdf::Link* m_link_t = nullptr;
+	Eigen::Affine3d m_home_pose, m_pregrasp_pose, m_grasp_pose, m_postgrasp_pose;
 	smpl::RobotState m_home_state, m_pregrasp_state, m_grasp_state, m_postgrasp_state;
 
 	std::random_device m_dev;
