@@ -88,3 +88,4 @@ sampling:
     mode: 1
     I: 1000
     J: 100
+  ompl_planner: 1 # 0: RRT, 1: KPIECE

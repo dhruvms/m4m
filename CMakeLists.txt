@@ -11,6 +11,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -fmax-errors=5")
 
 find_package(Boost REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(OMPL REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
 	roscpp
 	rospy
@@ -55,6 +56,7 @@ add_library(
 	src/sampling/rrt.cpp
 	src/sampling/rrtstar.cpp
 	src/sampling/tcrrt.cpp
+	src/sampling/ompl.cpp
 	src/utils/collision_checker.cpp
 	src/agents/object.cpp
 	src/agents/agent_lattice.cpp
@@ -71,3 +73,7 @@ target_link_libraries(sampling ${catkin_LIBRARIES} smpl::smpl PUSHPLAN)
 
 add_executable(study test/study.cpp)
 target_link_libraries(study ${catkin_LIBRARIES} smpl::smpl PUSHPLAN)
+
+add_executable(run_ompl test/run_ompl.cpp)
+target_include_directories(run_ompl SYSTEM PRIVATE ${OMPL_INCLUDE_DIRS})
+target_link_libraries(run_ompl ${catkin_LIBRARIES} ${OMPL_LIBRARIES} smpl::smpl PUSHPLAN)
