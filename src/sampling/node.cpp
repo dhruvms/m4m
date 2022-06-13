@@ -11,7 +11,8 @@ Node::Node(
 m_state(state),
 m_objects(objects),
 m_parent(parent),
-m_cost(cost)
+m_cost(cost),
+m_goal(false)
 {
 	if (m_parent) {
 		m_parent->m_children.push_back(this);

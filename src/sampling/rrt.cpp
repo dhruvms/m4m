@@ -87,12 +87,17 @@ bool RRT::Solve()
 			Node* xnew = m_G[tree_v];
 			if ((try_goal && result == 1000) || poseWithinTolerance(xnew->robot_state(), 0.01, m_gthresh))
 			{
-				++m_goal_nodes;
-				SMPL_DEBUG("Added a node close to the goal to the tree!");
-				if (m_stats["first_goal"] < 0)
+				if (checkGoalNode(xnew))
 				{
-					m_stats["first_goal"] = i;
-					m_stats["first_soln_time"] = GetTime() - start_time;
+					xnew->set_goal_node();
+					++m_goal_nodes;
+					SMPL_DEBUG("Added a node close to the goal to the tree!");
+					if (m_stats["first_goal"] < 0)
+					{
+						m_stats["first_goal"] = i;
+						m_stats["first_soln_time"] = GetTime() - start_time;
+					}
+
 				}
 			}
 
@@ -264,6 +269,15 @@ bool RRT::steer(
 			qrand, m_steps,
 			xnear->robot_state(), xnear->objects(),
 			qnew, qnew_objs, result);
+}
+
+bool RRT::checkGoalNode(Node* node)
+{
+	if (!m_robot->SetScene(node->objects())) {
+		return false;
+	}
+
+	return m_robot->CheckGraspTraj(node->robot_state(), node->objects());
 }
 
 } // namespace sampling

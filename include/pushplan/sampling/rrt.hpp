@@ -32,6 +32,7 @@ protected:
 		smpl::RobotState& qnew,
 		comms::ObjectsPoses& qnew_objs,
 		std::uint32_t& result) override;
+	bool checkGoalNode(Node* node);
 };
 
 } // namespace sampling
