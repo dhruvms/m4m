@@ -606,6 +606,10 @@ bool PushplanPoseGoal::isSatisfied(const ob::State *st) const
 
 	if (near.first && near.second)
 	{
+		if (!m_robot->SetScene(st->as<PushplanStateSpace::StateType>()->objects())) {
+			return false;
+		}
+
 		return m_robot->CheckGraspTraj(
 			st->as<PushplanStateSpace::StateType>()->joint_state(),
 			st->as<PushplanStateSpace::StateType>()->objects());
@@ -625,6 +629,10 @@ bool PushplanPoseGoal::isSatisfied(const ob::State *st, double *distance) const
 
 	if (near.first && near.second)
 	{
+		if (!m_robot->SetScene(st->as<PushplanStateSpace::StateType>()->objects())) {
+			return false;
+		}
+
 		return m_robot->CheckGraspTraj(
 			st->as<PushplanStateSpace::StateType>()->joint_state(),
 			st->as<PushplanStateSpace::StateType>()->objects());
