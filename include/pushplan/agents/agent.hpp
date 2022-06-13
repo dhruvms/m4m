@@ -61,6 +61,7 @@ public:
 		std::unordered_set<int>* to_avoid = nullptr);
 	Trajectory* SolveTraj() { return &m_solve; };
 	const Trajectory* SolveTraj() const { return &m_solve; };
+	void SetSolveTraj(const Trajectory& solve) { m_solve = solve; };
 
 	void SetCC(const std::shared_ptr<CollisionChecker>& cc) {
 		m_cc = cc;

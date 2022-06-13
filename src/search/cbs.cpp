@@ -515,7 +515,7 @@ bool CBS::updateChild(HighLevelNode* parent, HighLevelNode* child)
 				child->recalcMakespan();
 			}
 			else {
-				child->m_makespan = std::max(child->m_makespan, (int)m_paths[0]->size());
+				child->m_makespan = std::max(child->m_makespan, (int)m_paths[i]->size());
 			}
 
 			break;
@@ -539,6 +539,10 @@ bool CBS::done(HighLevelNode* node)
 		m_solved = true;
 		m_goal = node;
 		m_soln_cost = m_goal->m_flowtime;
+
+		for (const auto& solution : m_goal->m_solution) {
+			m_objs[m_obj_id_to_idx[solution.first]]->SetSolveTraj(solution.second);
+		}
 
 		// if (!m_goal->m_priorities.Empty())
 		// {
