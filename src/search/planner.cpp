@@ -297,7 +297,29 @@ bool Planner::RunRRT()
 	auto rrt_stats = m_sampling_planner->GetStats();
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../../dat/RRT.csv";
+	filename = filename.substr(0, found + 1) + "../../dat/";
+	switch (planner)
+	{
+		case 0:
+		{
+			filename += "RRT.csv";
+			break;
+		}
+
+		case 1:
+		{
+			filename += "RRTStar.csv";
+			break;
+		}
+
+		case 2:
+		{
+			int mode;
+			m_ph.getParam("sampling/tcrrt/mode", mode);
+			filename += "TCRRT_" + std::to_string(mode) + ".csv";
+			break;
+		}
+	}
 
 	// m_stats["
 	// m_stats["goal_samples"] = 0.0;
