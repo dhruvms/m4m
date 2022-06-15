@@ -66,6 +66,9 @@ private:
 				const SearchState::HeapData& s,
 				const SearchState::HeapData& t) const
 		{
+			if (s.f == t.f) {
+				return rand() % 2 == 0;
+			}
 			return s.f < t.f;
 		}
 	};
