@@ -66,6 +66,18 @@ private:
 		const LatticeState* s1,
 		const LatticeState* s2);
 
+	// WHCA*
+	std::map<Coord, int> m_visit_map;
+	int generateSuccessorWHCA(
+		const LatticeState* parent,
+		int dx, int dy,
+		std::vector<int>* succs,
+		std::vector<unsigned int>* costs);
+	unsigned int costWHCA(
+		const LatticeState* s1,
+		bool s1_outside_ngr,
+		const LatticeState* s2);
+
 	int conflictHeuristic(const LatticeState& state);
 	bool goalConflict(const LatticeState& state);
 

@@ -106,6 +106,14 @@ public:
 		return m_sim->ExecTraj(traj, GetStartObjects(), grasp_at, m_ooi->GetID());
 	}
 
+	// For WHCA*
+	bool RunWHCA();
+	fcl::CollisionObject* GetUpdatedObjectFromPriority(const LatticeState& s, int priority)
+	{
+		m_agents.at(m_priorities.at(priority))->UpdatePose(s);
+		return m_agents.at(m_priorities.at(priority))->GetFCLObject();
+	}
+
 private:
 	std::string m_scene_file;
 	std::shared_ptr<CollisionChecker> m_cc;
@@ -163,6 +171,12 @@ private:
 	int armId();
 
 	bool savePlanData();
+
+	// For WHCA*
+	std::vector<size_t> m_priorities;
+	void prioritise();
+	void step_agents(int k=1);
+	void writeWHCAState(int iter, std::set<Coord, coord_compare> ngr={});
 };
 
 } // namespace clutter

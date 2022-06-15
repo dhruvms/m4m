@@ -141,6 +141,34 @@ bool CollisionChecker::ObjectObjectsCollision(
 
 }
 
+bool CollisionChecker::WHCACollisionCheck(
+	Agent* a, const LatticeState& s, fcl::CollisionObject* o, const int& priority)
+{
+	m_fcl_mov->unregisterObject(o);
+	a->UpdatePose(s);
+	auto o_new = a->GetFCLObject();
+
+	// Check against movables' FCL manager
+	for (int p = 0; p < priority; ++p)
+	{
+		for (const auto& s2: m_trajs.at(p))
+		{
+			if (s.t == s2.t)
+			{
+				auto o2 = m_planner->GetUpdatedObjectFromPriority(s2, p);
+				m_fcl_mov->update(o2);
+			}
+		}
+	}
+	m_fcl_mov->setup();
+	fcl::DefaultCollisionData collision_data;
+	m_fcl_mov->collide(o_new, &collision_data, fcl::DefaultCollisionFunction);
+	bool collision = collision_data.result.isCollision();
+
+	m_fcl_mov->registerObject(o_new);
+	return collision;
+}
+
 double CollisionChecker::ObstacleDist(fcl::CollisionObject* o)
 {
 	fcl::DefaultDistanceData distance_data;

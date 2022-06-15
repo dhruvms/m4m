@@ -102,6 +102,10 @@ public:
 	int NumObstacles() { return (int)m_obstacles.size(); };
 	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
 
+	// WHCA*
+	bool WHCACollisionCheck(
+		Agent* a, const LatticeState& s, fcl::CollisionObject* o,
+		const int& priority);
 
 private:
 	Planner* m_planner = nullptr;

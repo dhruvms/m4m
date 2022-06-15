@@ -103,6 +103,20 @@ public:
 
 	bool Set() { return m_set; };
 
+	// WHCA*
+	bool InitWHCA();
+	bool PlanPrioritised(int p);
+	void Step(int k);
+	bool PrioritisedCollisionCheck(const LatticeState& s);
+	// bool RevisitCheck(const LatticeState& s, bool outside);
+	bool WHCA() { return m_whca; };
+	int curr_t() { return m_t; };
+	auto CurrentState() const -> const LatticeState& { return m_current; };
+	bool ReachedGoal() {
+		return stateOutsideNGR(m_current);
+	};
+	Trajectory* MoveTraj() { return &m_move; };
+
 private:
 	ros::NodeHandle m_ph;
 	Object m_obj;
@@ -123,6 +137,13 @@ private:
 
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<Search> m_search;
+
+	// WHCA*
+	bool m_whca;
+	int m_priority, m_t;
+	LatticeState m_current;
+	Trajectory m_move;
+	// std::map<Coord, int> m_visit_map;
 
 	bool computeGoal(bool backwards);
 	bool createLatticeAndSearch(bool backwards);

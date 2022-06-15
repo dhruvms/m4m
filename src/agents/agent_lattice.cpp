@@ -40,6 +40,13 @@ int AgentLattice::PushStart(const LatticeState& s)
 {
 	int start_id = getOrCreateState(s);
 	m_start_ids.push_back(start_id);
+
+	if (m_agent->WHCA())
+	{
+		m_visit_map.clear();
+		m_visit_map[s.coord] = s.t;
+	}
+
 	return start_id;
 }
 
@@ -88,6 +95,13 @@ bool AgentLattice::IsGoal(int state_id)
 	bool constrained = false, conflict = false, ngr = false;
 
 	ngr = m_agent->OutsideNGR(*s);
+	if (m_agent->WHCA()) {
+		bool tend = s->t == m_agent->curr_t() + WINDOW + 1;
+		// return (ngr || tend);
+		// return ngr;
+		return tend;
+	}
+
 	if (ngr)
 	{
 		for (const auto& constraint : m_constraints)
@@ -147,13 +161,21 @@ void AgentLattice::GetSuccs(
 				continue;
 			}
 
-			generateSuccessor(parent, dx, dy, succ_ids, costs);
+			if (m_agent->WHCA()) {
+				generateSuccessorWHCA(parent, dx, dy, succ_ids, costs);
+			}
+			else {
+				generateSuccessor(parent, dx, dy, succ_ids, costs);
+			}
 		}
 	}
 }
 
 unsigned int AgentLattice::GetGoalHeuristic(int state_id)
 {
+	if (m_agent->WHCA()) {
+		return 0;
+	}
 	// TODO: RRA* informed backwards Dijkstra's heuristic
 	// TODO: Try penalising distance to shelf edge?
 	assert(state_id >= 0);
@@ -175,6 +197,9 @@ unsigned int AgentLattice::GetConflictHeuristic(int state_id)
 
 unsigned int AgentLattice::GetGoalHeuristic(const LatticeState& s)
 {
+	if (m_agent->WHCA()) {
+		return 0;
+	}
 	// TODO: RRA* informed backwards Dijkstra's heuristic
 	double dist = EuclideanDist(s.coord, m_agent->Goal());
 	return (dist * COST_MULT);
@@ -280,6 +305,57 @@ int AgentLattice::generateSuccessor(
 	return succ_state_id;
 }
 
+int AgentLattice::generateSuccessorWHCA(
+	const LatticeState* parent,
+	int dx, int dy,
+	std::vector<int>* succs,
+	std::vector<unsigned int>* costs)
+{
+	LatticeState child;
+	child.t = parent->t + 1;
+
+	child.coord = parent->coord;
+	child.coord.at(0) += dx;
+	child.coord.at(1) += dy;
+	DiscToCont(child.coord, child.state);
+	child.state.insert(child.state.end(), parent->state.begin() + 2, parent->state.end());
+
+	m_agent->UpdatePose(child);
+	if (m_agent->OutOfBounds(child) || m_agent->ImmovableCollision()) {
+		return -1;
+	}
+
+	if (m_agent->PrioritisedCollisionCheck(child)) {
+		return -1;
+	}
+
+	bool outside_ngr = m_agent->OutsideNGR(child);
+	if (!outside_ngr) { // is child inside NGR?
+		if (m_visit_map.find(child.coord) != m_visit_map.end())	{ // have we been in child before?
+			if (m_visit_map[child.coord] < child.t)	{ // have we been in child earlier than now?
+				return -1; // yes, ignore child
+			}
+			else {
+				m_visit_map[child.coord] = child.t; // update visit time to child
+			}
+		}
+		else {
+			m_visit_map[child.coord] = child.t; // mark first visit to child
+		}
+	}
+	// if (!m_agent->RevisitCheck(child, outside_ngr)) {
+	// 	return -1;
+	// }
+
+	int succ_state_id = getOrCreateState(child);
+	LatticeState* successor = getHashEntry(succ_state_id);
+
+	succs->push_back(succ_state_id);
+	costs->push_back(costWHCA(parent, outside_ngr, successor));
+
+	return succ_state_id;
+}
+
 unsigned int AgentLattice::cost(
 	const LatticeState* s1,
 	const LatticeState* s2)
@@ -291,6 +367,31 @@ unsigned int AgentLattice::cost(
 	obs_cost = std::pow(2, 1 - (obs_cost/0.15));
 	double cost = (dist + obs_cost) * COST_MULT;
 	return cost;
+}
+
+unsigned int AgentLattice::costWHCA(
+	const LatticeState* s1,
+	bool s1_outside_ngr,
+	const LatticeState* s2)
+{
+	bool s2_outside_ngr = m_agent->OutsideNGR(*s2);
+	if (s2->t <= m_agent->curr_t() + WINDOW)
+	{
+		if (s1_outside_ngr && s2_outside_ngr)
+		{
+			return (COST_MULT * (s1->coord != s2->coord));
+		}
+
+		double dist = std::max(1.0, EuclideanDist(s1->coord, s2->coord));
+		return (dist * COST_MULT);
+	}
+	else if (s2->t == m_agent->curr_t() + WINDOW + 1) {
+		return COST_MULT * !s2_outside_ngr;
+	}
+	else {
+		SMPL_ERROR("Unknown edge cost condition! Return 0. (s1->t, s2->t, m_agent->curr_t()) = (%d, %d, %d)", s1->t, s2->t, m_agent->curr_t());
+		return 0;
+	}
 }
 
 int AgentLattice::conflictHeuristic(const LatticeState& state)

@@ -364,6 +364,251 @@ void Planner::RunStudy(int study)
 	}
 }
 
+bool Planner::RunWHCA()
+{
+	std::set<Coord, coord_compare> ngr;
+	auto ngr_voxels = m_robot->TrajVoxels();
+	for (auto itr_list = ngr_voxels->begin(); itr_list != ngr_voxels->end(); ++itr_list)
+	{
+		for (auto itr = itr_list->begin(); itr != itr_list->end(); ++itr)
+		{
+			State s = { itr->x(), itr->y() };
+			Coord c;
+			ContToDisc(s, c);
+			ngr.insert(c);
+		}
+	}
+
+	int runs;
+	m_ph.getParam("robot/runs", runs);
+	for (int power = 0; power < 4; ++power)
+	{
+		WINDOW = std::pow(3, power);
+		bool saved = false;
+		int saved_flowtime = 0;
+		for (int tries = 0; tries < runs; ++tries)
+		{
+			m_ooi->InitWHCA();
+			for (auto& a: m_agents) {
+				a->InitWHCA();
+			}
+
+			bool done = false, success = false;
+			int iter = 0, makespan = -1, flowtime = 0, failure = 0;
+			double plan_time = 0.0;
+
+			m_timer = GetTime();
+			prioritise();
+			while (!done)
+			{
+				int priority = 0;
+				for (const auto& p: m_priorities)
+				{
+					double ll_time = GetTime();
+					if (!m_agents.at(p)->PlanPrioritised(priority))
+					{
+						failure = 1;
+						plan_time = GetTime() - m_timer;
+						break;
+					}
+					if (GetTime() - ll_time > 4.0)
+					{
+						failure = 2;
+						plan_time = GetTime() - m_timer;
+						break;
+					}
+					++priority;
+				}
+				if (failure > 0)	{
+					break;
+				}
+
+				step_agents(); // take 1 step by default
+				prioritise();
+
+				++iter;
+
+				done = true;
+				for (auto& a: m_agents)
+				{
+					done = done && a->ReachedGoal();
+					if (!done) {
+						break;
+					}
+				}
+				if (done)
+				{
+					plan_time = GetTime() - m_timer;
+					success = true;
+
+					for (const auto& a: m_agents)
+					{
+						int move_length = int(a->MoveTraj()->size());
+						flowtime += move_length;
+						if (move_length > makespan) {
+							makespan = move_length;
+						}
+					}
+					if (!saved || saved_flowtime > flowtime)
+					{
+						writeWHCAState(iter, ngr);
+						saved = true;
+						saved_flowtime = flowtime;
+					}
+				}
+
+				if ((GetTime() - m_timer) > 30.0)
+				{
+					failure = 3;
+					plan_time = GetTime() - m_timer;
+				}
+
+				if (failure > 0) {
+					break;
+				}
+			}
+
+			std::string filename(__FILE__);
+			auto found = filename.find_last_of("/\\");
+			filename = filename.substr(0, found + 1) + "../../dat/WHCA.csv";
+
+			bool exists = FileExists(filename);
+			std::ofstream STATS;
+			STATS.open(filename, std::ofstream::out | std::ofstream::app);
+			if (!exists)
+			{
+				STATS << "UID,Window,"
+						<< "Success,Failure?,Iterations,PlanTime,"
+						<< "Makespan,Flowtime\n";
+			}
+
+			STATS << m_scene_id << ','
+					<< WINDOW << ',' << success << ',' << failure << ','
+					<< iter << ',' << plan_time << ','
+					<< makespan << ',' << flowtime << '\n';
+			STATS.close();
+		}
+	}
+
+	return true;
+}
+
+void Planner::prioritise()
+{
+	m_priorities.clear();
+	m_priorities.resize(m_agents.size());
+	std::iota(m_priorities.begin(), m_priorities.end(), 0);
+
+	State ooi_s = m_ooi->CurrentState().state;
+	std::vector<double> dists(m_agents.size(), std::numeric_limits<double>::max());
+	for (size_t i = 0; i < m_agents.size(); ++i) {
+		dists.at(i) = std::min(dists.at(i), EuclideanDist(m_agents.at(i)->CurrentState().state, ooi_s));
+	}
+	std::stable_sort(m_priorities.begin(), m_priorities.end(),
+		[&dists](size_t i1, size_t i2) { return dists[i1] < dists[i2]; });
+}
+
+void Planner::step_agents(int k)
+{
+	// TODO: make sure we can handle k > 1
+	for (auto& a: m_agents) {
+		a->Step(k);
+	}
+}
+
+void Planner::writeWHCAState(int iter, std::set<Coord, coord_compare> ngr)
+{
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../../dat/txt/";
+
+	std::stringstream ss;
+	ss << "WHCA_" << m_scene_id << "_W" << WINDOW << "_" << std::setw(4) << std::setfill('0') << iter;
+	std::string s = ss.str();
+
+	filename += s;
+	filename += ".txt";
+
+	std::ofstream DATA;
+	DATA.open(filename, std::ofstream::out);
+
+	DATA << 'O' << '\n';
+	int o = m_cc->NumObstacles() + m_agents.size();
+	DATA << o << '\n';
+
+	std::string movable = "False";
+	auto obstacles = m_cc->GetObstacles();
+	for (const auto& obs: *obstacles)
+	{
+		int id = obs.desc.id == m_ooi->GetID() ? 999 : obs.desc.id;
+		DATA << id << ','
+				<< obs.Shape() << ','
+				<< obs.desc.type << ','
+				<< obs.desc.o_x << ','
+				<< obs.desc.o_y << ','
+				<< obs.desc.o_z << ','
+				<< obs.desc.o_roll << ','
+				<< obs.desc.o_pitch << ','
+				<< obs.desc.o_yaw << ','
+				<< obs.desc.x_size << ','
+				<< obs.desc.y_size << ','
+				<< obs.desc.z_size << ','
+				<< obs.desc.mass << ','
+				<< obs.desc.mu << ','
+				<< movable << '\n';
+	}
+
+	movable = "True";
+	for (const auto& a: m_agents)
+	{
+		State loc = a->CurrentState().state;
+		auto agent_obj = a->GetObject();
+		DATA << agent_obj->desc.id << ','
+			<< agent_obj->Shape() << ','
+			<< agent_obj->desc.type << ','
+			<< loc.at(0) << ','
+			<< loc.at(1) << ','
+			<< agent_obj->desc.o_z << ','
+			<< agent_obj->desc.o_roll << ','
+			<< agent_obj->desc.o_pitch << ','
+			<< agent_obj->desc.o_yaw << ','
+			<< agent_obj->desc.x_size << ','
+			<< agent_obj->desc.y_size << ','
+			<< agent_obj->desc.z_size << ','
+			<< agent_obj->desc.mass << ','
+			<< agent_obj->desc.mu << ','
+			<< movable << '\n';
+	}
+
+	// write solution trajs
+	DATA << 'T' << '\n';
+	o = m_agents.size();
+	DATA << o << '\n';
+
+	for (const auto& a: m_agents)
+	{
+		auto agent_obj = a->GetObject();
+		auto move = a->MoveTraj();
+		DATA << agent_obj->desc.id << '\n';
+		DATA << move->size() << '\n';
+		for (const auto& s: *move) {
+			DATA << s.state.at(0) << ',' << s.state.at(1) << '\n';
+		}
+	}
+
+	if (!ngr.empty())
+	{
+		DATA << "NGR" << '\n';
+		DATA << ngr.size() << '\n';
+		for (const auto& p: ngr) {
+			DATA 	<< p.at(0) << ','
+					<< p.at(1) << '\n';
+		}
+	}
+
+	DATA.close();
+}
+
 bool Planner::createCBS()
 {
 	switch (ALGO)
