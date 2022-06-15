@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches
+import matplotlib.cm as cm
 
 import os
 import sys
@@ -167,16 +168,19 @@ def DrawScene(filepath, objs, trajs, ngr, goals, pushes, alpha=1.0):
 		AX.text(obj_cent[0], obj_cent[1], str(int(obj_id)), color=tc, zorder=3)
 
 	if (trajs):
-		for key in trajs:
+		cmap = cm.get_cmap('cool')
+		for agent, key in enumerate(trajs):
 			if key == 99:
 				lc = 'lightgray'
 			elif key == 999:
 				lc = 'orange'
 			else:
-				lc = 'cyan'
+				# lc = 'cyan'
+				lc = cmap(float(agent/len(trajs)))
 
 			traj = np.asarray(trajs[key])
-			AX.plot(traj[:, 0], traj[:, 1], c=lc, alpha=1.0, zorder=25)
+			if (traj.shape[0] > 0):
+				AX.plot(traj[:, 0], traj[:, 1], c=lc, alpha=1.0, zorder=25)
 
 	if (ngr):
 		NGR = np.asarray(ngr)*RES
@@ -222,7 +226,7 @@ def main():
 			imgfile = filepath.replace('txt', 'png')
 			if os.path.isfile(imgfile):
 				continue
-			objs, trajs, ngr, goals, pushes = ParseFile(filepath)
+			objs, trajs, ngr, goals, pushes = ParseFile(filepath, False)
 			DrawScene(filepath, objs, trajs, ngr, goals, pushes)
 
 def click_push(scene_id):
