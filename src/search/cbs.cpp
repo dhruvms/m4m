@@ -780,13 +780,6 @@ void CBS::writeSolution(HighLevelNode* node)
 					<< constraint->m_q.state.at(1) << '\n';
 		}
 
-		struct coord_compare
-		{
-			bool operator()(const Coord& u, const Coord& v) const
-			{
-				return std::tie(u.at(0), u.at(1)) < std::tie(v.at(0), v.at(1));
-			}
-		};
 		std::set<Coord, coord_compare> ngr;
 		auto ngr_voxels = m_robot->TrajVoxels();
 		for (auto itr_list = ngr_voxels->begin(); itr_list != ngr_voxels->end(); ++itr_list)

@@ -33,9 +33,9 @@ public:
 	void SaveStats();
 	bool UpdateStats(std::map<std::string, double>& stats);
 	HighLevelNode* GetSolution() const { return m_goal; };
-	void WriteRoot() {
-		if (m_root != nullptr) {
-			writeSolution(m_root);
+	void WriteLastSolution() {
+		if (m_goal != nullptr) {
+			writeSolution(m_goal);
 		}
 	};
 

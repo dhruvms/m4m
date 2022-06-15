@@ -16,6 +16,14 @@ namespace clutter
 typedef std::vector<int> Coord;
 typedef std::vector<double> State;
 
+struct coord_compare
+{
+	bool operator()(const Coord& u, const Coord& v) const
+	{
+		return std::tie(u.at(0), u.at(1)) < std::tie(v.at(0), v.at(1));
+	}
+};
+
 struct LatticeState
 {
 	Coord coord;

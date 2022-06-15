@@ -152,7 +152,7 @@ bool Planner::Alive()
 	if (total_time > m_total_budget) {
 		if (m_cbs)
 		{
-			m_cbs->WriteRoot();
+			m_cbs->WriteLastSolution();
 			m_cbs.reset();
 		}
 		return false;
@@ -653,7 +653,7 @@ bool Planner::Plan(bool& done)
 		m_plan_success = true;
 		if (m_cbs)
 		{
-			m_cbs->WriteRoot();
+			m_cbs->WriteLastSolution();
 			m_cbs.reset();
 		}
 		return true;
@@ -664,9 +664,6 @@ bool Planner::Plan(bool& done)
 		return false;
 	}
 
-	// if (m_cbs) {
-	// 	m_cbs->WriteRoot();
-	// }
 	m_timer = GetTime();
 	if (!createCBS())
 	{
@@ -685,6 +682,7 @@ bool Planner::Plan(bool& done)
 	m_betas.clear();
 	if (result)
 	{
+		m_cbs->WriteLastSolution();
 		m_cbs_soln = m_cbs->GetSolution();
 		for (std::size_t i = 0; i < m_cbs_soln->m_solution.size(); ++i)
 		{
@@ -698,9 +696,6 @@ bool Planner::Plan(bool& done)
 			++m_moved;
 		}
 
-		if (m_cbs) {
-			m_cbs->WriteRoot();
-		}
 		if (m_moved == 0)
 		{
 			m_plan_success = true;
