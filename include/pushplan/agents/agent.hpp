@@ -30,8 +30,8 @@ struct Eigen_Vector3d_compare
 class Agent
 {
 public:
-	Agent() : m_ph("~"), m_set(false) {};
-	Agent(const Object& o) : m_ph("~"), m_set(true)
+	Agent() : m_ph("~"), m_set(false), m_whca(false) {};
+	Agent(const Object& o) : m_ph("~"), m_set(true), m_whca(false)
 	{
 		m_obj = o;
 		m_obj_desc = o.desc;

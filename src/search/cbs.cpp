@@ -21,6 +21,7 @@ m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_
 	m_paths.clear();
 	m_min_fs.clear();
 	m_goal = nullptr;
+	m_solved = false;
 }
 
 CBS::CBS(std::shared_ptr<Robot> r, std::vector<std::shared_ptr<Agent> > objs,
@@ -39,6 +40,7 @@ m_ct_generated(0), m_ct_deadends(0), m_ct_expanded(0), m_ll_expanded(0), m_time_
 		m_obj_idx_to_id[i] = m_objs[i]->GetID();
 	}
 	m_goal = nullptr;
+	m_solved = false;
 }
 
 bool CBS::Solve(bool backwards)
@@ -608,7 +610,7 @@ void CBS::writeSolution(HighLevelNode* node)
 		DATA.open(filename, std::ofstream::out);
 
 		DATA << 'O' << '\n';
-		int o = m_cc->NumObstacles() + m_objs.size() + 3;
+		int o = m_cc->NumObstacles() + m_objs.size();
 		DATA << o << '\n';
 
 		std::string movable;
@@ -881,6 +883,8 @@ bool CBS::UpdateStats(std::map<std::string, double>& stats)
 		stats["ct_expanded"] = m_ct_expanded;
 		stats["ll_time"] = m_ll_time;
 		stats["conflict_time"] = m_conflict_time;
+		stats["makespan"] = m_solved ? m_goal->m_makespan : -1;
+		stats["flowtime"] = m_solved ? m_goal->m_flowtime : -1;
 
 		return true;
 	}
