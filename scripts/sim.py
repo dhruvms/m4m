@@ -352,6 +352,7 @@ class BulletSim:
 				table_xyz[2] += 0.4
 				sim.resetDebugVisualizerCamera(
 					cameraDistance=1.0, cameraYaw=-60.0, cameraPitch=-10.0,
+					# cameraDistance=0.8, cameraYaw=-120.0, cameraPitch=0.0, # left side camera angle
 					cameraTargetPosition=table_xyz)
 				self.camera_set = True
 
@@ -720,7 +721,7 @@ class BulletSim:
 					# print(cause)
 					break
 
-			if (violation_flag or (req.oid != -1 and req.oid not in robot_contacts)):
+			if (violation_flag):
 				continue # to next push
 			else:
 				oid_xyz = None
