@@ -460,10 +460,14 @@ void Planner::prioritise()
 	m_priorities.resize(m_agents.size());
 	std::iota(m_priorities.begin(), m_priorities.end(), 0);
 
-	Coord ooi_c = m_ooi->InitState().coord;
+	smpl::RobotState home_state;
+	Eigen::Affine3d home_pose;
+	m_robot->GetHomeState(home_state);
+	m_robot->ComputeFK(home_state, home_pose);
+	State robot = { home_pose.translation().x(), home_pose.translation().y() };
 	std::vector<double> dists(m_agents.size(), std::numeric_limits<double>::max());
 	for (size_t i = 0; i < m_agents.size(); ++i) {
-		dists.at(i) = std::min(dists.at(i), EuclideanDist(m_agents.at(i)->InitState().coord, ooi_c));
+		dists.at(i) = std::min(dists.at(i), EuclideanDist(robot, m_agents.at(i)->InitState().state));
 	}
 	std::stable_sort(m_priorities.begin(), m_priorities.end(),
 		[&dists](size_t i1, size_t i2) { return dists[i1] < dists[i2]; });
