@@ -77,6 +77,7 @@ int main(int argc, char** argv)
 			ROS_INFO("Planner and simulator init-ed!");
 
 			p.RunRRT();
+			// p.RunPP();
 		}
 	}
 
