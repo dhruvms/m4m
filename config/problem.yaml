@@ -49,7 +49,7 @@ robot:
   semi_minor: 0.05
   speed: 0.1
   interpolate: false
-  runs: 3
+  runs: 1
   study: 1
   yoshikawa_tries: 10
   push_ik_yaws: 50
