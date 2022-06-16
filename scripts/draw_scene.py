@@ -186,11 +186,11 @@ def DrawScene(filepath, objs, trajs, ngr, goals, pushes, alpha=1.0):
 		NGR = np.asarray(ngr)*RES
 		AX.scatter(NGR[:, 0], NGR[:, 1], c='gray', alpha=0.05, zorder=2)
 
-	if (goals):
-		GOALS = np.asarray(goals)
-		AX.scatter(GOALS[:, 1], GOALS[:, 2], c='violet', zorder=11, marker='*')
-		for i, oid in enumerate(GOALS[:, 0]):
-			AX.text(GOALS[i, 1], GOALS[i, 2], str(int(oid)), color='violet', zorder=3)
+	# if (goals):
+	# 	GOALS = np.asarray(goals)
+	# 	AX.scatter(GOALS[:, 1], GOALS[:, 2], c='violet', zorder=11, marker='*')
+	# 	for i, oid in enumerate(GOALS[:, 0]):
+	# 		AX.text(GOALS[i, 1], GOALS[i, 2], str(int(oid)), color='violet', zorder=3)
 
 	if (pushes):
 		colours = {6: 'black', 5: 'green', 4: 'gold', 3: 'teal',  2: 'deepskyblue', 1: 'slategrey', 0: 'deeppink', -1: 'firebrick'}
