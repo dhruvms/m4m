@@ -30,8 +30,8 @@ struct Eigen_Vector3d_compare
 class Agent
 {
 public:
-	Agent() : m_ph("~"), m_set(false), m_whca(false) {};
-	Agent(const Object& o) : m_ph("~"), m_set(true), m_whca(false)
+	Agent() : m_ph("~"), m_set(false), m_pp(false) {};
+	Agent(const Object& o) : m_ph("~"), m_set(true), m_pp(false)
 	{
 		m_obj = o;
 		m_obj_desc = o.desc;
@@ -103,19 +103,11 @@ public:
 
 	bool Set() { return m_set; };
 
-	// WHCA*
-	bool InitWHCA();
+	// PP
+	bool InitPP();
 	bool PlanPrioritised(int p);
-	void Step(int k);
-	bool PrioritisedCollisionCheck(const LatticeState& s);
-	// bool RevisitCheck(const LatticeState& s, bool outside);
-	bool WHCA() { return m_whca; };
-	int curr_t() { return m_t; };
-	auto CurrentState() const -> const LatticeState& { return m_current; };
-	bool ReachedGoal() {
-		return stateOutsideNGR(m_current);
-	};
-	Trajectory* MoveTraj() { return &m_move; };
+	bool PrioritisedCollisionCheck(const LatticeState& s, bool goal_check=false);
+	bool PP() { return m_pp; };
 
 private:
 	ros::NodeHandle m_ph;
@@ -138,12 +130,9 @@ private:
 	std::shared_ptr<CollisionChecker> m_cc;
 	std::unique_ptr<Search> m_search;
 
-	// WHCA*
-	bool m_whca;
+	// PP
+	bool m_pp;
 	int m_priority, m_t;
-	LatticeState m_current;
-	Trajectory m_move;
-	// std::map<Coord, int> m_visit_map;
 
 	bool computeGoal(bool backwards);
 	bool createLatticeAndSearch(bool backwards);

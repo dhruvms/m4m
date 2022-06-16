@@ -141,8 +141,8 @@ bool CollisionChecker::ObjectObjectsCollision(
 
 }
 
-bool CollisionChecker::WHCACollisionCheck(
-	Agent* a, const LatticeState& s, fcl::CollisionObject* o, const int& priority)
+bool CollisionChecker::PPCollisionCheck(
+	Agent* a, const LatticeState& s, fcl::CollisionObject* o, const int& priority, bool goal_check)
 {
 	m_fcl_mov->unregisterObject(o);
 	a->UpdatePose(s);
@@ -151,12 +151,28 @@ bool CollisionChecker::WHCACollisionCheck(
 	// Check against movables' FCL manager
 	for (int p = 0; p < priority; ++p)
 	{
-		for (const auto& s2: m_trajs.at(p))
+		if (goal_check)
 		{
-			if (s.t == s2.t)
+			auto o2 = m_planner->GetUpdatedObjectFromPriority(m_trajs.at(p).back(), p);
+			m_fcl_mov->update(o2);
+		}
+
+		else
+		{
+			if (s.t > m_trajs.at(p).back().t)
 			{
-				auto o2 = m_planner->GetUpdatedObjectFromPriority(s2, p);
+				auto o2 = m_planner->GetUpdatedObjectFromPriority(m_trajs.at(p).back(), p);
 				m_fcl_mov->update(o2);
+				continue;
+			}
+
+			for (const auto& s2: m_trajs.at(p))
+			{
+				if (s.t == s2.t)
+				{
+					auto o2 = m_planner->GetUpdatedObjectFromPriority(s2, p);
+					m_fcl_mov->update(o2);
+				}
 			}
 		}
 	}

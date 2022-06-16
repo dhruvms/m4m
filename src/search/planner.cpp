@@ -364,7 +364,7 @@ void Planner::RunStudy(int study)
 	}
 }
 
-bool Planner::RunWHCA()
+bool Planner::RunPP()
 {
 	std::set<Coord, coord_compare> ngr;
 	auto ngr_voxels = m_robot->TrajVoxels();
@@ -378,117 +378,78 @@ bool Planner::RunWHCA()
 			ngr.insert(c);
 		}
 	}
-
-	int runs;
-	m_ph.getParam("robot/runs", runs);
-	for (int power = 0; power < 4; ++power)
-	{
-		WINDOW = std::pow(3, power);
-		bool saved = false;
-		int saved_flowtime = 0;
-		for (int tries = 0; tries < runs; ++tries)
-		{
-			m_ooi->InitWHCA();
-			for (auto& a: m_agents) {
-				a->InitWHCA();
-			}
-
-			bool done = false, success = false;
-			int iter = 0, makespan = -1, flowtime = 0, failure = 0;
-			double plan_time = 0.0;
-
-			m_timer = GetTime();
-			prioritise();
-			while (!done)
-			{
-				int priority = 0;
-				for (const auto& p: m_priorities)
-				{
-					double ll_time = GetTime();
-					if (!m_agents.at(p)->PlanPrioritised(priority))
-					{
-						failure = 1;
-						plan_time = GetTime() - m_timer;
-						break;
-					}
-					if (GetTime() - ll_time > 4.0)
-					{
-						failure = 2;
-						plan_time = GetTime() - m_timer;
-						break;
-					}
-					++priority;
-				}
-				if (failure > 0)	{
-					break;
-				}
-
-				step_agents(); // take 1 step by default
-				prioritise();
-
-				++iter;
-
-				done = true;
-				for (auto& a: m_agents)
-				{
-					done = done && a->ReachedGoal();
-					if (!done) {
-						break;
-					}
-				}
-				if (done)
-				{
-					plan_time = GetTime() - m_timer;
-					success = true;
-
-					for (const auto& a: m_agents)
-					{
-						int move_length = int(a->MoveTraj()->size());
-						flowtime += move_length;
-						if (move_length > makespan) {
-							makespan = move_length;
-						}
-					}
-					if (!saved || saved_flowtime > flowtime)
-					{
-						writeWHCAState(iter, ngr);
-						saved = true;
-						saved_flowtime = flowtime;
-					}
-				}
-
-				if ((GetTime() - m_timer) > 30.0)
-				{
-					failure = 3;
-					plan_time = GetTime() - m_timer;
-				}
-
-				if (failure > 0) {
-					break;
-				}
-			}
-
-			std::string filename(__FILE__);
-			auto found = filename.find_last_of("/\\");
-			filename = filename.substr(0, found + 1) + "../../dat/WHCA.csv";
-
-			bool exists = FileExists(filename);
-			std::ofstream STATS;
-			STATS.open(filename, std::ofstream::out | std::ofstream::app);
-			if (!exists)
-			{
-				STATS << "UID,Window,"
-						<< "Success,Failure?,Iterations,PlanTime,"
-						<< "Makespan,Flowtime\n";
-			}
-
-			STATS << m_scene_id << ','
-					<< WINDOW << ',' << success << ',' << failure << ','
-					<< iter << ',' << plan_time << ','
-					<< makespan << ',' << flowtime << '\n';
-			STATS.close();
-		}
+	m_ooi->InitPP();
+	for (auto& a: m_agents) {
+		a->InitPP();
 	}
+
+	bool success = false;
+	int makespan = -1, flowtime = 0, failure = 0;
+	double plan_time = 0.0;
+
+	m_timer = GetTime();
+	prioritise();
+
+	int priority = 0;
+	for (const auto& p: m_priorities)
+	{
+		double ll_time = GetTime();
+		if (!m_agents.at(p)->PlanPrioritised(priority))
+		{
+			failure = 1; // low-level planner failed to find a solution
+			plan_time = GetTime() - m_timer;
+			break;
+		}
+		if (GetTime() - ll_time > 30.0)
+		{
+			failure = 2; // low-level planner timed out
+			plan_time = GetTime() - m_timer;
+			break;
+		}
+		++priority;
+	}
+
+	if (failure == 0 && (GetTime() - m_timer) > 30.0)
+	{
+		failure = 3; // high-level planner timed out
+		plan_time = GetTime() - m_timer;
+	}
+
+	// high-level planner did not fail
+	if (failure == 0)
+	{
+		// PP found a solution!
+		success = true;
+		plan_time = GetTime() - m_timer;
+		for (const auto& a: m_agents)
+		{
+			int move_length = int(a->SolveTraj()->size());
+			flowtime += move_length;
+			if (move_length > makespan) {
+				makespan = move_length;
+			}
+		}
+		writePPState(ngr);
+	}
+
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../../dat/PP.csv";
+
+	bool exists = FileExists(filename);
+	std::ofstream STATS;
+	STATS.open(filename, std::ofstream::out | std::ofstream::app);
+	if (!exists)
+	{
+		STATS << "UID,"
+				<< "Success,Failure?,PlanTime,"
+				<< "Makespan,Flowtime\n";
+	}
+
+	STATS << m_scene_id << ','
+			<< success << ',' << failure << ','
+			<< plan_time << ',' << makespan << ',' << flowtime << '\n';
+	STATS.close();
 
 	return true;
 }
@@ -499,31 +460,23 @@ void Planner::prioritise()
 	m_priorities.resize(m_agents.size());
 	std::iota(m_priorities.begin(), m_priorities.end(), 0);
 
-	State ooi_s = m_ooi->CurrentState().state;
+	Coord ooi_c = m_ooi->InitState().coord;
 	std::vector<double> dists(m_agents.size(), std::numeric_limits<double>::max());
 	for (size_t i = 0; i < m_agents.size(); ++i) {
-		dists.at(i) = std::min(dists.at(i), EuclideanDist(m_agents.at(i)->CurrentState().state, ooi_s));
+		dists.at(i) = std::min(dists.at(i), EuclideanDist(m_agents.at(i)->InitState().coord, ooi_c));
 	}
 	std::stable_sort(m_priorities.begin(), m_priorities.end(),
 		[&dists](size_t i1, size_t i2) { return dists[i1] < dists[i2]; });
 }
 
-void Planner::step_agents(int k)
-{
-	// TODO: make sure we can handle k > 1
-	for (auto& a: m_agents) {
-		a->Step(k);
-	}
-}
-
-void Planner::writeWHCAState(int iter, std::set<Coord, coord_compare> ngr)
+void Planner::writePPState(std::set<Coord, coord_compare> ngr)
 {
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
 	filename = filename.substr(0, found + 1) + "../../dat/txt/";
 
 	std::stringstream ss;
-	ss << "WHCA_" << m_scene_id << "_W" << WINDOW << "_" << std::setw(4) << std::setfill('0') << iter;
+	ss << "PP_" << m_scene_id;
 	std::string s = ss.str();
 
 	filename += s;
@@ -561,7 +514,7 @@ void Planner::writeWHCAState(int iter, std::set<Coord, coord_compare> ngr)
 	movable = "True";
 	for (const auto& a: m_agents)
 	{
-		State loc = a->CurrentState().state;
+		State loc = a->InitState().state;
 		auto agent_obj = a->GetObject();
 		DATA << agent_obj->desc.id << ','
 			<< agent_obj->Shape() << ','
@@ -588,7 +541,7 @@ void Planner::writeWHCAState(int iter, std::set<Coord, coord_compare> ngr)
 	for (const auto& a: m_agents)
 	{
 		auto agent_obj = a->GetObject();
-		auto move = a->MoveTraj();
+		auto move = a->SolveTraj();
 		DATA << agent_obj->desc.id << '\n';
 		DATA << move->size() << '\n';
 		for (const auto& s: *move) {

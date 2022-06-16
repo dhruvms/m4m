@@ -160,9 +160,9 @@ bool Agent::SatisfyPath(
 	return result;
 }
 
-bool Agent::InitWHCA()
+bool Agent::InitPP()
 {
-	m_whca = true;
+	m_pp = true;
 	m_t = 0;
 	m_init.t = 0;
 	m_init.hc = 0;
@@ -170,19 +170,12 @@ bool Agent::InitWHCA()
 	m_init.state = { 	m_obj_desc.o_x, m_obj_desc.o_y, m_obj_desc.o_z,
 						m_obj_desc.o_roll, m_obj_desc.o_pitch, m_obj_desc.o_yaw };
 	ContToDisc(m_init.state, m_init.coord);
-
-	m_current = m_init;
-	// m_visit_map.clear();
-	// m_visit_map[m_current.coord] = m_t;
-
-	m_move.clear();
-	m_move.push_back(m_current);
 }
 
 bool Agent::PlanPrioritised(int p)
 {
 	m_priority = p;
-	m_goal = m_current.coord;
+	m_goal = m_init.coord;
 
 	m_lattice = std::make_unique<AgentLattice>();
 	m_lattice->init(this, false);
@@ -191,7 +184,7 @@ bool Agent::PlanPrioritised(int p)
 	m_search = std::make_unique<WAStar>(m_lattice.get(), 1.0);
 	m_search->reset();
 
-	m_search->push_start(m_lattice->PushStart(m_current));
+	m_search->push_start(m_lattice->PushStart(m_init));
 	m_search->push_goal(m_lattice->PushGoal(m_goal));
 
 	std::vector<int> solution;
@@ -207,52 +200,13 @@ bool Agent::PlanPrioritised(int p)
 	return result;
 }
 
-void Agent::Step(int k)
-{
-	m_t += k;
-	for (const auto& s: m_solve)
-	{
-		if (s.t == m_t)
-		{
-			if (m_current.state != s.state)
-			{
-				m_current = s;
-				m_move.push_back(m_current);
-			}
-			m_current.t = s.t;
-
-			// if (!stateOutsideNGR(m_current))
-			// {
-			// 	if (m_visit_map.find(m_current.coord) == m_visit_map.end()) {
-			// 		m_visit_map[s.coord] = s.t;
-			// 	}
-			// 	else if (m_visit_map[m_current.coord] < m_current.t) {
-			// 		m_visit_map[s.coord] = s.t;
-			// 	}
-			// }
-		}
-	}
-}
-
-bool Agent::PrioritisedCollisionCheck(const LatticeState& s)
+bool Agent::PrioritisedCollisionCheck(const LatticeState& s, bool goal_check)
 {
 	if (m_priority == 0) {
 		return false; // cannot be in collision
 	}
-	return m_cc->WHCACollisionCheck(this, s, m_obj.GetFCLObject(), m_priority);
+	return m_cc->PPCollisionCheck(this, s, m_obj.GetFCLObject(), m_priority, goal_check);
 }
-
-// bool Agent::RevisitCheck(const LatticeState& s, bool outside)
-// {
-// 	if (!outside) { // is state s inside NGR?
-// 		if (m_visit_map.find(s.coord) != m_visit_map.end())	{ // have we been in state s before?
-// 			if (m_visit_map[s.coord] < s.t)	{ // have we been in state s earlier than now?
-// 				return false; // yes, ignore state s
-// 			}
-// 		}
-// 	}
-// 	return true;
-// }
 
 void Agent::UpdatePose(const LatticeState& s)
 {

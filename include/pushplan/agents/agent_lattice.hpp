@@ -66,14 +66,13 @@ private:
 		const LatticeState* s1,
 		const LatticeState* s2);
 
-	// WHCA*
-	std::map<Coord, int> m_visit_map;
-	int generateSuccessorWHCA(
+	// PP
+	int generateSuccessorPP(
 		const LatticeState* parent,
 		int dx, int dy,
 		std::vector<int>* succs,
 		std::vector<unsigned int>* costs);
-	unsigned int costWHCA(
+	unsigned int costPP(
 		const LatticeState* s1,
 		bool s1_outside_ngr,
 		const LatticeState* s2);

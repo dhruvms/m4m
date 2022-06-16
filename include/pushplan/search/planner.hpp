@@ -106,8 +106,8 @@ public:
 		return m_sim->ExecTraj(traj, GetStartObjects(), grasp_at, m_ooi->GetID());
 	}
 
-	// For WHCA*
-	bool RunWHCA();
+	// For PP
+	bool RunPP();
 	fcl::CollisionObject* GetUpdatedObjectFromPriority(const LatticeState& s, int priority)
 	{
 		m_agents.at(m_priorities.at(priority))->UpdatePose(s);
@@ -172,11 +172,10 @@ private:
 
 	bool savePlanData();
 
-	// For WHCA*
+	// For PP
 	std::vector<size_t> m_priorities;
 	void prioritise();
-	void step_agents(int k=1);
-	void writeWHCAState(int iter, std::set<Coord, coord_compare> ngr={});
+	void writePPState(std::set<Coord, coord_compare> ngr={});
 };
 
 } // namespace clutter
