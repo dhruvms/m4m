@@ -224,348 +224,6 @@ bool Planner::FinalisePlan()
 	return true;
 }
 
-bool Planner::RunRRT()
-{
-	int samples, steps, planner;
-	double gbias, gthresh, timeout;
-
-	m_ph.getParam("sampling/samples", samples);
-	m_ph.getParam("sampling/steps", steps);
-	m_ph.getParam("sampling/gbias", gbias);
-	m_ph.getParam("sampling/gthresh", gthresh);
-	m_ph.getParam("sampling/timeout", timeout);
-	m_ph.getParam("sampling/planner", planner);
-
-	switch (planner)
-	{
-		case 0:
-		{
-			m_sampling_planner = std::make_shared<sampling::RRT>(
-				samples, steps, gbias, gthresh, timeout);
-			SMPL_INFO("Run RRT");
-			break;
-		}
-		case 1:
-		{
-			m_sampling_planner = std::make_shared<sampling::RRTStar>(
-				samples, steps, gbias, gthresh, timeout);
-			SMPL_INFO("Run RRTStar");
-			break;
-		}
-		case 2:
-		{
-			int mode, I, J;
-			m_ph.getParam("sampling/tcrrt/mode", mode);
-			m_ph.getParam("sampling/tcrrt/I", I);
-			m_ph.getParam("sampling/tcrrt/J", J);
-
-			m_sampling_planner = std::make_shared<sampling::TCRRT>(
-				samples, steps, gbias, gthresh, timeout, mode, I, J);
-			SMPL_INFO("Run TCRRT");
-
-			smpl::RobotState pregrasp_state;
-			Eigen::Affine3d pregrasp_pose;
-			m_robot->GetPregraspState(pregrasp_state);
-			m_robot->ComputeFK(pregrasp_state, pregrasp_pose);
-			m_robot->VizPlane(pregrasp_pose.translation().z());
-			m_sampling_planner->SetConstraintHeight(pregrasp_pose.translation().z());
-			break;
-		}
-		default:
-		{
-			SMPL_ERROR("Unsupported sampling planner!");
-			return false;
-		}
-	}
-
-	m_sampling_planner->SetRobot(m_robot);
-	m_sampling_planner->SetRobotGoalCallback(std::bind(&Robot::GetPregraspState, m_robot.get(), std::placeholders::_1));
-
-	smpl::RobotState start_config;
-	m_robot->GetHomeState(start_config);
-	comms::ObjectsPoses start_objects = GetStartObjects();
-	m_sampling_planner->SetStartState(start_config, start_objects);
-
-	bool plan_success = m_sampling_planner->Solve();
-	bool exec_success = false;
-	// if (plan_success)
-	{
-		m_sampling_planner->ExtractTraj(m_exec);
-		exec_success = m_sim->ExecTraj(m_exec, start_objects);
-	}
-
-	auto rrt_stats = m_sampling_planner->GetStats();
-	std::string filename(__FILE__);
-	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../../dat/";
-	switch (planner)
-	{
-		case 0:
-		{
-			filename += "RRT.csv";
-			break;
-		}
-
-		case 1:
-		{
-			filename += "RRTStar.csv";
-			break;
-		}
-
-		case 2:
-		{
-			int mode;
-			m_ph.getParam("sampling/tcrrt/mode", mode);
-			filename += "TCRRT_" + std::to_string(mode) + ".csv";
-			break;
-		}
-	}
-
-	// m_stats["
-	// m_stats["goal_samples"] = 0.0;
-	// m_stats["random_samples"] = 0.0;
-
-	bool exists = FileExists(filename);
-	std::ofstream STATS;
-	STATS.open(filename, std::ofstream::out | std::ofstream::app);
-	if (!exists)
-	{
-		STATS << "UID,"
-				<< "PlanSuccess,ExecSuccess,SimCalls,SimTime,"
-				<< "TotalVertices,PlanTime,SolnCost,"
-				<< "FirstGoalVertex,FirstSolnTime,"
-				<< "GoalSamples,RandomSamples\n";
-	}
-
-	STATS << m_scene_id << ','
-			<< plan_success << ',' << exec_success << ','
-			<< rrt_stats["sims"] << ',' << rrt_stats["sim_time"] << ','
-			<< rrt_stats["vertices"] << ',' << rrt_stats["plan_time"] << ','
-			<< rrt_stats["soln_cost"] << ',' << rrt_stats["first_goal"] << ','
-			<< rrt_stats["first_soln_time"] << ',' << rrt_stats["goal_samples"] << ','
-			<< rrt_stats["random_samples"] << '\n';
-	STATS.close();
-
-	return false;
-}
-
-void Planner::RunStudy(int study)
-{
-	int N;
-	if (study == 0)
-	{
-		m_ph.getParam("robot/yoshikawa_tries", N);
-		m_robot->RunManipulabilityStudy(N);
-	}
-	else if (study == 1)
-	{
-		m_ph.getParam("robot/push_ik_yaws", N);
-		m_robot->RunPushIKStudy(N);
-	}
-}
-
-bool Planner::RunPP()
-{
-	std::set<Coord, coord_compare> ngr;
-	auto ngr_voxels = m_robot->TrajVoxels();
-	for (auto itr_list = ngr_voxels->begin(); itr_list != ngr_voxels->end(); ++itr_list)
-	{
-		for (auto itr = itr_list->begin(); itr != itr_list->end(); ++itr)
-		{
-			State s = { itr->x(), itr->y() };
-			Coord c;
-			ContToDisc(s, c);
-			ngr.insert(c);
-		}
-	}
-	m_ooi->InitPP();
-	for (auto& a: m_agents) {
-		a->InitPP();
-	}
-
-	bool success = false;
-	int makespan = -1, flowtime = 0, failure = 0;
-	double plan_time = 0.0;
-
-	m_timer = GetTime();
-	prioritise();
-
-	int priority = 0;
-	for (const auto& p: m_priorities)
-	{
-		double ll_time = GetTime();
-		if (!m_agents.at(p)->PlanPrioritised(priority))
-		{
-			failure = 1; // low-level planner failed to find a solution
-			plan_time = GetTime() - m_timer;
-			break;
-		}
-		if (GetTime() - ll_time > 30.0)
-		{
-			failure = 2; // low-level planner timed out
-			plan_time = GetTime() - m_timer;
-			break;
-		}
-		++priority;
-	}
-
-	if (failure == 0 && (GetTime() - m_timer) > 30.0)
-	{
-		failure = 3; // high-level planner timed out
-		plan_time = GetTime() - m_timer;
-	}
-
-	// high-level planner did not fail
-	if (failure == 0)
-	{
-		// PP found a solution!
-		success = true;
-		plan_time = GetTime() - m_timer;
-		for (const auto& a: m_agents)
-		{
-			int move_length = int(a->SolveTraj()->size());
-			flowtime += move_length;
-			if (move_length > makespan) {
-				makespan = move_length;
-			}
-		}
-		writePPState(ngr);
-	}
-
-	std::string filename(__FILE__);
-	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../../dat/PP.csv";
-
-	bool exists = FileExists(filename);
-	std::ofstream STATS;
-	STATS.open(filename, std::ofstream::out | std::ofstream::app);
-	if (!exists)
-	{
-		STATS << "UID,"
-				<< "Success,Failure?,PlanTime,"
-				<< "Makespan,Flowtime\n";
-	}
-
-	STATS << m_scene_id << ','
-			<< success << ',' << failure << ','
-			<< plan_time << ',' << makespan << ',' << flowtime << '\n';
-	STATS.close();
-
-	return true;
-}
-
-void Planner::prioritise()
-{
-	m_priorities.clear();
-	m_priorities.resize(m_agents.size());
-	std::iota(m_priorities.begin(), m_priorities.end(), 0);
-
-	smpl::RobotState home_state;
-	Eigen::Affine3d home_pose;
-	m_robot->GetHomeState(home_state);
-	m_robot->ComputeFK(home_state, home_pose);
-	State robot = { home_pose.translation().x(), home_pose.translation().y() };
-	std::vector<double> dists(m_agents.size(), std::numeric_limits<double>::max());
-	for (size_t i = 0; i < m_agents.size(); ++i) {
-		dists.at(i) = std::min(dists.at(i), EuclideanDist(robot, m_agents.at(i)->InitState().state));
-	}
-	std::stable_sort(m_priorities.begin(), m_priorities.end(),
-		[&dists](size_t i1, size_t i2) { return dists[i1] < dists[i2]; });
-}
-
-void Planner::writePPState(std::set<Coord, coord_compare> ngr)
-{
-	std::string filename(__FILE__);
-	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../../dat/txt/";
-
-	std::stringstream ss;
-	ss << "PP_" << m_scene_id;
-	std::string s = ss.str();
-
-	filename += s;
-	filename += ".txt";
-
-	std::ofstream DATA;
-	DATA.open(filename, std::ofstream::out);
-
-	DATA << 'O' << '\n';
-	int o = m_cc->NumObstacles() + m_agents.size();
-	DATA << o << '\n';
-
-	std::string movable = "False";
-	auto obstacles = m_cc->GetObstacles();
-	for (const auto& obs: *obstacles)
-	{
-		int id = obs.desc.id == m_ooi->GetID() ? 999 : obs.desc.id;
-		DATA << id << ','
-				<< obs.Shape() << ','
-				<< obs.desc.type << ','
-				<< obs.desc.o_x << ','
-				<< obs.desc.o_y << ','
-				<< obs.desc.o_z << ','
-				<< obs.desc.o_roll << ','
-				<< obs.desc.o_pitch << ','
-				<< obs.desc.o_yaw << ','
-				<< obs.desc.x_size << ','
-				<< obs.desc.y_size << ','
-				<< obs.desc.z_size << ','
-				<< obs.desc.mass << ','
-				<< obs.desc.mu << ','
-				<< movable << '\n';
-	}
-
-	movable = "True";
-	for (const auto& a: m_agents)
-	{
-		State loc = a->InitState().state;
-		auto agent_obj = a->GetObject();
-		DATA << agent_obj->desc.id << ','
-			<< agent_obj->Shape() << ','
-			<< agent_obj->desc.type << ','
-			<< loc.at(0) << ','
-			<< loc.at(1) << ','
-			<< agent_obj->desc.o_z << ','
-			<< agent_obj->desc.o_roll << ','
-			<< agent_obj->desc.o_pitch << ','
-			<< agent_obj->desc.o_yaw << ','
-			<< agent_obj->desc.x_size << ','
-			<< agent_obj->desc.y_size << ','
-			<< agent_obj->desc.z_size << ','
-			<< agent_obj->desc.mass << ','
-			<< agent_obj->desc.mu << ','
-			<< movable << '\n';
-	}
-
-	// write solution trajs
-	DATA << 'T' << '\n';
-	o = m_agents.size();
-	DATA << o << '\n';
-
-	for (const auto& a: m_agents)
-	{
-		auto agent_obj = a->GetObject();
-		auto move = a->SolveTraj();
-		DATA << agent_obj->desc.id << '\n';
-		DATA << move->size() << '\n';
-		for (const auto& s: *move) {
-			DATA << s.state.at(0) << ',' << s.state.at(1) << '\n';
-		}
-	}
-
-	if (!ngr.empty())
-	{
-		DATA << "NGR" << '\n';
-		DATA << ngr.size() << '\n';
-		for (const auto& p: ngr) {
-			DATA 	<< p.at(0) << ','
-					<< p.at(1) << '\n';
-		}
-	}
-
-	DATA.close();
-}
-
 bool Planner::createCBS()
 {
 	switch (ALGO)
@@ -1256,6 +914,348 @@ bool Planner::SaveData()
 			<< m_cbs_stats["ct_deadends"] << ',' << m_cbs_stats["ct_expanded"] << ','
 			<< m_cbs_stats["ll_time"] << ',' << m_cbs_stats["conflict_time"] << '\n';
 	STATS.close();
+}
+
+bool Planner::RunRRT()
+{
+	int samples, steps, planner;
+	double gbias, gthresh, timeout;
+
+	m_ph.getParam("sampling/samples", samples);
+	m_ph.getParam("sampling/steps", steps);
+	m_ph.getParam("sampling/gbias", gbias);
+	m_ph.getParam("sampling/gthresh", gthresh);
+	m_ph.getParam("sampling/timeout", timeout);
+	m_ph.getParam("sampling/planner", planner);
+
+	switch (planner)
+	{
+		case 0:
+		{
+			m_sampling_planner = std::make_shared<sampling::RRT>(
+				samples, steps, gbias, gthresh, timeout);
+			SMPL_INFO("Run RRT");
+			break;
+		}
+		case 1:
+		{
+			m_sampling_planner = std::make_shared<sampling::RRTStar>(
+				samples, steps, gbias, gthresh, timeout);
+			SMPL_INFO("Run RRTStar");
+			break;
+		}
+		case 2:
+		{
+			int mode, I, J;
+			m_ph.getParam("sampling/tcrrt/mode", mode);
+			m_ph.getParam("sampling/tcrrt/I", I);
+			m_ph.getParam("sampling/tcrrt/J", J);
+
+			m_sampling_planner = std::make_shared<sampling::TCRRT>(
+				samples, steps, gbias, gthresh, timeout, mode, I, J);
+			SMPL_INFO("Run TCRRT");
+
+			smpl::RobotState pregrasp_state;
+			Eigen::Affine3d pregrasp_pose;
+			m_robot->GetPregraspState(pregrasp_state);
+			m_robot->ComputeFK(pregrasp_state, pregrasp_pose);
+			m_robot->VizPlane(pregrasp_pose.translation().z());
+			m_sampling_planner->SetConstraintHeight(pregrasp_pose.translation().z());
+			break;
+		}
+		default:
+		{
+			SMPL_ERROR("Unsupported sampling planner!");
+			return false;
+		}
+	}
+
+	m_sampling_planner->SetRobot(m_robot);
+	m_sampling_planner->SetRobotGoalCallback(std::bind(&Robot::GetPregraspState, m_robot.get(), std::placeholders::_1));
+
+	smpl::RobotState start_config;
+	m_robot->GetHomeState(start_config);
+	comms::ObjectsPoses start_objects = GetStartObjects();
+	m_sampling_planner->SetStartState(start_config, start_objects);
+
+	bool plan_success = m_sampling_planner->Solve();
+	bool exec_success = false;
+	// if (plan_success)
+	{
+		m_sampling_planner->ExtractTraj(m_exec);
+		exec_success = m_sim->ExecTraj(m_exec, start_objects);
+	}
+
+	auto rrt_stats = m_sampling_planner->GetStats();
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../../dat/";
+	switch (planner)
+	{
+		case 0:
+		{
+			filename += "RRT.csv";
+			break;
+		}
+
+		case 1:
+		{
+			filename += "RRTStar.csv";
+			break;
+		}
+
+		case 2:
+		{
+			int mode;
+			m_ph.getParam("sampling/tcrrt/mode", mode);
+			filename += "TCRRT_" + std::to_string(mode) + ".csv";
+			break;
+		}
+	}
+
+	// m_stats["
+	// m_stats["goal_samples"] = 0.0;
+	// m_stats["random_samples"] = 0.0;
+
+	bool exists = FileExists(filename);
+	std::ofstream STATS;
+	STATS.open(filename, std::ofstream::out | std::ofstream::app);
+	if (!exists)
+	{
+		STATS << "UID,"
+				<< "PlanSuccess,ExecSuccess,SimCalls,SimTime,"
+				<< "TotalVertices,PlanTime,SolnCost,"
+				<< "FirstGoalVertex,FirstSolnTime,"
+				<< "GoalSamples,RandomSamples\n";
+	}
+
+	STATS << m_scene_id << ','
+			<< plan_success << ',' << exec_success << ','
+			<< rrt_stats["sims"] << ',' << rrt_stats["sim_time"] << ','
+			<< rrt_stats["vertices"] << ',' << rrt_stats["plan_time"] << ','
+			<< rrt_stats["soln_cost"] << ',' << rrt_stats["first_goal"] << ','
+			<< rrt_stats["first_soln_time"] << ',' << rrt_stats["goal_samples"] << ','
+			<< rrt_stats["random_samples"] << '\n';
+	STATS.close();
+
+	return false;
+}
+
+void Planner::RunStudy(int study)
+{
+	int N;
+	if (study == 0)
+	{
+		m_ph.getParam("robot/yoshikawa_tries", N);
+		m_robot->RunManipulabilityStudy(N);
+	}
+	else if (study == 1)
+	{
+		m_ph.getParam("robot/push_ik_yaws", N);
+		m_robot->RunPushIKStudy(N);
+	}
+}
+
+bool Planner::RunPP()
+{
+	std::set<Coord, coord_compare> ngr;
+	auto ngr_voxels = m_robot->TrajVoxels();
+	for (auto itr_list = ngr_voxels->begin(); itr_list != ngr_voxels->end(); ++itr_list)
+	{
+		for (auto itr = itr_list->begin(); itr != itr_list->end(); ++itr)
+		{
+			State s = { itr->x(), itr->y() };
+			Coord c;
+			ContToDisc(s, c);
+			ngr.insert(c);
+		}
+	}
+	m_ooi->InitPP();
+	for (auto& a: m_agents) {
+		a->InitPP();
+	}
+
+	bool success = false;
+	int makespan = -1, flowtime = 0, failure = 0;
+	double plan_time = 0.0;
+
+	m_timer = GetTime();
+	prioritise();
+
+	int priority = 0;
+	for (const auto& p: m_priorities)
+	{
+		double ll_time = GetTime();
+		if (!m_agents.at(p)->PlanPrioritised(priority))
+		{
+			failure = 1; // low-level planner failed to find a solution
+			plan_time = GetTime() - m_timer;
+			break;
+		}
+		if (GetTime() - ll_time > 30.0)
+		{
+			failure = 2; // low-level planner timed out
+			plan_time = GetTime() - m_timer;
+			break;
+		}
+		++priority;
+	}
+
+	if (failure == 0 && (GetTime() - m_timer) > 30.0)
+	{
+		failure = 3; // high-level planner timed out
+		plan_time = GetTime() - m_timer;
+	}
+
+	// high-level planner did not fail
+	if (failure == 0)
+	{
+		// PP found a solution!
+		success = true;
+		plan_time = GetTime() - m_timer;
+		for (const auto& a: m_agents)
+		{
+			int move_length = int(a->SolveTraj()->size());
+			flowtime += move_length;
+			if (move_length > makespan) {
+				makespan = move_length;
+			}
+		}
+		writePPState(ngr);
+	}
+
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../../dat/PP.csv";
+
+	bool exists = FileExists(filename);
+	std::ofstream STATS;
+	STATS.open(filename, std::ofstream::out | std::ofstream::app);
+	if (!exists)
+	{
+		STATS << "UID,"
+				<< "Success,Failure?,PlanTime,"
+				<< "Makespan,Flowtime\n";
+	}
+
+	STATS << m_scene_id << ','
+			<< success << ',' << failure << ','
+			<< plan_time << ',' << makespan << ',' << flowtime << '\n';
+	STATS.close();
+
+	return true;
+}
+
+void Planner::prioritise()
+{
+	m_priorities.clear();
+	m_priorities.resize(m_agents.size());
+	std::iota(m_priorities.begin(), m_priorities.end(), 0);
+
+	smpl::RobotState home_state;
+	Eigen::Affine3d home_pose;
+	m_robot->GetHomeState(home_state);
+	m_robot->ComputeFK(home_state, home_pose);
+	State robot = { home_pose.translation().x(), home_pose.translation().y() };
+	std::vector<double> dists(m_agents.size(), std::numeric_limits<double>::max());
+	for (size_t i = 0; i < m_agents.size(); ++i) {
+		dists.at(i) = std::min(dists.at(i), EuclideanDist(robot, m_agents.at(i)->InitState().state));
+	}
+	std::stable_sort(m_priorities.begin(), m_priorities.end(),
+		[&dists](size_t i1, size_t i2) { return dists[i1] < dists[i2]; });
+}
+
+void Planner::writePPState(std::set<Coord, coord_compare> ngr)
+{
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../../dat/txt/";
+
+	std::stringstream ss;
+	ss << "PP_" << m_scene_id;
+	std::string s = ss.str();
+
+	filename += s;
+	filename += ".txt";
+
+	std::ofstream DATA;
+	DATA.open(filename, std::ofstream::out);
+
+	DATA << 'O' << '\n';
+	int o = m_cc->NumObstacles() + m_agents.size();
+	DATA << o << '\n';
+
+	std::string movable = "False";
+	auto obstacles = m_cc->GetObstacles();
+	for (const auto& obs: *obstacles)
+	{
+		int id = obs.desc.id == m_ooi->GetID() ? 999 : obs.desc.id;
+		DATA << id << ','
+				<< obs.Shape() << ','
+				<< obs.desc.type << ','
+				<< obs.desc.o_x << ','
+				<< obs.desc.o_y << ','
+				<< obs.desc.o_z << ','
+				<< obs.desc.o_roll << ','
+				<< obs.desc.o_pitch << ','
+				<< obs.desc.o_yaw << ','
+				<< obs.desc.x_size << ','
+				<< obs.desc.y_size << ','
+				<< obs.desc.z_size << ','
+				<< obs.desc.mass << ','
+				<< obs.desc.mu << ','
+				<< movable << '\n';
+	}
+
+	movable = "True";
+	for (const auto& a: m_agents)
+	{
+		State loc = a->InitState().state;
+		auto agent_obj = a->GetObject();
+		DATA << agent_obj->desc.id << ','
+			<< agent_obj->Shape() << ','
+			<< agent_obj->desc.type << ','
+			<< loc.at(0) << ','
+			<< loc.at(1) << ','
+			<< agent_obj->desc.o_z << ','
+			<< agent_obj->desc.o_roll << ','
+			<< agent_obj->desc.o_pitch << ','
+			<< agent_obj->desc.o_yaw << ','
+			<< agent_obj->desc.x_size << ','
+			<< agent_obj->desc.y_size << ','
+			<< agent_obj->desc.z_size << ','
+			<< agent_obj->desc.mass << ','
+			<< agent_obj->desc.mu << ','
+			<< movable << '\n';
+	}
+
+	// write solution trajs
+	DATA << 'T' << '\n';
+	o = m_agents.size();
+	DATA << o << '\n';
+
+	for (const auto& a: m_agents)
+	{
+		auto agent_obj = a->GetObject();
+		auto move = a->SolveTraj();
+		DATA << agent_obj->desc.id << '\n';
+		DATA << move->size() << '\n';
+		for (const auto& s: *move) {
+			DATA << s.state.at(0) << ',' << s.state.at(1) << '\n';
+		}
+	}
+
+	if (!ngr.empty())
+	{
+		DATA << "NGR" << '\n';
+		DATA << ngr.size() << '\n';
+		for (const auto& p: ngr) {
+			DATA 	<< p.at(0) << ','
+					<< p.at(1) << '\n';
+		}
+	}
+
+	DATA.close();
 }
 
 } // namespace clutter
