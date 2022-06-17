@@ -658,19 +658,19 @@ void CBS::writeSolution(HighLevelNode* node)
 		movable = "True";
 		for (size_t oidx = 0; oidx < m_objs.size(); ++oidx)
 		{
-			if (node->m_solution[oidx].second.size() <= tidx) {
-				loc = node->m_solution[oidx].second.back().state;
-			}
-			else {
-				loc = node->m_solution[oidx].second.at(tidx).state;
-			}
+			// if (node->m_solution[oidx].second.size() <= tidx) {
+			// 	loc = node->m_solution[oidx].second.back().state;
+			// }
+			// else {
+			// 	loc = node->m_solution[oidx].second.at(tidx).state;
+			// }
 
 			auto agent_obs = m_objs[oidx]->GetObject();
 			DATA << agent_obs->desc.id << ','
 				<< agent_obs->Shape() << ','
 				<< agent_obs->desc.type << ','
-				<< loc.at(0) << ','
-				<< loc.at(1) << ','
+				<< agent_obs->desc.o_x << ','
+				<< agent_obs->desc.o_y << ','
 				<< agent_obs->desc.o_z << ','
 				<< agent_obs->desc.o_roll << ','
 				<< agent_obs->desc.o_pitch << ','
