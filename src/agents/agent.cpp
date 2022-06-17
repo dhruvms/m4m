@@ -451,28 +451,32 @@ bool Agent::computeGoal(bool backwards)
 		m_obj.updateVoxelsState(T);
 		auto voxels_state = m_obj.VoxelsState();
 
-		double best_pos_dist = std::numeric_limits<double>::lowest(), best_neg_dist = std::numeric_limits<double>::lowest(), dist;
-		Eigen::Vector3i best_outside_pos, best_inside_pos, pos;
+		double best_pos_dist = std::numeric_limits<double>::max(), dist;
+		Eigen::Vector3i best_outside_pos, pos;
 		bool inside = false, outside = false;
 
+		double wx, wy, wz;
 		auto ngr_df = m_ngr_grid->getDistanceField();
 		for (const Eigen::Vector3d& v : voxels_state->voxels)
 		{
 			auto cell = dynamic_cast<smpl::PropagationDistanceField&>(*ngr_df).getNearestCell(v[0], v[1], v[2], dist, pos);
-			if (dist > 0 && dist > best_pos_dist)
-			{
-				best_pos_dist = dist;
-				best_outside_pos = pos;
-				if (!outside) {
-					outside = true;
-				}
+
+			if (dist > 0) {
+				outside = true;
 			}
-			if (dist < 0 && dist > best_neg_dist)
+			else if (dist < 0)
 			{
-				best_neg_dist = dist;
-				best_inside_pos = pos; // actually the nearest free space (boundary?) cell
 				if (!inside) {
 					inside = true;
+				}
+
+				m_ngr_grid->gridToWorld(pos[0], pos[1], pos[2], wx, wy, wz);
+				Eigen::Vector3d posd(wx, wy, wz);
+				double dist_to_outside = (posd - v).norm();
+				if (dist_to_outside < best_pos_dist)
+				{
+					best_pos_dist = dist_to_outside;
+					best_outside_pos = pos;
 				}
 			}
 		}
@@ -484,13 +488,7 @@ bool Agent::computeGoal(bool backwards)
 			return true;
 		}
 
-		double wx, wy, wz;
-		if (inside && outside) {
-			m_ngr_grid->gridToWorld(best_outside_pos[0], best_outside_pos[1], best_outside_pos[2], wx, wy, wz);
-		}
-		else {
-			m_ngr_grid->gridToWorld(best_inside_pos[0], best_inside_pos[1], best_inside_pos[2], wx, wy, wz);
-		}
+		m_ngr_grid->gridToWorld(best_outside_pos[0], best_outside_pos[1], best_outside_pos[2], wx, wy, wz);
 
 		State goal = {wx, wy};
 		ContToDisc(goal, m_goal);
