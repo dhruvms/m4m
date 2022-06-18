@@ -37,7 +37,7 @@ public:
 	bool SetupNGR();
 
 	bool Plan(bool& done);
-	bool FinalisePlan();
+	bool FinalisePlan(bool add_movables=true);
 	bool SaveData();
 	bool Rearrange();
 	std::uint32_t RunSim();
@@ -90,6 +90,8 @@ public:
 
 		return start_objects;
 	}
+
+	bool Replan() { return m_replan; };
 
 	// For KPIECE
 	Robot* GetRobot() { return m_robot.get(); };

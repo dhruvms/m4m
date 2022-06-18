@@ -197,7 +197,7 @@ bool Planner::SetupNGR()
 	return true;
 }
 
-bool Planner::FinalisePlan()
+bool Planner::FinalisePlan(bool add_movables)
 {
 	m_timer = GetTime();
 
@@ -212,7 +212,7 @@ bool Planner::FinalisePlan()
 	if (!m_rearrangements.empty()) {
 		start_state = m_rearrangements.back().points.back().positions;
 	}
-	if (!m_robot->PlanRetrieval(movable_obstacles, true, start_state))
+	if (!m_robot->PlanRetrieval(movable_obstacles, add_movables, start_state))
 	{
 		m_stats["robot_planner_time"] += GetTime() - m_timer;
 		return false;
@@ -274,7 +274,7 @@ bool Planner::Plan(bool& done)
 		return true;
 	}
 
-	bool backwards = true; // ALGO == MAPFAlgo::OURS;
+	bool backwards = false; // ALGO == MAPFAlgo::OURS;
 	if (!setupProblem(backwards)) {
 		return false;
 	}
@@ -331,28 +331,16 @@ bool Planner::Rearrange()
 	if (!rearrange())
 	{
 		SMPL_INFO("There were no conflicts to rearrange! WE ARE DONE!");
+		m_plan_success = true;
 
-		m_timer = GetTime();
-
-		std::vector<Object*> movable_obstacles;
-		for (const auto& a: m_agents) {
-			movable_obstacles.push_back(a->GetObject());
+		if (!FinalisePlan(false))
+		{
+			if (m_cbs)
+			{
+				m_cbs->WriteLastSolution();
+				m_cbs.reset();
+			}
 		}
-
-		smpl::RobotState start_state = {};
-		if (!m_rearrangements.empty()) {
-			start_state = m_rearrangements.back().points.back().positions;
-		}
-
-		m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
-		// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
-		if (!m_robot->PlanRetrieval(movable_obstacles, false, start_state))	{
-			return false;
-		}
-		m_robot->ProcessObstacles({ m_ooi->GetObject() });
-		m_exec = m_robot->GetLastPlanProfiled();
-
-		m_stats["robot_planner_time"] += GetTime() - m_timer;
 
 		return false;
 	}
