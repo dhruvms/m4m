@@ -68,6 +68,9 @@ target_link_libraries(PUSHPLAN ${catkin_LIBRARIES} smpl::smpl) # -lprofiler
 add_executable(coop_plan test/coop_plan.cpp)
 target_link_libraries(coop_plan ${catkin_LIBRARIES} smpl::smpl PUSHPLAN)
 
+add_executable(coop_plan_no_iterate test/coop_plan_no_iterate.cpp)
+target_link_libraries(coop_plan_no_iterate ${catkin_LIBRARIES} smpl::smpl PUSHPLAN)
+
 add_executable(sampling test/sampling.cpp)
 target_link_libraries(sampling ${catkin_LIBRARIES} smpl::smpl PUSHPLAN)
 
