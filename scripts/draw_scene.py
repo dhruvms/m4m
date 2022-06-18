@@ -184,7 +184,7 @@ def DrawScene(filepath, objs, trajs, ngr, goals, pushes, alpha=1.0):
 
 	if (ngr):
 		NGR = np.asarray(ngr)*RES
-		AX.scatter(NGR[:, 0], NGR[:, 1], c='gray', alpha=0.05, zorder=2)
+		AX.scatter(NGR[:, 0], NGR[:, 1], c='gray', alpha=0.2, zorder=2)
 
 	# if (goals):
 	# 	GOALS = np.asarray(goals)
