@@ -1696,45 +1696,6 @@ bool Robot::PlanPush(
 				push_end_pose,
 				push_action, failure))
 		{
-			// // collision check push action against immovable obstacles
-			// if (push_action.points.size() <= 1
-			// 	|| !m_cc_i->isStateValid(push_action.points[0].positions)
-			// 	|| !m_cc_i->isStateValid(push_action.points.back().positions)
-			// 	|| !m_cc_i->isStateToStateValid(push_action.points[0].positions, push_action.points[1].positions))
-			// {
-			// 	m_push_debug_data.push_back({
-			// 		push_start_pose.translation().x(),
-			// 		push_start_pose.translation().y(),
-			// 		push_end_pose.translation().x(),
-			// 		push_end_pose.translation().y(),
-			// 		2.0});
-			// 	push_reward = 0.1;
-			// 	continue;
-			// }
-
-			// bool collides = false;
-			// for (size_t wp = 1; wp < push_action.points.size(); ++wp)
-			// {
-			// 	auto& prev_istate = push_action.points[wp - 1].positions;
-			// 	auto& curr_istate = push_action.points[wp].positions;
-			// 	if (!m_cc_i->isStateToStateValid(prev_istate, curr_istate))
-			// 	{
-			// 		collides = true;
-			// 		break;
-			// 	}
-			// }
-			// if (collides)
-			// {
-			// 	m_push_debug_data.push_back({
-			// 		push_start_pose.translation().x(),
-			// 		push_start_pose.translation().y(),
-			// 		push_end_pose.translation().x(),
-			// 		push_end_pose.translation().y(),
-			// 		2.0});
-			// 	push_reward = 0.1;
-			// 	continue;
-			// }
-
 			// collision check push action against pushed object
 			// ensure that it collides
 			bool collides = false;
@@ -1823,7 +1784,12 @@ bool Robot::PlanPush(
 
 	int pidx, successes;
 	start_time = GetTime();
-	m_sim->SimPushes(m_push_actions, object->GetID(), obj_traj->back().state.at(0), obj_traj->back().state.at(1), pidx, successes, rearranged, result);
+	if (!input) {
+		m_sim->SimPushes(m_push_actions, object->GetID(), obj_traj->back().state.at(0), obj_traj->back().state.at(1), pidx, successes, rearranged, result);
+	}
+	else {
+		m_sim->SimPushes(m_push_actions, object->GetID(), push[3], push[4], pidx, successes, rearranged, result);
+	}
 	m_stats["push_sim_time"] += GetTime() - start_time;
 
 	if (pidx == -1)
@@ -1895,7 +1861,7 @@ void Robot::getPushStartPose(
 	// (x, y) is randomly sampled near push start location
 	double x = push[0] + (m_distG(m_rng) * 0.025);
 	double y = push[1] + (m_distG(m_rng) * 0.025);
-	if (input)
+	if (!input)
 	{
 		x += std::cos(push[2] + M_PI) * 0.05;
 		y += std::sin(push[2] + M_PI) * 0.05;
