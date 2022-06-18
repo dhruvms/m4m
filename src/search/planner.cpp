@@ -221,6 +221,12 @@ bool Planner::FinalisePlan(bool add_movables)
 	m_exec = m_robot->GetLastPlanProfiled();
 
 	m_stats["robot_planner_time"] += GetTime() - m_timer;
+
+	if (m_cbs)
+	{
+		m_cbs->WriteLastSolution();
+		m_cbs.reset();
+	}
 	return true;
 }
 
@@ -266,11 +272,6 @@ bool Planner::Plan(bool& done)
 	{
 		done = true;
 		m_plan_success = true;
-		if (m_cbs)
-		{
-			m_cbs->WriteLastSolution();
-			m_cbs.reset();
-		}
 		return true;
 	}
 
