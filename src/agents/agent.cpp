@@ -261,10 +261,17 @@ void Agent::VisualiseState(const Coord& c, const std::string& ns, int hue)
 
 void Agent::VisualiseState(const LatticeState& s, const std::string& ns, int hue)
 {
+	double r = 0.0, p = 0.0, y = 0.0;
+	if (s.state.size() == 6)
+	{
+		r = s.state[3];
+		p = s.state[4];
+		y = s.state[5];
+	}
 	Eigen::Affine3d T = Eigen::Translation3d(s.state[0], s.state[1], m_obj_desc.o_z) *
-						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
-						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
+						Eigen::AngleAxisd(y, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(p, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(r, Eigen::Vector3d::UnitX());
 
 	m_obj.SetTransform(T);
 
@@ -545,9 +552,9 @@ bool Agent::stateOutsideNGR(const LatticeState& s)
 	}
 
 	Eigen::Affine3d T = Eigen::Translation3d(s.state[0], s.state[1], m_obj_desc.o_z) *
-						Eigen::AngleAxisd(r, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(y, Eigen::Vector3d::UnitZ()) *
 						Eigen::AngleAxisd(p, Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(y, Eigen::Vector3d::UnitX());
+						Eigen::AngleAxisd(r, Eigen::Vector3d::UnitX());
 
 	m_obj.SetTransform(T);
 	std::vector<const smpl::collision::CollisionSphereState*> q = {
