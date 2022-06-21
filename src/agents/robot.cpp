@@ -678,6 +678,9 @@ bool Robot::detachObject()
 
 bool Robot::attachObject(const Object& obj)
 {
+	double y, p, r;
+	auto inv_rot = m_postgrasp_pose.inverse().rotation();
+	smpl::angles::get_euler_zyx(inv_rot, y, p, r);
 	smpl::collision::CollisionObject* obj_co = obj.smpl_co;
 
 	std::vector<shapes::ShapeConstPtr> shapes;
@@ -686,8 +689,11 @@ bool Robot::attachObject(const Object& obj)
 	{
 		for (size_t sidx = 0; sidx < obj.smpl_co->shapes.size(); ++sidx)
 		{
-			auto transform = Eigen::Affine3d::Identity();
-			transform.translation().x() += 0.2;
+			auto transform = Eigen::Translation3d(0.2, 0.0, 0.0) *
+						Eigen::AngleAxisd(y + obj.desc.o_yaw, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
+
 			switch (obj.smpl_co->shapes.at(sidx)->type)
 			{
 				case smpl::collision::ShapeType::Box:

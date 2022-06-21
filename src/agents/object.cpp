@@ -208,9 +208,9 @@ bool Object::CreateSMPLCollisionObject()
 
 		// auto& prim_pose = moveit_obj->primitive_poses[i];
 		Eigen::Affine3d transform = Eigen::Translation3d(0.0, 0.0, 0.0) *
-						Eigen::AngleAxisd(desc.o_yaw, Eigen::Vector3d::UnitZ()) *
-						Eigen::AngleAxisd(desc.o_pitch, Eigen::Vector3d::UnitY()) *
-						Eigen::AngleAxisd(desc.o_roll, Eigen::Vector3d::UnitX());;
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+						Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());;
 		// tf::poseMsgToEigen(prim_pose, transform);
 		shape_poses.push_back(transform);
 	}
