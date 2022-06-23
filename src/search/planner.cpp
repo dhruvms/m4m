@@ -105,7 +105,6 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		// Compute robot grasping states and plan path through them
 		int t = 0, grasp_tries;
 		m_ph.getParam("robot/grasping/tries", grasp_tries);
-		m_timer = GetTime();
 		for (; t < grasp_tries; ++t)
 		{
 			if (m_robot->ComputeGrasps(m_goal)) {
@@ -114,7 +113,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 				}
 			}
 		}
-		m_stats["robot_planner_time"] += GetTime() - m_timer;
+
 		if (t == grasp_tries)
 		{
 			SMPL_ERROR("Robot failed to compute grasp states!");
@@ -170,9 +169,11 @@ bool Planner::SetupNGR()
 
 	m_robot->ProcessObstacles({ m_ooi->GetObject() }, true);
 	// if (!m_robot->PlanApproachOnly(movable_obstacles)) {
+	m_timer = GetTime();
 	if (!m_robot->PlanRetrieval(movable_obstacles))	{
 		return false;
 	}
+	m_stats["robot_planner_time"] = GetTime() - m_timer;
 	m_robot->ProcessObstacles({ m_ooi->GetObject() });
 	m_robot->UpdateNGR();
 	m_exec = m_robot->GetLastPlanProfiled();
