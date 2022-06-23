@@ -275,7 +275,7 @@ bool Planner::Plan(bool& done)
 		return true;
 	}
 
-	bool backwards = false; // ALGO == MAPFAlgo::OURS;
+	bool backwards = true; // ALGO == MAPFAlgo::OURS;
 	if (!setupProblem(backwards)) {
 		return false;
 	}

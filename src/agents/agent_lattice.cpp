@@ -168,6 +168,7 @@ void AgentLattice::GetSuccs(
 
 unsigned int AgentLattice::GetGoalHeuristic(int state_id)
 {
+	return 0;
 	if (m_agent->PP()) {
 		return 0;
 	}
@@ -192,6 +193,7 @@ unsigned int AgentLattice::GetConflictHeuristic(int state_id)
 
 unsigned int AgentLattice::GetGoalHeuristic(const LatticeState& s)
 {
+	return 0;
 	if (m_agent->PP()) {
 		return 0;
 	}
