@@ -534,8 +534,8 @@ bool Robot::ComputeGraspTraj(const smpl::RobotState& state, trajectory_msgs::Joi
 	Eigen::Affine3d ee_pose = m_rm->computeFK(postgrasp_state);
 	double yaw, pitch, roll;
 	smpl::angles::get_euler_zyx(ee_pose.rotation(), yaw, pitch, roll);
-	ee_pose.translation().x() -= 0.05 * std::cos(yaw);
-	ee_pose.translation().y() -= 0.05 * std::sin(yaw);
+	ee_pose.translation().x() -= 0.2 * std::cos(yaw);
+	ee_pose.translation().y() -= 0.2 * std::sin(yaw);
 	if (!getStateNearPose(ee_pose, postgrasp_state, retreat_state, 1))
 	{
 		ProcessObstacles({ m_ooi });
