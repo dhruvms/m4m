@@ -31,7 +31,7 @@ public:
 	Planner() : m_num_objs(-1), m_scene_id(-1),
 				m_ph("~"), m_replan(true),
 				m_plan_success(false), m_sim_success(false),
-				m_push_input(false), m_rng(m_dev()) {};
+				m_push_input(false), m_rng(m_dev()), m_grasp_at(-1) {};
 	bool Init(const std::string& scene_file, int scene_id, bool ycb);
 	bool Alive();
 	bool SetupNGR();
@@ -40,7 +40,8 @@ public:
 	bool FinalisePlan(bool add_movables=true);
 	bool SaveData();
 	bool Rearrange();
-	std::uint32_t RunSim();
+	std::uint32_t RunSim(bool save=true);
+	std::uint32_t RunSolution();
 	bool TryExtract();
 	void AnimateSolution();
 	bool RunRRT();
@@ -133,6 +134,7 @@ private:
 	State m_ooi_gf;
 	std::vector<double> m_goal;
 
+	int m_grasp_at;
 	trajectory_msgs::JointTrajectory m_exec;
 	std::vector<trajectory_msgs::JointTrajectory> m_rearrangements;
 	comms::ObjectsPoses m_rearranged;
@@ -168,6 +170,7 @@ private:
 	void init_agents(
 		bool ycb, std::vector<Object>& obstacles);
 	void parse_scene(std::vector<Object>& obstacles);
+	void read_solution();
 	void writePlanState(int iter);
 	void setupGlobals();
 	int armId();
@@ -177,7 +180,7 @@ private:
 	// For PP
 	std::vector<size_t> m_priorities;
 	void prioritise();
-	void writePPState(std::set<Coord, coord_compare> ngr={});
+	void writeState(const std::string& prefix, std::set<Coord, coord_compare> ngr={});
 };
 
 } // namespace clutter

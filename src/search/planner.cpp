@@ -350,14 +350,25 @@ bool Planner::Rearrange()
 	return true;
 }
 
-std::uint32_t Planner::RunSim()
+std::uint32_t Planner::RunSim(bool save)
 {
 	m_timer = GetTime();
 	if (!runSim()) {
 		SMPL_ERROR("Simulation failed!");
 	}
 	m_stats["sim_time"] += GetTime() - m_timer;
+
+	if (save) {
+		writeState("SOLUTION");
+	}
+
 	return m_violation;
+}
+
+std::uint32_t Planner::RunSolution()
+{
+	read_solution();
+	return RunSim(false);
 }
 
 bool Planner::TryExtract()
@@ -512,7 +523,8 @@ bool Planner::runSim()
 	}
 	// if any rearrangement traj execuction failed, m_violation == 1
 
-	if (!m_sim->ExecTraj(m_exec, dummy, m_robot->GraspAt(), m_ooi->GetID()))
+	int grasp_at = m_grasp_at > 0 ? m_grasp_at : m_robot->GraspAt();
+	if (!m_sim->ExecTraj(m_exec, dummy, grasp_at, m_ooi->GetID()))
 	{
 		SMPL_ERROR("Failed to exec traj!");
 		m_violation |= 0x00000004;
@@ -823,6 +835,122 @@ void Planner::parse_scene(std::vector<Object>& obstacles)
 	SCENE.close();
 }
 
+void Planner::read_solution()
+{
+	std::string filename(__FILE__);
+	auto found = filename.find_last_of("/\\");
+	filename = filename.substr(0, found + 1) + "../../dat/txt/";
+
+	std::stringstream ss;
+	ss << "SOLUTION" << "_" << m_scene_id;
+	std::string s = ss.str();
+
+	filename += s;
+	filename += ".txt";
+
+	std::ifstream SOLUTION;
+	SOLUTION.open(filename);
+
+	if (SOLUTION.is_open())
+	{
+		std::string line;
+		while (!SOLUTION.eof())
+		{
+			getline(SOLUTION, line);
+			if (line.compare("GRASPAT") == 0)
+			{
+				getline(SOLUTION, line);
+				m_grasp_at = std::stoi(line);
+			}
+
+			else if (line.compare("SOLUTION") == 0)
+			{
+				getline(SOLUTION, line);
+				int num_trajs = std::stoi(line);
+
+				// read all push trajs
+				m_rearrangements.clear();
+				for (int i = 0; i < num_trajs - 1; ++i)
+				{
+					getline(SOLUTION, line);
+					if (line.compare("S") != 0)
+					{
+						SMPL_ERROR("Did not find the start of a new solution trajectory where I expected!");
+						break;
+					}
+
+					getline(SOLUTION, line);
+					int traj_points = std::stoi(line);
+
+					trajectory_msgs::JointTrajectory push_traj;
+					push_traj.joint_names = m_robot->RobotModel()->getPlanningJoints();
+					for (int j = 0; j < traj_points; ++j)
+					{
+						getline(SOLUTION, line);
+						std::stringstream ssp(line);
+						std::string split;
+
+						trajectory_msgs::JointTrajectoryPoint p;
+						int count = 0;
+						while (ssp.good())
+						{
+							getline(ssp, split, ',');
+							if (count < 7) {
+								p.positions.push_back(std::stod(split));
+							}
+							else {
+								p.time_from_start = ros::Duration(std::stod(split));
+							}
+							++count;
+						}
+
+						push_traj.points.push_back(std::move(p));
+					}
+					m_rearrangements.push_back(std::move(push_traj));
+				}
+
+				// read exec traj for OOI retrieval
+				getline(SOLUTION, line);
+				if (line.compare("S") != 0)
+				{
+					SMPL_ERROR("Did not find the start of a new solution trajectory where I expected!");
+					break;
+				}
+
+				getline(SOLUTION, line);
+				int traj_points = std::stoi(line);
+
+				m_exec.points.clear();
+				m_exec.joint_names = m_robot->RobotModel()->getPlanningJoints();
+				for (int j = 0; j < traj_points; ++j)
+				{
+					getline(SOLUTION, line);
+					std::stringstream ssp(line);
+					std::string split;
+
+					trajectory_msgs::JointTrajectoryPoint p;
+					int count = 0;
+					while (ssp.good())
+					{
+						getline(ssp, split, ',');
+						if (count < 7) {
+							p.positions.push_back(std::stod(split));
+						}
+						else {
+							p.time_from_start = ros::Duration(std::stod(split));
+						}
+						++count;
+					}
+
+					m_exec.points.push_back(std::move(p));
+				}
+			}
+		}
+	}
+
+	SOLUTION.close();
+}
+
 void Planner::setupGlobals()
 {
 	m_ph.getParam("/fridge", FRIDGE);
@@ -1111,7 +1239,7 @@ bool Planner::RunPP()
 				makespan = move_length;
 			}
 		}
-		writePPState(ngr);
+		writeState("PP", ngr);
 	}
 
 	std::string filename(__FILE__);
@@ -1155,14 +1283,14 @@ void Planner::prioritise()
 		[&dists](size_t i1, size_t i2) { return dists[i1] < dists[i2]; });
 }
 
-void Planner::writePPState(std::set<Coord, coord_compare> ngr)
+void Planner::writeState(const std::string& prefix, std::set<Coord, coord_compare> ngr)
 {
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
 	filename = filename.substr(0, found + 1) + "../../dat/txt/";
 
 	std::stringstream ss;
-	ss << "PP_" << m_scene_id;
+	ss << prefix << "_" << m_scene_id;
 	std::string s = ss.str();
 
 	filename += s;
@@ -1200,8 +1328,11 @@ void Planner::writePPState(std::set<Coord, coord_compare> ngr)
 	movable = "True";
 	for (const auto& a: m_agents)
 	{
-		State loc = a->InitState().state;
 		auto agent_obj = a->GetObject();
+		State loc = a->InitState().state;
+		if (loc.empty()) {
+			loc = { agent_obj->desc.o_x, agent_obj->desc.o_y };
+		}
 		DATA << agent_obj->desc.id << ','
 			<< agent_obj->Shape() << ','
 			<< agent_obj->desc.type << ','
@@ -1243,6 +1374,42 @@ void Planner::writePPState(std::set<Coord, coord_compare> ngr)
 			DATA 	<< p.at(0) << ','
 					<< p.at(1) << '\n';
 		}
+	}
+
+	DATA << "GRASPAT" << '\n';
+	DATA << m_robot->GraspAt() << '\n';
+	DATA << "SOLUTION" << '\n';
+	DATA << m_rearrangements.size() + 1 << '\n';
+
+	for (const auto& traj: m_rearrangements)
+	{
+		DATA << 'S' << '\n';
+		DATA << traj.points.size() << '\n';
+		for (const auto& p: traj.points)
+		{
+			DATA 	<< p.positions[0] << ','
+					<< p.positions[1] << ','
+					<< p.positions[2] << ','
+					<< p.positions[3] << ','
+					<< p.positions[4] << ','
+					<< p.positions[5] << ','
+					<< p.positions[6] << ','
+					<< p.time_from_start.toSec() << '\n';
+		}
+	}
+
+	DATA << 'S' << '\n';
+	DATA << m_exec.points.size() << '\n';
+	for (const auto& p: m_exec.points)
+	{
+		DATA 	<< p.positions[0] << ','
+				<< p.positions[1] << ','
+				<< p.positions[2] << ','
+				<< p.positions[3] << ','
+				<< p.positions[4] << ','
+				<< p.positions[5] << ','
+				<< p.positions[6] << ','
+				<< p.time_from_start.toSec() << '\n';
 	}
 
 	DATA.close();

@@ -69,6 +69,9 @@ int main(int argc, char** argv)
 			ph.getParam("robot/runs", runs);
 			ROS_WARN("Run planner %d times on: %s", runs, planfile.c_str());
 
+			bool replay;
+			ph.getParam("robot/replay", replay);
+
 for (int i = 0; i < runs; ++i)
 {
 			Planner p;
@@ -82,31 +85,38 @@ for (int i = 0; i < runs; ++i)
 			}
 			ROS_INFO("Planner and simulator init-ed!");
 
-			bool rearrange = true;
-			do
+			if (!replay)
 			{
-				bool done;
-				if (p.Plan(done))
+				bool rearrange = true;
+				do
 				{
-					if (done)
+					bool done;
+					if (p.Plan(done))
 					{
-						SMPL_INFO("Final plan found!");
-						break;
-					}
+						if (done)
+						{
+							SMPL_INFO("Final plan found!");
+							break;
+						}
 
-					if (p.Alive()) {
-						rearrange = p.Rearrange();
+						if (p.Alive()) {
+							rearrange = p.Rearrange();
+						}
 					}
 				}
-			}
-			while (rearrange && p.Alive());
+				while (rearrange && p.Alive());
 
-			if (p.Alive()) {
-				p.RunSim();
+				if (p.Alive()) {
+					p.RunSim(SAVE);
+				}
+
+				if (SAVE) {
+					p.SaveData();
+				}
 			}
 
-			if (SAVE) {
-				p.SaveData();
+			else {
+				p.RunSolution();
 			}
 }
 		}

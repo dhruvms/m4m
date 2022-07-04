@@ -53,6 +53,7 @@ robot:
   study: 1
   yoshikawa_tries: 10
   push_ik_yaws: 50
+  replay: false
 
 mapf:
   res: 0.01
