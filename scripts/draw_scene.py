@@ -209,6 +209,8 @@ def DrawScene(filepath, objs, trajs, ngr, goals, pushes, alpha=1.0):
 	AX.set_xlim([0.0, 1.2])
 	AX.set_ylim([-1.1, 0.0])
 	plt.savefig(filepath.replace('txt', 'png'), bbox_inches='tight')
+	# plt.savefig(filepath.replace('.txt', '.svg').replace('txt', 'png'), format='svg', dpi=1200, bbox_inches='tight')
+	# plt.savefig(filepath.replace('.txt', '.eps').replace('txt', 'png'), format='eps', bbox_inches='tight')
 	# plt.show()
 	plt.cla()
 
