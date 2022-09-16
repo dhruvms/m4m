@@ -11,7 +11,6 @@
 #include <comms/SetColours.h>
 #include <comms/ExecTraj.h>
 #include <comms/SimPushes.h>
-#include <comms/PoseStampedArray.h>
 
 #include <smpl/angles.h>
 #include <smpl/console/console.h>

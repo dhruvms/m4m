@@ -127,7 +127,15 @@ class BulletSim:
 				intersects = [oid != ground_plane_id and oid not in table_id and oid != obj_id for (oid, link) in overlaps]
 			else:
 				intersects = [oid != ground_plane_id and oid != table_id[0] and oid != obj_id for (oid, link) in overlaps]
-			if any(intersects): # only necessary overlaps: table and itself
+
+			remove = False
+			for oid, overlap in enumerate(overlaps):
+				if not intersects[oid]:
+					continue
+				if sim.getContactPoints(obj_id, overlap[0]):
+					remove = True
+					break
+			if remove: # only necessary overlaps: table and itself
 				sim.removeBody(obj_id)
 				del sim_data['objs'][obj_id]
 				obj_id = -1
