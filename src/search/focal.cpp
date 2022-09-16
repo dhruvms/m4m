@@ -22,7 +22,7 @@ m_call_number(0),
 m_wf(wf), m_wo(wo)
 {
 	// Set default max planing time
-	m_time_limit = 3.0; // seconds
+	m_time_limit = 30.0; // seconds
 
 	m_expands = new int[1];
 	m_min_f = std::numeric_limits<int>::max();

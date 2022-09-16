@@ -523,7 +523,7 @@ bool Agent::createLatticeAndSearch(bool backwards)
 	}
 	else
 	{
-		m_search = std::make_unique<Focal>(m_lattice.get(), 100.0);
+		m_search = std::make_unique<Focal>(m_lattice.get(), 2.0);
 		m_search->reset();
 
 		m_search->push_start(m_lattice->PushStart(m_init));

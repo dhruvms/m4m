@@ -366,6 +366,7 @@ private:
 	void voxeliseTrajectory();
 
 	std::vector<std::vector<double> > m_push_debug_data;
+	void createVirtualTable();
 };
 
 } // namespace clutter

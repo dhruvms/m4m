@@ -186,8 +186,23 @@ bool Robot::Setup()
 	m_ph.getParam("robot/grasping/tries", m_grasp_tries);
 	m_ph.getParam("robot/grasping/lift", m_grasp_lift);
 	m_vis_pub = m_nh.advertise<visualization_msgs::Marker>( "/visualization_marker", 10);
+	createVirtualTable();
 
 	return true;
+}
+
+void Robot::createVirtualTable()
+{
+	auto obs = m_cc->GetObstacles();
+	Object virtual_table = obs->front();
+	virtual_table.desc.o_x -= virtual_table.desc.x_size + 0.12;
+	virtual_table.desc.x_size = 0.1;
+	virtual_table.desc.id = 999;
+
+	virtual_table.CreateCollisionObjects();
+	virtual_table.CreateSMPLCollisionObject();
+	virtual_table.GenerateCollisionModels();
+	ProcessObstacles({ &virtual_table });
 }
 
 bool Robot::SavePushData(int scene_id, bool reset)
@@ -1670,7 +1685,7 @@ bool Robot::PlanPush(
 		double push_dist, push_at_angle;
 		if (!input)
 		{
-			push_dist = EuclideanDist({ push_end_pose.translation().x(), push_end_pose.translation().y() }, obj_traj->back().state);
+			push_dist = EuclideanDist(obj_traj->front().state, obj_traj->back().state) + 0.05;
 			push_at_angle = std::atan2(
 					obj_traj->back().state.at(1) - push_end_pose.translation().y(),
 					obj_traj->back().state.at(0) - push_end_pose.translation().x());
@@ -1685,7 +1700,7 @@ bool Robot::PlanPush(
 		}
 
 		// compute push action end pose
-		double push_frac = m_distD(m_rng) * 0.5 + 0.5;
+		double push_frac = 1.0; // m_distD(m_rng) * 0.5 + 0.5;
 		push_end_pose.translation().x() += std::cos(push_at_angle) * push_dist * push_frac + (m_distG(m_rng) * 0.025);
 		push_end_pose.translation().y() += std::sin(push_at_angle) * push_dist * push_frac + (m_distG(m_rng) * 0.025);
 		// SV_SHOW_INFO_NAMED("push_end_pose", smpl::visual::MakePoseMarkers(
@@ -1862,7 +1877,8 @@ void Robot::getPushStartPose(
 	UpdateKDLRobot(link);
 
 	// z is between 3 to 8cm above table height
-	double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.03;
+	// double z = m_table_z + (m_distD(m_rng) * 0.05) + 0.03;
+	double z = m_table_z + 0.03;
 
 	// (x, y) is randomly sampled near push start location
 	double x = push[0] + (m_distG(m_rng) * 0.025);
@@ -1875,7 +1891,7 @@ void Robot::getPushStartPose(
 
 	push_pose = Eigen::Translation3d(x, y, z) *
 				Eigen::AngleAxisd(push[2], Eigen::Vector3d::UnitZ()) *
-				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
+				Eigen::AngleAxisd(M_PI/6.0, Eigen::Vector3d::UnitY()) *
 				Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
 
 	SV_SHOW_INFO_NAMED("sampled_push_pose", smpl::visual::MakePoseMarkers(

@@ -1,7 +1,7 @@
 initial_configuration:
   joint_state:
     # Above table:
-    - { name: torso_lift_joint,       position: 0.0 }
+    - { name: torso_lift_joint,       position: 0.1 }
     - { name: r_shoulder_pan_joint,   position: -1.68651 }
     - { name: r_shoulder_lift_joint,  position: -0.184315 }
     - { name: r_upper_arm_roll_joint, position: -1.67611 }
@@ -49,7 +49,7 @@ robot:
   semi_minor: 0.05
   speed: 0.1
   interpolate: false
-  runs: 1
+  runs: 3
   study: 1
   yoshikawa_tries: 10
   push_ik_yaws: 50

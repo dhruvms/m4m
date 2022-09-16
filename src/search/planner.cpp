@@ -1003,7 +1003,7 @@ bool Planner::SaveData()
 
 	std::string filename(__FILE__);
 	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../../dat/PLANNER.csv";
+	filename = filename.substr(0, found + 1) + "../../dat/M4M.csv";
 
 	bool exists = FileExists(filename);
 	std::ofstream STATS;
