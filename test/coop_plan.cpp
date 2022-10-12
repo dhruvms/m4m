@@ -32,6 +32,11 @@ int main(int argc, char** argv)
 	filename = filename.substr(0, found + 1) + "../dat/FIRST.txt";
 	results = results.substr(0, found + 1) + "../dat/RESULTS.csv";
 
+int runs;
+ph.getParam("robot/runs", runs);
+ROS_WARN("Run planner %d times", runs);
+for (int i = 0; i < runs; ++i)
+{
 	std::ifstream NONE;
 	NONE.open(filename);
 
@@ -65,15 +70,13 @@ int main(int argc, char** argv)
 			planfile = planfile.substr(0, found + 1) + "../../../../simplan/src/simplan/data/clutter_scenes/";
 			planfile += level + "/plan_" + line + "_SCENE.txt";
 
-			int runs;
-			ph.getParam("robot/runs", runs);
-			ROS_WARN("Run planner %d times on: %s", runs, planfile.c_str());
+			// int runs;
+			// ph.getParam("robot/runs", runs);
+			// ROS_WARN("Run planner %d times on: %s", runs, planfile.c_str());
 
 			bool replay;
 			ph.getParam("robot/replay", replay);
 
-for (int i = 0; i < runs; ++i)
-{
 			Planner p;
 			bool ycb;
 			ph.getParam("objects/ycb", ycb);
@@ -118,7 +121,6 @@ for (int i = 0; i < runs; ++i)
 			else {
 				p.RunSolution();
 			}
-}
 		}
 	}
 	else
@@ -128,6 +130,7 @@ for (int i = 0; i < runs; ++i)
 	}
 
 	NONE.close();
+}
 
 	return 0;
 }
