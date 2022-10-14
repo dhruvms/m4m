@@ -1,0 +1,19 @@
+source screenrc.common
+
+screen -t sim
+stuff "cd /home/dhruv/work/code/ros/sbpl/src/^M"
+stuff "source ../devel/setup.bash^M"
+stuff "export ROS_MASTER_URI=http://localhost:11311^M"
+stuff "roslaunch pushplan sim.launch^M"
+
+screen -t pr2
+stuff "cd /home/dhruv/work/code/ros/sbpl/src/^M"
+stuff "source ../devel/setup.bash^M"
+stuff "export ROS_MASTER_URI=http://localhost:11311^M"
+stuff "sleep 5^M"
+stuff "roslaunch pushplan pr2.launch^M"
+
+screen -t bash
+stuff "cd /home/dhruv/work/code/ros/sbpl/src/^M"
+stuff "source ../devel/setup.bash^M"
+stuff "export ROS_MASTER_URI=http://localhost:11311^M"
