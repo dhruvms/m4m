@@ -291,7 +291,7 @@ bool Planner::Plan(bool& done)
 
 	SMPL_INFO("Replan MAPF");
 	bool result = m_cbs->Solve(backwards);
-	m_cbs->UpdateStats(m_cbs_stats);
+	// m_cbs->UpdateStats(m_cbs_stats);
 	m_stats["mapf_time"] += GetTime() - m_timer;
 
 	m_moved = 0;
@@ -1012,26 +1012,16 @@ bool Planner::SaveData()
 	if (!exists)
 	{
 		STATS << "UID,"
-				<< "PlanSuccess,SimSuccess,SimResult,SimTime,"
-				<< "RobotPlanTime,MAPFTime,PushInputTime,PlanPushTime,"
-				<< "PlanPushCalls,PushSamplesFound,PushActionsFound,"
-				<< "PushPlanningTime,PushSimTime,PushSimSuccesses,"
-				<< "CBSCalls,CBSSuccesses,CBSTime,"
-				<< "CTNodes,CTDeadends,CTExpansions,LLTime,ConflictDetectionTime\n";
+				<< "PlanSuccess,TotalTime,NumTrajs,"
+				<< "RobotPlanTime,MAPFTime,PlanPushTime,PushSimTime\n";
 	}
 
+	double total_time = m_stats["robot_planner_time"] + m_stats["push_planner_time"] + m_stats["mapf_time"];
+	int num_trajs = m_rearrangements.size() + 1;
 	STATS << m_scene_id << ','
-			<< m_plan_success << ',' << m_sim_success << ','
-			<< m_violation << ',' << m_stats["sim_time"] << ','
+			<< m_plan_success << ',' << total_time << ',' << num_trajs << ','
 			<< m_stats["robot_planner_time"] << ',' << m_stats["mapf_time"] << ','
-			<< m_stats["push_input_time"] << ',' << m_stats["push_planner_time"] << ','
-			<< robot_stats["plan_push_calls"] << ',' << robot_stats["push_samples_found"] << ','
-			<< robot_stats["push_actions_found"] << ',' << robot_stats["push_plan_time"] << ','
-			<< robot_stats["push_sim_time"] << ',' << robot_stats["push_sim_successes"] << ','
-			<< m_cbs_stats["calls"] << ',' << m_cbs_stats["solved"] << ','
-			<< m_cbs_stats["search_time"] << ',' << m_cbs_stats["ct_nodes"] << ','
-			<< m_cbs_stats["ct_deadends"] << ',' << m_cbs_stats["ct_expanded"] << ','
-			<< m_cbs_stats["ll_time"] << ',' << m_cbs_stats["conflict_time"] << '\n';
+			<< m_stats["push_planner_time"] << ',' << robot_stats["push_sim_time"] << '\n';
 	STATS.close();
 }
 
