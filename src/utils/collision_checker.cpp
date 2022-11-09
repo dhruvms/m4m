@@ -71,11 +71,14 @@ bool CollisionChecker::ImmovableCollision(const State& s, fcl::CollisionObject* 
 	LatticeState ls;
 	ls.state = s;
 
+	fcl::Vec3f t(o->getTranslation());
+	t.setValue(ls.state[0], ls.state[1], t[2]);
+	Eigen::Quaterniond q_eigen;
+	smpl::angles::from_euler_zyx(ls.state[5], ls.state[4], ls.state[3], q_eigen);
+	fcl::Quaternion3f q_fcl(q_eigen.w(), q_eigen.x(), q_eigen.y(), q_eigen.z());
 	fcl::Transform3f pose;
-	pose.setIdentity();
-	fcl::Vec3f T(o->getTranslation());
-	T.setValue(ls.state.at(0), ls.state.at(1), T[2]);
-	pose.setTranslation(T);
+	pose.setTranslation(t);
+	pose.setQuatRotation(q_fcl);
 
 	o->setTransform(pose);
 	o->computeAABB();
