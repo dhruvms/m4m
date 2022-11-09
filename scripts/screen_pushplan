@@ -17,3 +17,9 @@ screen -t bash
 stuff "cd /home/dhruv/work/code/ros/sbpl/src/^M"
 stuff "source ../devel/setup.bash^M"
 stuff "export ROS_MASTER_URI=http://localhost:11311^M"
+
+screen -t htop
+stuff "cd /home/dhruv/work/code/ros/sbpl/src/^M"
+stuff "source ../devel/setup.bash^M"
+stuff "export ROS_MASTER_URI=http://localhost:11311^M"
+stuff "htop^M"
