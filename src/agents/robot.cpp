@@ -986,7 +986,7 @@ bool Robot::planRetract(
 		ProcessObstacles(movable_obstacles);
 		ProcessFCLObstacles(movable_obstacles);
 		m_cc_i->SetFCLObjectOOI(m_ooi.GetFCLObject());
-		// req.allowed_planning_time = 5.0;
+		req.allowed_planning_time *= 2.0;
 	}
 
 	if (!m_planner->solve_with_constraints(req, res, m_movables, retract_cvecs))
