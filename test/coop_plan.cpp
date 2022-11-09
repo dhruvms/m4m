@@ -109,9 +109,9 @@ for (int i = 0; i < runs; ++i)
 				}
 				while (rearrange && p.Alive());
 
-				if (p.Alive()) {
-					p.RunSim(SAVE);
-				}
+				// if (p.Alive()) {
+				// 	p.RunSim(SAVE);
+				// }
 
 				if (SAVE) {
 					p.SaveData();
