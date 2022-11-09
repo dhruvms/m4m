@@ -203,6 +203,7 @@ void Robot::createVirtualTable()
 	virtual_table.CreateSMPLCollisionObject();
 	virtual_table.GenerateCollisionModels();
 	ProcessObstacles({ &virtual_table });
+	ProcessFCLObstacles({ &virtual_table });
 }
 
 bool Robot::SavePushData(int scene_id, bool reset)
@@ -378,6 +379,34 @@ bool Robot::SetScene(const comms::ObjectsPoses& objects)
 	// 	SV_SHOW_INFO(m_cc_m->getCollisionWorldVisualization());
 	// }
 	return true;
+}
+
+void Robot::ProcessFCLObstacles(std::vector<Object> *obstacles, bool remove)
+{
+	for (auto &o : *obstacles)
+	{
+		if (remove) {
+			m_cc_i->RemoveFCLMovableObstacle(o.GetFCLObject());
+		}
+		else {
+			m_cc_i->AddFCLMovableObstacle(o.GetFCLObject());
+		}
+	}
+	m_cc_i->SetupFCL();
+}
+
+void Robot::ProcessFCLObstacles(const std::vector<Object*> &obstacles, bool remove)
+{
+	for (const auto &o : obstacles)
+	{
+		if (remove) {
+			m_cc_i->RemoveFCLMovableObstacle(o->GetFCLObject());
+		}
+		else {
+			m_cc_i->AddFCLMovableObstacle(o->GetFCLObject());
+		}
+	}
+	m_cc_i->SetupFCL();
 }
 
 bool Robot::SteerAction(
@@ -951,14 +980,13 @@ bool Robot::planRetract(
 		return false;
 	}
 
-	if (have_obs) {
-		// add to immovable collision checker for final plan, and
-		// movable collision checker otherwise
-		ProcessObstacles(movable_obstacles, false, !finalise);
-		if (finalise) {
-			// remove from movable collision checker if they were added before
-			ProcessObstacles(movable_obstacles, true, true);
-		}
+	if (have_obs && finalise)
+	{
+		// add to immovable collision checker
+		ProcessObstacles(movable_obstacles);
+		ProcessFCLObstacles(movable_obstacles);
+		m_cc_i->SetFCLObjectOOI(m_ooi.GetFCLObject());
+		// req.allowed_planning_time = 5.0;
 	}
 
 	if (!m_planner->solve_with_constraints(req, res, m_movables, retract_cvecs))
@@ -967,16 +995,20 @@ bool Robot::planRetract(
 		detachObject();
 		m_start_state = orig_start;
 
-		if (have_obs && finalise) {
+		if (have_obs && finalise)
+		{
 			// remove from immovable collision checker
-			ProcessObstacles(movable_obstacles, true, false);
+			ProcessObstacles(movable_obstacles, true);
+			ProcessFCLObstacles(movable_obstacles, true);
 		}
 		return false;
 	}
 	// SMPL_INFO("Robot found extraction plan! # wps = %d", res.trajectory.joint_trajectory.points.size());
-	if (have_obs && finalise) {
+	if (have_obs && finalise)
+	{
 		// remove from immovable collision checker
-		ProcessObstacles(movable_obstacles, true, false);
+		ProcessObstacles(movable_obstacles, true);
+		ProcessFCLObstacles(movable_obstacles, true);
 	}
 
 	detachObject();

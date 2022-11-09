@@ -100,7 +100,7 @@ public:
 	double OutsideYMax() { return m_obstacles.at(m_base_loc).desc.o_y + (0.67 * m_obstacles.at(m_base_loc).desc.y_size); };
 
 	int NumObstacles() { return (int)m_obstacles.size(); };
-	const std::vector<Object>* GetObstacles() { return &m_obstacles; };
+	std::vector<Object>* GetObstacles() { return &m_obstacles; };
 
 	// PP
 	bool PPCollisionCheck(

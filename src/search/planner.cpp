@@ -90,6 +90,7 @@ bool Planner::Init(const std::string& scene_file, int scene_id, bool ycb)
 		SMPL_ERROR("Robot collision space setup failed!");
 		return false;
 	}
+	m_robot->ProcessFCLObstacles(m_cc->GetObstacles());
 	all_obstacles.clear();
 
 	// Ready OOI

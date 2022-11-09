@@ -47,6 +47,8 @@ public:
 
 	bool ProcessObstacles(const std::vector<Object>& obstacles, bool remove=false, bool movable=false);
 	bool ProcessObstacles(const std::vector<Object*>& obstacles, bool remove=false, bool movable=false);
+	void ProcessFCLObstacles(std::vector<Object> *obstacles, bool remove=false);
+	void ProcessFCLObstacles(const std::vector<Object*> &obstacles, bool remove=false);
 
 	bool SetScene(const comms::ObjectsPoses& objects);
 	bool SteerAction(
@@ -101,11 +103,8 @@ public:
 	void SetSim(const std::shared_ptr<BulletSim>& sim) {
 		m_sim = sim;
 	}
-	void SetOOI(const Object& ooi) {
-		m_ooi = ooi;
-	}
 	void SetOOI(Object* ooi) {
-		SetOOI(*ooi);
+		m_ooi = *ooi;
 	}
 
 
