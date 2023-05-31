@@ -232,7 +232,7 @@ def main():
 			DrawScene(filepath, objs, trajs, ngr, goals, pushes)
 
 def click_push(scene_id):
-	filename = '../../../../simplan/src/simplan/data/clutter_scenes/'
+	filename = '../dat/clutter_scenes/'
 
 	level = ''
 	if (scene_id < 100000):

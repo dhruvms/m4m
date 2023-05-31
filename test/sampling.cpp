@@ -61,7 +61,7 @@ int main(int argc, char** argv)
 
 			std::string planfile(__FILE__);
 			auto found = planfile.find_last_of("/\\");
-			planfile = planfile.substr(0, found + 1) + "../../../../simplan/src/simplan/data/clutter_scenes/";
+			planfile = planfile.substr(0, found + 1) + "../dat/clutter_scenes/";
 			planfile += level + "/plan_" + line + "_SCENE.txt";
 			ROS_WARN("Run planner on: %s", planfile.c_str());
 

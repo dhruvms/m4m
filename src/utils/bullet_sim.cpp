@@ -1093,7 +1093,7 @@ std::string BulletSim::getPartialFilename(int id)
 {
 	std::string filename(__FILE__), level;
 	auto found = filename.find_last_of("/\\");
-	filename = filename.substr(0, found + 1) + "../../../../../simplan/src/simplan/data/clutter_scenes/";
+	filename = filename.substr(0, found + 1) + "../../dat/clutter_scenes/";
 
 	if (id < 100000) {
 		level = "0";
